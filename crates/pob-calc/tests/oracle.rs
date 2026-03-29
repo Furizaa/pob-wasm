@@ -98,9 +98,12 @@ fn oracle_melee_str_parses() {
 fn oracle_melee_str_calculate_returns_result() {
     // Check that calculate() returns a result without panicking,
     // even if values are all zeroes at this stage.
+    let Some(data) = load_game_data() else {
+        eprintln!("DATA_DIR not set, skipping oracle test");
+        return;
+    };
     let xml = load_build_xml("melee_str");
     let build = parse_xml(&xml).expect("parse");
-    let data = load_game_data().expect("game data");
     let result = calculate(&build, data).expect("calculate should not error");
     // At minimum, the result should be a valid struct (no panic)
     let _ = serde_json::to_string(&result).expect("result should serialize");
