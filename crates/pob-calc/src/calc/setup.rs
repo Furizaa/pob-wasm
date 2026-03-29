@@ -23,7 +23,7 @@ pub fn init_env(build: &Build, data: Arc<GameData>) -> Result<CalcEnv, CalcError
     add_class_base_stats(build, &mut player_db, &data);
 
     // Add passive tree node mods
-    add_passive_mods(build, &mut player_db);
+    add_passive_mods(build, &mut player_db, &data);
 
     // Add config conditions
     add_config_conditions(build, &mut player_db);
@@ -79,14 +79,144 @@ fn add_class_base_stats(build: &Build, db: &mut ModDb, data: &GameData) {
     db.add(Mod::new_base("Mana", base_mana, src.clone()));
 }
 
-fn add_passive_mods(build: &Build, db: &mut ModDb) {
-    // For each allocated passive node, parse its stat strings and add mods.
-    // Node stat strings come from the PassiveTree loader.
-    // At this stage we only have node IDs — the tree data is not yet linked in CalcEnv.
-    // This is filled in once PassiveTree integration is complete (Task 4 below).
-    // For now, this is a no-op stub.
-    let _ = build;
-    let _ = db;
+fn add_passive_mods(build: &Build, db: &mut ModDb, data: &GameData) {
+    for &node_id in &build.passive_spec.allocated_nodes {
+        let Some(node) = data.passive_tree.nodes.get(&node_id) else {
+            // Node not found in tree data — skip silently
+            continue;
+        };
+        let source = ModSource::new("Passive", &node.name);
+        for stat_text in &node.stats {
+            let mods = crate::build::item_parser::parse_stat_text(stat_text, source.clone());
+            for m in mods {
+                db.add(m);
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        build::{parse_xml, types::Build},
+        data::GameData,
+        mod_db::types::{KeywordFlags, ModFlags, ModType},
+    };
+    use std::sync::Arc;
+
+    fn make_data_with_node(node_id: u32, stat: &str) -> Arc<GameData> {
+        let json = format!(
+            r#"{{
+            "gems": {{}},
+            "misc": {{
+                "game_constants": {{
+                    "base_maximum_all_resistances_%": 75,
+                    "maximum_block_%": 75,
+                    "base_maximum_spell_block_%": 75,
+                    "max_power_charges": 3,
+                    "max_frenzy_charges": 3,
+                    "max_endurance_charges": 3,
+                    "maximum_life_leech_rate_%_per_minute": 20,
+                    "maximum_mana_leech_rate_%_per_minute": 20,
+                    "maximum_life_leech_amount_per_leech_%_max_life": 10,
+                    "maximum_mana_leech_amount_per_leech_%_max_mana": 10,
+                    "maximum_energy_shield_leech_amount_per_leech_%_max_energy_shield": 10,
+                    "base_number_of_totems_allowed": 1,
+                    "impaled_debuff_number_of_reflected_hits": 8,
+                    "soul_eater_maximum_stacks": 40,
+                    "maximum_righteous_charges": 10,
+                    "maximum_blood_scythe_charges": 8
+                }},
+                "character_constants": {{"life_per_str": 0.5}},
+                "monster_life_table": [],
+                "monster_damage_table": [],
+                "monster_evasion_table": [],
+                "monster_accuracy_table": [],
+                "monster_ally_life_table": [],
+                "monster_ally_damage_table": [],
+                "monster_ailment_threshold_table": [],
+                "monster_phys_conversion_multi_table": []
+            }},
+            "tree": {{
+                "nodes": {{
+                    "{node_id}": {{ "id": {node_id}, "name": "Test Node", "stats": ["{stat}"], "out": [] }}
+                }}
+            }}
+        }}"#
+        );
+        Arc::new(GameData::from_json(&json).unwrap())
+    }
+
+    fn build_with_node(node_id: u32) -> Build {
+        let xml = format!(
+            r#"<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_29" bandit="None" mainSocketGroup="1"
+         className="Marauder" ascendClassName="None"/>
+  <Skills activeSkillSet="1"><SkillSet id="1"/></Skills>
+  <Tree activeSpec="1">
+    <Spec treeVersion="3_29" nodes="{node_id}" classId="1" ascendClassId="0"/>
+  </Tree>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config/>
+</PathOfBuilding>"#
+        );
+        parse_xml(&xml).unwrap()
+    }
+
+    #[test]
+    fn allocated_life_node_increases_life_base() {
+        let node_id = 99999u32;
+        let data = make_data_with_node(node_id, "+40 to maximum Life");
+        let build = build_with_node(node_id);
+        let env = init_env(&build, data).unwrap();
+        let life_base =
+            env.player
+                .mod_db
+                .sum(ModType::Base, "Life", ModFlags::NONE, KeywordFlags::NONE);
+        // The base class life (38 + 12*90 = 1118) + 40 from the node
+        assert!(
+            life_base > 40.0,
+            "Life base should include node contribution, got {life_base}"
+        );
+        // More precisely: should be base (1118) + 40 = 1158
+        assert!(
+            life_base >= 1118.0 + 40.0 - 1.0,
+            "Life base should be at least 1157, got {life_base}"
+        );
+    }
+
+    #[test]
+    fn unallocated_node_has_no_effect() {
+        let node_id = 99998u32;
+        let data = make_data_with_node(node_id, "+40 to maximum Life");
+        // Build without that node allocated
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_29" bandit="None" mainSocketGroup="1"
+         className="Marauder" ascendClassName="None"/>
+  <Skills activeSkillSet="1"><SkillSet id="1"/></Skills>
+  <Tree activeSpec="1">
+    <Spec treeVersion="3_29" nodes="" classId="1" ascendClassId="0"/>
+  </Tree>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config/>
+</PathOfBuilding>"#;
+        let build = parse_xml(xml).unwrap();
+        let env = init_env(&build, data).unwrap();
+        // Use tabulate to check no Passive source for Life
+        let tabs = env
+            .player
+            .mod_db
+            .tabulate("Life", None, ModFlags::NONE, KeywordFlags::NONE);
+        assert!(
+            !tabs
+                .iter()
+                .any(|t| t.source_category == "Passive" && t.source_name == "Test Node"),
+            "Unallocated node should not contribute to Life"
+        );
+    }
 }
 
 fn add_config_conditions(build: &Build, db: &mut ModDb) {
