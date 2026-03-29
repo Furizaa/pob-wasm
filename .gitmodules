@@ -1,0 +1,3 @@
+[submodule "third-party/PathOfBuilding"]
+	path = third-party/PathOfBuilding
+	url = https://github.com/PathOfBuildingCommunity/PathOfBuilding.git
