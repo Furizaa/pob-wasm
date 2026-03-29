@@ -20,8 +20,14 @@ jobs:
       - name: Install wasm-pack
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
-      - name: Run native tests
+      - name: Install LuaJIT
+        run: sudo apt-get install -y luajit
+
+      - name: Run native tests (pob-calc + data-extractor)
         run: cargo test --workspace --exclude pob-wasm
 
       - name: Build WASM package
-        run: wasm-pack build crates/pob-wasm --target web --dev
+        run: wasm-pack build crates/pob-wasm --target web --release
+
+      - name: Run WASM tests in headless Chrome
+        run: wasm-pack test crates/pob-wasm --headless --chrome
