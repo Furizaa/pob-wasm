@@ -5,7 +5,58 @@
 // builds skillCfg (flags, keyword flags), and sets conditions like UsingAttack,
 // UsingSpell, IsMainSkill, etc.
 
+use std::sync::LazyLock;
+
 use super::env::CalcEnv;
+
+// Heuristic spell list — will be replaced by gem data in Task 4.
+// Kinetic Blast is a ranged ATTACK, not a spell — excluded from this list.
+static KNOWN_SPELLS: LazyLock<std::collections::HashSet<&'static str>> = LazyLock::new(|| {
+    [
+        "Fireball",
+        "Frostbolt",
+        "Arc",
+        "Lightning Bolt",
+        "Freezing Pulse",
+        "Ball Lightning",
+        "Storm Call",
+        "Ice Nova",
+        "Vaal Fireball",
+        "Spark",
+        "Incinerate",
+        "Flameblast",
+        "Scorching Ray",
+        "Firestorm",
+        "Glacial Cascade",
+        "Ice Spear",
+        "Arctic Breath",
+        "Discharge",
+        "Ethereal Knives",
+    ]
+    .iter()
+    .copied()
+    .collect()
+});
+
+// Ranged attacks that must not set UsingMelee.
+static KNOWN_RANGED_ATTACKS: LazyLock<std::collections::HashSet<&'static str>> =
+    LazyLock::new(|| {
+        [
+            "Tornado Shot",
+            "Barrage",
+            "Split Arrow",
+            "Burning Arrow",
+            "Rain of Arrows",
+            "Lightning Arrow",
+            "Ice Shot",
+            "Shrapnel Shot",
+            "Puncture",
+            "Kinetic Blast",
+        ]
+        .iter()
+        .copied()
+        .collect()
+    });
 
 pub fn run(env: &mut CalcEnv, build: &crate::build::Build) {
     use crate::build::types::ActiveSkill;
@@ -39,35 +90,9 @@ pub fn run(env: &mut CalcEnv, build: &crate::build::Build) {
     let skill_id = active_gem.skill_id.clone();
 
     // Classify skill type by name (heuristic until gem data drives this)
-    let known_spells: std::collections::HashSet<&str> = [
-        "Fireball",
-        "Frostbolt",
-        "Arc",
-        "Lightning Bolt",
-        "Freezing Pulse",
-        "Ball Lightning",
-        "Storm Call",
-        "Ice Nova",
-        "Vaal Fireball",
-        "Spark",
-        "Incinerate",
-        "Flameblast",
-        "Scorching Ray",
-        "Firestorm",
-        "Glacial Cascade",
-        "Ice Spear",
-        "Arctic Breath",
-        "Discharge",
-        "Ethereal Knives",
-        "Kinetic Blast",
-    ]
-    .iter()
-    .copied()
-    .collect();
-
-    let is_spell = known_spells.contains(skill_id.as_str());
+    let is_spell = KNOWN_SPELLS.contains(skill_id.as_str());
     let is_attack = !is_spell;
-    let is_melee = is_attack; // simplified: all non-spell attacks treated as melee
+    let is_melee = is_attack && !KNOWN_RANGED_ATTACKS.contains(skill_id.as_str());
 
     // Set conditions on the player mod db
     env.player.mod_db.set_condition("IsMainSkill", true);
@@ -89,7 +114,7 @@ pub fn run(env: &mut CalcEnv, build: &crate::build::Build) {
     env.player.main_skill = Some(ActiveSkill {
         skill_id,
         level: active_gem.level,
-        skill_mod_db: ModDb::new(),
+        skill_mod_db: ModDb::new(), // TODO(Task 4): populate from gem data
         is_attack,
         is_spell,
         is_melee,
