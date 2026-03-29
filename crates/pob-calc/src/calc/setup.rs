@@ -1,6 +1,6 @@
 use super::env::CalcEnv;
 use crate::{
-    build::{item_parser::parse_stat_text, Build},
+    build::Build,
     data::GameData,
     error::CalcError,
     mod_db::{

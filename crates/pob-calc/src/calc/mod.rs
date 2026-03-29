@@ -8,7 +8,7 @@ pub mod setup;
 pub mod triggers;
 
 use crate::{build::Build, data::GameData, error::CalcError};
-use env::{BreakdownTable, CalcEnv, OutputTable};
+use env::{BreakdownTable, OutputTable};
 use serde::Serialize;
 use std::sync::Arc;
 
