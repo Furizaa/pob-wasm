@@ -2493,7 +2493,17 @@
     "id": "heavy_strike",
     "display_name": "Heavy Strike",
     "is_support": false,
-    "skill_types": []
+    "skill_types": [],
+    "levels": [
+      {
+        "level": 20,
+        "phys_min": 82.0,
+        "phys_max": 123.0,
+        "crit_chance": 0.05,
+        "cast_time": 0.0,
+        "attack_speed_mult": 0.9
+      }
+    ]
   },
   "voltaxic_burst_alt_x": {
     "id": "voltaxic_burst_alt_x",
@@ -2973,7 +2983,19 @@
     "id": "viper_strike",
     "display_name": "Viper Strike",
     "is_support": false,
-    "skill_types": []
+    "skill_types": [],
+    "levels": [
+      {
+        "level": 20,
+        "phys_min": 41.0,
+        "phys_max": 62.0,
+        "chaos_min": 10.0,
+        "chaos_max": 15.0,
+        "crit_chance": 0.05,
+        "cast_time": 0.0,
+        "attack_speed_mult": 1.0
+      }
+    ]
   },
   "storm_rain_alt_y": {
     "id": "storm_rain_alt_y",
@@ -3747,7 +3769,17 @@
     "id": "cleave",
     "display_name": "Cleave",
     "is_support": false,
-    "skill_types": []
+    "skill_types": [],
+    "levels": [
+      {
+        "level": 20,
+        "phys_min": 69.0,
+        "phys_max": 103.0,
+        "crit_chance": 0.05,
+        "cast_time": 0.0,
+        "attack_speed_mult": 1.0
+      }
+    ]
   },
   "shockwave_totem_alt_y": {
     "id": "shockwave_totem_alt_y",
@@ -5071,7 +5103,7 @@
   },
   "summon_chaos_golem_alt_y": {
     "id": "summon_chaos_golem_alt_y",
-    "display_name": "Summon Chaos Golem of the Maelström",
+    "display_name": "Summon Chaos Golem of the Maelstr\u00f6m",
     "is_support": false,
     "skill_types": []
   },
@@ -10083,7 +10115,17 @@
     "id": "fireball",
     "display_name": "Fireball",
     "is_support": false,
-    "skill_types": []
+    "skill_types": [],
+    "levels": [
+      {
+        "level": 20,
+        "fire_min": 190.0,
+        "fire_max": 285.0,
+        "crit_chance": 0.06,
+        "cast_time": 0.75,
+        "attack_speed_mult": 0.0
+      }
+    ]
   },
   "edict_of_winter_when_hit": {
     "id": "edict_of_winter_when_hit",

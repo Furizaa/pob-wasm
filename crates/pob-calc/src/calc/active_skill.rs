@@ -106,21 +106,67 @@ pub fn run(env: &mut CalcEnv, build: &crate::build::Build) {
         env.player.mod_db.set_condition("UsingMelee", true);
     }
 
-    // Default timing — will be overridden by gem level data in Task 4
-    let cast_time = if is_spell { 0.7 } else { 0.0 };
-    let attack_speed_base = if is_attack { 1.5 } else { 0.0 };
-    let base_crit_chance = if is_spell { 0.06 } else { 0.05 };
+    // Default timing — overridden by gem level data below
+    let mut cast_time = if is_spell { 0.7 } else { 0.0 };
+    let mut attack_speed_base = if is_attack { 1.5 } else { 0.0 };
+    let mut base_crit_chance = if is_spell { 0.06 } else { 0.05 };
+    let mut base_damage: std::collections::HashMap<String, (f64, f64)> =
+        std::collections::HashMap::new();
+
+    // Populate base_damage and timing from gem level data.
+    // gems.json keys are lowercase; skillId in the build XML may be mixed-case.
+    let gem_key = skill_id.to_lowercase();
+    // Also try replacing spaces with underscores (e.g. "Heavy Strike" -> "heavy_strike")
+    let gem_key_underscored = gem_key.replace(' ', "_");
+    let gem_data = env
+        .data
+        .gems
+        .get(&gem_key)
+        .or_else(|| env.data.gems.get(&gem_key_underscored));
+
+    if let Some(gem_data) = gem_data {
+        let gem_level = active_gem.level as usize;
+        // levels vec is 0-indexed; level 20 is at index 19 (level-1)
+        if let Some(level_data) = gem_data.levels.get(gem_level.saturating_sub(1)) {
+            macro_rules! ins {
+                ($key:expr, $min:expr, $max:expr) => {
+                    if $min > 0.0 || $max > 0.0 {
+                        base_damage.insert($key.to_string(), ($min, $max));
+                    }
+                };
+            }
+            ins!("Physical", level_data.phys_min, level_data.phys_max);
+            ins!("Fire", level_data.fire_min, level_data.fire_max);
+            ins!("Cold", level_data.cold_min, level_data.cold_max);
+            ins!(
+                "Lightning",
+                level_data.lightning_min,
+                level_data.lightning_max
+            );
+            ins!("Chaos", level_data.chaos_min, level_data.chaos_max);
+
+            if level_data.crit_chance > 0.0 {
+                base_crit_chance = level_data.crit_chance;
+            }
+            if level_data.cast_time > 0.0 {
+                cast_time = level_data.cast_time;
+            }
+            if level_data.attack_speed_mult > 0.0 {
+                attack_speed_base = level_data.attack_speed_mult;
+            }
+        }
+    }
 
     env.player.main_skill = Some(ActiveSkill {
         skill_id,
         level: active_gem.level,
-        skill_mod_db: ModDb::new(), // TODO(Task 4): populate from gem data
+        skill_mod_db: ModDb::new(),
         is_attack,
         is_spell,
         is_melee,
         can_crit: true,
         base_crit_chance,
-        base_damage: std::collections::HashMap::new(), // populated in Task 4
+        base_damage,
         attack_speed_base,
         cast_time,
     });
