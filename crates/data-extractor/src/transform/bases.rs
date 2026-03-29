@@ -15,19 +15,21 @@ pub struct BaseItem {
 
 pub fn extract(reader: &GgpkReader, output: &Path) -> Result<(), ExtractError> {
     // ItemClasses.dat64 row_size = 32: Id(str,8) Name(str,8) + remaining fields
-    let ic_bytes = reader.read_bytes("Data/ItemClasses.dat64")?;
-    let item_classes = Dat64::parse(ic_bytes, 32, "ItemClasses.dat64")?;
+    let ic_bytes = reader.read_bytes("Data/ItemClasses.datc64")?;
+    let item_classes = Dat64::parse_datc64(ic_bytes, 153, "ItemClasses.datc64")?;
     // Build row-index → name map
     let mut class_names: Vec<String> = Vec::with_capacity(item_classes.row_count);
     for i in 0..item_classes.row_count {
         class_names.push(item_classes.read_string(i, 8));
     }
 
-    // BaseItemTypes.dat64 row_size = 96
-    // offset 0: Id (str, 8), offset 8: Name (str, 8),
-    // offset 16: ItemClassesKey (u64, 8), offset 24: DropLevel (u32, 4)
-    let bit_bytes = reader.read_bytes("Data/BaseItemTypes.dat64")?;
-    let base_items = Dat64::parse(bit_bytes, 96, "BaseItemTypes.dat64")?;
+    // BaseItemTypes.datc64 row_size = 310 (PoE2 probed layout):
+    // offset 0:  Id (str, 8)
+    // offset 8:  ItemClassesKey (u64, 8) → row index into ItemClasses
+    // offset 32: Name (str, 8)
+    // offset 88: DropLevel (u32, 4) — NOTE: may need calibration; 0 used as fallback
+    let bit_bytes = reader.read_bytes("Data/BaseItemTypes.datc64")?;
+    let base_items = Dat64::parse_datc64(bit_bytes, 310, "BaseItemTypes.datc64")?;
 
     let mut items: Vec<BaseItem> = Vec::with_capacity(base_items.row_count);
     for i in 0..base_items.row_count {
@@ -35,10 +37,10 @@ pub fn extract(reader: &GgpkReader, output: &Path) -> Result<(), ExtractError> {
         if id.is_empty() {
             continue;
         }
-        let name = base_items.read_string(i, 8);
-        let class_key = base_items.read_u64(i, 16) as usize;
+        let name = base_items.read_string(i, 32);
+        let class_key = base_items.read_u64(i, 8) as usize;
         let item_class = class_names.get(class_key).cloned().unwrap_or_default();
-        let drop_level = base_items.read_u32(i, 24);
+        let drop_level = base_items.read_u32(i, 88);
 
         items.push(BaseItem {
             id,

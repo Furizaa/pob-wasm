@@ -13,11 +13,14 @@ pub struct ModEntry {
 }
 
 pub fn extract(reader: &GgpkReader, output: &Path) -> Result<(), ExtractError> {
-    // Mods.dat64 row_size = 104
-    // offset 0: Id (str, 8), offset 8: Name (str, 8),
-    // offset 16: GenerationType (u32, 4), offset 20: Domain (u32, 4)
-    let bytes = reader.read_bytes("Data/Mods.dat64")?;
-    let dat = Dat64::parse(bytes, 104, "Mods.dat64")?;
+    // Mods.datc64 row_size = 654 (PoE2 probed layout):
+    // offset 0:   Id (str, 8)
+    // offset 504: Domain (u32, 4)
+    // offset 508: GenerationType (u32, 4)
+    // Name field not yet calibrated for PoE2 — stored as empty for now
+    // NOTE: these offsets may need calibration; see docs/superpowers/plans for Phase 3 notes
+    let bytes = reader.read_bytes("Data/Mods.datc64")?;
+    let dat = Dat64::parse_datc64(bytes, 654, "Mods.datc64")?;
 
     let mut mods: HashMap<String, ModEntry> = HashMap::new();
     for i in 0..dat.row_count {
@@ -25,9 +28,9 @@ pub fn extract(reader: &GgpkReader, output: &Path) -> Result<(), ExtractError> {
         if id.is_empty() {
             continue;
         }
-        let name = dat.read_string(i, 8);
-        let generation_type = dat.read_u32(i, 16);
-        let domain = dat.read_u32(i, 20);
+        let name = String::new(); // Name field calibration deferred to Phase 3
+        let domain = dat.read_u32(i, 504);
+        let generation_type = dat.read_u32(i, 508);
 
         let mod_type = match generation_type {
             1 => "Prefix",

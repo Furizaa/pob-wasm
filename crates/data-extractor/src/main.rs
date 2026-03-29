@@ -1,6 +1,6 @@
+mod dat64;
 mod error;
 mod ggpk_reader;
-mod dat64;
 mod transform;
 
 use clap::Parser;

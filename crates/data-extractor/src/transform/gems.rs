@@ -14,8 +14,8 @@ pub struct GemData {
 pub fn extract(reader: &GgpkReader, output: &Path) -> Result<(), ExtractError> {
     // ActiveSkillType.dat64: just need row indices for type IDs
     // row_size = 8 (Id string only)
-    let ast_bytes = reader.read_bytes("Data/ActiveSkillType.dat64")?;
-    let ast = Dat64::parse(ast_bytes, 8, "ActiveSkillType.dat64")?;
+    let ast_bytes = reader.read_bytes("Data/ActiveSkillType.datc64")?;
+    let ast = Dat64::parse_datc64(ast_bytes, 24, "ActiveSkillType.datc64")?;
     let mut type_ids: Vec<u32> = Vec::new();
     for i in 0..ast.row_count {
         // Store the 1-based type number (POB uses _rowIndex+1)
@@ -23,8 +23,8 @@ pub fn extract(reader: &GgpkReader, output: &Path) -> Result<(), ExtractError> {
     }
 
     // ActiveSkills.dat64: row_size = 72 (see plan header)
-    let as_bytes = reader.read_bytes("Data/ActiveSkills.dat64")?;
-    let active_skills = Dat64::parse(as_bytes, 72, "ActiveSkills.dat64")?;
+    let as_bytes = reader.read_bytes("Data/ActiveSkills.datc64")?;
+    let active_skills = Dat64::parse_datc64(as_bytes, 257, "ActiveSkills.datc64")?;
 
     let mut gems: HashMap<String, GemData> = HashMap::new();
     for i in 0..active_skills.row_count {

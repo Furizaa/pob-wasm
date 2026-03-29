@@ -1,17 +1,60 @@
 use crate::error::ExtractError;
 
-/// A parsed dat64 file.
+/// Probe the actual row size of a .datc64 file by scanning for the 0xBB sentinel.
+/// Returns (row_count, row_size) or None if the sentinel is not found.
+pub fn probe_row_size(bytes: &[u8]) -> Option<(usize, usize)> {
+    if bytes.len() < 12 {
+        return None;
+    }
+    let row_count = u32::from_le_bytes(bytes[0..4].try_into().unwrap()) as usize;
+    // Search for 0xBB×8 sentinel after the row count bytes
+    let sentinel = [0xBBu8; 8];
+    // Scan from byte 4 onward for the sentinel
+    for offset in 4..bytes.len().saturating_sub(7) {
+        if bytes[offset..offset + 8] == sentinel {
+            let data_bytes = offset - 4;
+            if row_count > 0 && data_bytes % row_count == 0 {
+                return Some((row_count, data_bytes / row_count));
+            } else if row_count == 0 {
+                return Some((0, 0));
+            }
+        }
+    }
+    None
+}
+
+/// A parsed dat64 / datc64 file.
 pub struct Dat64 {
     pub row_count: usize,
     row_size: usize,
     rows: Vec<u8>,
     var_data: Vec<u8>,
+    /// Bias to subtract from string/array pointer values (0 for .dat64, 8 for .datc64).
+    string_bias: usize,
 }
 
 impl Dat64 {
-    /// Parse raw bytes from a .dat64 file.
+    /// Parse raw bytes from a .dat64 file (PoE1 format, no pointer bias).
     /// `row_size` must be determined by the caller from the table schema.
     pub fn parse(bytes: Vec<u8>, row_size: usize, file_name: &str) -> Result<Self, ExtractError> {
+        Self::parse_with_bias(bytes, row_size, file_name, 0)
+    }
+
+    /// Parse raw bytes from a .datc64 file (PoE2 format, 8-byte pointer bias).
+    pub fn parse_datc64(
+        bytes: Vec<u8>,
+        row_size: usize,
+        file_name: &str,
+    ) -> Result<Self, ExtractError> {
+        Self::parse_with_bias(bytes, row_size, file_name, 8)
+    }
+
+    fn parse_with_bias(
+        bytes: Vec<u8>,
+        row_size: usize,
+        file_name: &str,
+        string_bias: usize,
+    ) -> Result<Self, ExtractError> {
         if bytes.len() < 4 {
             return Err(ExtractError::Dat64Parse {
                 file: file_name.to_string(),
@@ -45,6 +88,7 @@ impl Dat64 {
             row_size,
             rows,
             var_data,
+            string_bias,
         })
     }
 
@@ -73,9 +117,11 @@ impl Dat64 {
 
     /// Read a UTF-16LE string from the variable section.
     /// The field at `byte_offset` is an 8-byte offset into the var section.
+    /// For .datc64 (PoE2) the stored offset includes a +8 bias that is subtracted here.
     pub fn read_string(&self, row_index: usize, byte_offset: usize) -> String {
         let base = row_index * self.row_size + byte_offset;
-        let offset = u64::from_le_bytes(self.rows[base..base + 8].try_into().unwrap()) as usize;
+        let raw_offset = u64::from_le_bytes(self.rows[base..base + 8].try_into().unwrap()) as usize;
+        let offset = raw_offset.saturating_sub(self.string_bias);
         self.read_var_string(offset)
     }
 
@@ -100,11 +146,13 @@ impl Dat64 {
 
     /// Read an array of u64 row-key references.
     /// The field at `byte_offset` is a 16-byte struct: 8-byte count + 8-byte offset.
+    /// For .datc64 the offset also carries the same +8 bias.
     pub fn read_key_array(&self, row_index: usize, byte_offset: usize) -> Vec<u64> {
         let base = row_index * self.row_size + byte_offset;
         let count = u64::from_le_bytes(self.rows[base..base + 8].try_into().unwrap()) as usize;
-        let offset =
+        let raw_offset =
             u64::from_le_bytes(self.rows[base + 8..base + 16].try_into().unwrap()) as usize;
+        let offset = raw_offset.saturating_sub(self.string_bias);
         (0..count)
             .map(|i| {
                 let pos = offset + i * 8;

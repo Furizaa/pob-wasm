@@ -52,8 +52,8 @@ fn extract_game_constants(
     reader: &GgpkReader,
 ) -> Result<std::collections::HashMap<String, f64>, ExtractError> {
     // GameConstants.dat64: Id(str,8) Value(i32,4) Divisor(i32,4) = row_size 16
-    let bytes = reader.read_bytes("Data/GameConstants.dat64")?;
-    let dat = Dat64::parse(bytes, 16, "GameConstants.dat64")?;
+    let bytes = reader.read_bytes("Data/GameConstants.datc64")?;
+    let dat = Dat64::parse_datc64(bytes, 16, "GameConstants.datc64")?;
     let mut map = std::collections::HashMap::new();
     for i in 0..dat.row_count {
         let id = dat.read_string(i, 0);
@@ -109,9 +109,13 @@ fn extract_monster_stats(
     ),
     ExtractError,
 > {
-    // DefaultMonsterStats.dat64 row_size = 32 (see plan header for layout)
-    let bytes = reader.read_bytes("Data/DefaultMonsterStats.dat64")?;
-    let dat = Dat64::parse(bytes, 32, "DefaultMonsterStats.dat64")?;
+    // DefaultMonsterStats.datc64 row_size = 72 (PoE2)
+    // PoE2 layout: offset 0-7 = string ptr (Id), then numeric fields start at 8
+    // Probed u32 values at level 1: off12=67, off16=14, off20=22, off24=20, off28=15, off32=16
+    // These are best-guess assignments — calibration needed in Phase 3
+    // NOTE: exact field positions differ from PoE1 spec
+    let bytes = reader.read_bytes("Data/DefaultMonsterStats.datc64")?;
+    let dat = Dat64::parse_datc64(bytes, 72, "DefaultMonsterStats.datc64")?;
     let mut life = Vec::new();
     let mut damage = Vec::new();
     let mut evasion = Vec::new();
@@ -121,14 +125,14 @@ fn extract_monster_stats(
     let mut ailment = Vec::new();
     let mut phys_conv = Vec::new();
     for i in 0..dat.row_count {
-        life.push(dat.read_u32(i, 0) as i32);
-        evasion.push(dat.read_u32(i, 4) as i32);
-        accuracy.push(dat.read_u32(i, 8) as i32);
-        damage.push(dat.read_u32(i, 12) as i32);
-        ally_life.push(dat.read_u32(i, 16) as i32);
-        ally_damage.push(dat.read_u32(i, 20) as i32);
-        ailment.push(dat.read_u32(i, 24) as i32);
-        phys_conv.push(dat.read_f32(i, 28));
+        life.push(dat.read_u32(i, 12) as i32); // MonsterLife (probed)
+        evasion.push(dat.read_u32(i, 16) as i32); // MonsterEvasion (probed)
+        accuracy.push(dat.read_u32(i, 20) as i32); // MonsterAccuracy (probed)
+        damage.push(dat.read_u32(i, 24) as i32); // MonsterDamage (probed)
+        ally_life.push(dat.read_u32(i, 28) as i32);
+        ally_damage.push(dat.read_u32(i, 32) as i32);
+        ailment.push(dat.read_u32(i, 36) as i32);
+        phys_conv.push(dat.read_f32(i, 40));
     }
     Ok((
         life,
