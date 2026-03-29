@@ -186,12 +186,6 @@ impl Dat64 {
             })
             .collect()
     }
-
-    /// Public accessor for reading a string directly from the variable section by offset.
-    /// Useful when callers have already resolved a pointer value.
-    pub fn read_var_string_pub(&self, offset: usize) -> String {
-        self.read_var_string(offset)
-    }
 }
 
 #[cfg(test)]
@@ -242,5 +236,53 @@ mod tests {
         bytes.extend_from_slice(&42u32.to_le_bytes());
         // No sentinel
         assert!(Dat64::parse(bytes, 4, "bad.dat64").is_err());
+    }
+
+    /// Test the two-level pointer dereference in `read_string_array`.
+    ///
+    /// var_data layout (no bias):
+    ///   [0..16)  — array of 2 string pointers (u64 LE each)
+    ///                ptr[0] = 16  (offset of first string in var_data)
+    ///                ptr[1] = 56  (offset of second string in var_data)
+    ///   [16..56) — "+10 to maximum Life" as UTF-16LE + null terminator (40 bytes)
+    ///   [56..96) — "8% increased Armour" as UTF-16LE + null terminator (40 bytes)
+    ///
+    /// Row (16 bytes): count=2 (u64 LE) | array_offset=0 (u64 LE)
+    #[test]
+    fn reads_string_array() {
+        // Encode both strings as UTF-16LE with null terminator
+        fn utf16le_null(s: &str) -> Vec<u8> {
+            let mut out: Vec<u8> = s.encode_utf16().flat_map(|c| c.to_le_bytes()).collect();
+            out.extend_from_slice(&[0x00, 0x00]); // null terminator
+            out
+        }
+
+        let str1 = utf16le_null("+10 to maximum Life"); // 40 bytes
+        let str2 = utf16le_null("8% increased Armour"); // 40 bytes
+
+        // var_data: [ptr0 (8 bytes)][ptr1 (8 bytes)][str1 (40 bytes)][str2 (40 bytes)]
+        let ptr0_offset: u64 = 16; // str1 starts at offset 16 in var_data
+        let ptr1_offset: u64 = 16 + str1.len() as u64; // str2 starts right after str1
+
+        let mut var_data = Vec::new();
+        var_data.extend_from_slice(&ptr0_offset.to_le_bytes());
+        var_data.extend_from_slice(&ptr1_offset.to_le_bytes());
+        var_data.extend_from_slice(&str1);
+        var_data.extend_from_slice(&str2);
+
+        // Row: count=2 | array_offset=0 (pointers start at var_data[0])
+        let count: u64 = 2;
+        let array_offset: u64 = 0;
+        let mut row = Vec::new();
+        row.extend_from_slice(&count.to_le_bytes());
+        row.extend_from_slice(&array_offset.to_le_bytes());
+
+        let bytes = make_dat64(1, &row, &var_data);
+        let dat = Dat64::parse(bytes, 16, "test.dat64").unwrap();
+
+        let result = dat.read_string_array(0, 0);
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0], "+10 to maximum Life");
+        assert_eq!(result[1], "8% increased Armour");
     }
 }

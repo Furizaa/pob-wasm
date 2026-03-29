@@ -56,6 +56,9 @@ struct PassiveNode {
 
 const OFF_ICON: usize = 8;
 /// Stats: array ref (count u64 + offset u64 = 16 bytes) pointing into Stats.datc64 rows.
+/// UNVERIFIED ASSUMPTION: offset 16 is inferred from the schema layout (Id@0 + Icon@8 = 16
+/// bytes consumed before Stats). This must be validated against a live GGPK dump before
+/// relying on it for production data — if Stats data appears wrong, check this offset first.
 const OFF_STATS_ARRAY: usize = 16;
 const OFF_GRAPH_ID: usize = 48;
 const OFF_NAME: usize = 50;
@@ -473,5 +476,22 @@ mod tests {
         assert!(first.get("id").is_some());
         assert!(first.get("name").is_some());
         assert!(first.get("is_keystone").is_some());
+
+        // Verify that at least one well-known patched node has a non-empty stats array.
+        // Node 57279 ("Blood Magic") is present in data/tree/poe1_current.json with
+        // stats ["Spend Life instead of Mana for Skills", "+50 to maximum Life"].
+        // If this assertion fails it likely means OFF_STATS_ARRAY is wrong.
+        let blood_magic = nodes
+            .get("57279")
+            .expect("node 57279 (Blood Magic) must be present");
+        let stats = blood_magic
+            .get("stats")
+            .expect("Blood Magic must have a stats field")
+            .as_array()
+            .expect("stats must be an array");
+        assert!(
+            !stats.is_empty(),
+            "Blood Magic (node 57279) must have at least one stat string"
+        );
     }
 }
