@@ -152,7 +152,130 @@ pub fn run(env: &mut CalcEnv, build: &Build) {
     // --- TotalDPS ---
     let total_dps = average_damage * uses_per_sec;
     env.player.set_output("TotalDPS", total_dps);
-    env.player.set_output("CombinedDPS", total_dps);
+
+    // --- Ailment DPS ---
+    // Reference: CalcOffence.lua — IgniteDPS, BleedDPS, PoisonDPS sections
+    // Uses POST-crit average hit per damage type.
+
+    let fire_hit = {
+        let min = get_output_f64(&env.player.output, "FireMin");
+        let max = get_output_f64(&env.player.output, "FireMax");
+        let avg = (min + max) / 2.0;
+        let crit_rate = crit_chance / 100.0;
+        let crit_weighted = avg * (1.0 - crit_rate) + avg * crit_multi * crit_rate;
+        crit_weighted * hit_chance
+    };
+    let phys_hit = {
+        let min = get_output_f64(&env.player.output, "PhysicalMin");
+        let max = get_output_f64(&env.player.output, "PhysicalMax");
+        let avg = (min + max) / 2.0;
+        let crit_rate = crit_chance / 100.0;
+        let crit_weighted = avg * (1.0 - crit_rate) + avg * crit_multi * crit_rate;
+        crit_weighted * hit_chance
+    };
+    let chaos_hit = {
+        let min = get_output_f64(&env.player.output, "ChaosMin");
+        let max = get_output_f64(&env.player.output, "ChaosMax");
+        let avg = (min + max) / 2.0;
+        let crit_rate = crit_chance / 100.0;
+        let crit_weighted = avg * (1.0 - crit_rate) + avg * crit_multi * crit_rate;
+        crit_weighted * hit_chance
+    };
+
+    // Ignite DPS: fire_hit * 0.5 per second
+    let inc_burn = env.player.mod_db.sum(
+        ModType::Inc,
+        "BurningDamage",
+        combined_flags,
+        KeywordFlags::NONE,
+    ) + env.player.mod_db.sum(
+        ModType::Inc,
+        "AilmentDamage",
+        combined_flags,
+        KeywordFlags::NONE,
+    ) + env.player.mod_db.sum(
+        ModType::Inc,
+        "FireDamage",
+        combined_flags,
+        KeywordFlags::NONE,
+    );
+    let more_burn = env
+        .player
+        .mod_db
+        .more("BurningDamage", combined_flags, KeywordFlags::NONE)
+        * env
+            .player
+            .mod_db
+            .more("AilmentDamage", combined_flags, KeywordFlags::NONE);
+    let ignite_dps = fire_hit * 0.5 * (1.0 + inc_burn / 100.0) * more_burn;
+    env.player.set_output("IgniteDPS", ignite_dps);
+
+    // Bleed DPS: phys_hit * 0.7 / 5.0 (bleed ticks for 5 seconds at 70% of hit damage)
+    let inc_bleed = env.player.mod_db.sum(
+        ModType::Inc,
+        "BleedDamage",
+        combined_flags,
+        KeywordFlags::NONE,
+    ) + env.player.mod_db.sum(
+        ModType::Inc,
+        "AilmentDamage",
+        combined_flags,
+        KeywordFlags::NONE,
+    ) + env.player.mod_db.sum(
+        ModType::Inc,
+        "PhysicalDamage",
+        combined_flags,
+        KeywordFlags::NONE,
+    );
+    let more_bleed = env
+        .player
+        .mod_db
+        .more("BleedDamage", combined_flags, KeywordFlags::NONE)
+        * env
+            .player
+            .mod_db
+            .more("AilmentDamage", combined_flags, KeywordFlags::NONE);
+    let bleed_dps = phys_hit * 0.7 / 5.0 * (1.0 + inc_bleed / 100.0) * more_bleed;
+    env.player.set_output("BleedDPS", bleed_dps);
+
+    // Poison DPS: (phys_hit + chaos_hit) * 0.3 / 2.0 (poison ticks for 2 seconds at 30%)
+    let inc_poison = env.player.mod_db.sum(
+        ModType::Inc,
+        "PoisonDamage",
+        combined_flags,
+        KeywordFlags::NONE,
+    ) + env.player.mod_db.sum(
+        ModType::Inc,
+        "AilmentDamage",
+        combined_flags,
+        KeywordFlags::NONE,
+    ) + env.player.mod_db.sum(
+        ModType::Inc,
+        "ChaosDamage",
+        combined_flags,
+        KeywordFlags::NONE,
+    );
+    let more_poison = env
+        .player
+        .mod_db
+        .more("PoisonDamage", combined_flags, KeywordFlags::NONE)
+        * env
+            .player
+            .mod_db
+            .more("AilmentDamage", combined_flags, KeywordFlags::NONE);
+    let poison_dps = (phys_hit + chaos_hit) * 0.3 / 2.0 * (1.0 + inc_poison / 100.0) * more_poison;
+    env.player.set_output("PoisonDPS", poison_dps);
+
+    // TotalDotDPS
+    let total_dot_dps = ignite_dps + bleed_dps + poison_dps;
+    env.player.set_output("TotalDotDPS", total_dot_dps);
+
+    // CombinedDPS: hit DPS + dominant DoT DPS
+    let dominant_dot = [ignite_dps, bleed_dps, poison_dps]
+        .into_iter()
+        .fold(0.0_f64, f64::max);
+    let combined_dps = total_dps + dominant_dot;
+    env.player.set_output("CombinedDPS", combined_dps);
 
     // Breakdown
     if total_min > 0.0 || total_max > 0.0 {
