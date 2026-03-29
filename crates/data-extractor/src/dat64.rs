@@ -162,6 +162,36 @@ impl Dat64 {
             })
             .collect()
     }
+
+    /// Read an array of strings.
+    /// The field at `byte_offset` is a 16-byte struct: 8-byte count + 8-byte offset.
+    /// Each element in the array is itself an 8-byte string pointer (with the same bias).
+    /// For .datc64 both the array offset and each element pointer include the +8 bias.
+    pub fn read_string_array(&self, row_index: usize, byte_offset: usize) -> Vec<String> {
+        let base = row_index * self.row_size + byte_offset;
+        let count = u64::from_le_bytes(self.rows[base..base + 8].try_into().unwrap()) as usize;
+        let raw_offset =
+            u64::from_le_bytes(self.rows[base + 8..base + 16].try_into().unwrap()) as usize;
+        let array_offset = raw_offset.saturating_sub(self.string_bias);
+        (0..count)
+            .map(|i| {
+                let pos = array_offset + i * 8;
+                if pos + 8 > self.var_data.len() {
+                    return String::new();
+                }
+                let raw_str_offset =
+                    u64::from_le_bytes(self.var_data[pos..pos + 8].try_into().unwrap()) as usize;
+                let str_offset = raw_str_offset.saturating_sub(self.string_bias);
+                self.read_var_string(str_offset)
+            })
+            .collect()
+    }
+
+    /// Public accessor for reading a string directly from the variable section by offset.
+    /// Useful when callers have already resolved a pointer value.
+    pub fn read_var_string_pub(&self, offset: usize) -> String {
+        self.read_var_string(offset)
+    }
 }
 
 #[cfg(test)]
