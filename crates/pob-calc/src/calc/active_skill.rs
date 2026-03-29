@@ -125,9 +125,8 @@ pub fn run(env: &mut CalcEnv, build: &crate::build::Build) {
         .or_else(|| env.data.gems.get(&gem_key_underscored));
 
     if let Some(gem_data) = gem_data {
-        let gem_level = active_gem.level as usize;
-        // levels vec is 0-indexed; level 20 is at index 19 (level-1)
-        if let Some(level_data) = gem_data.levels.get(gem_level.saturating_sub(1)) {
+        // Find by level field instead of positional index
+        if let Some(level_data) = gem_data.levels.iter().find(|l| l.level == active_gem.level) {
             macro_rules! ins {
                 ($key:expr, $min:expr, $max:expr) => {
                     if $min > 0.0 || $max > 0.0 {
@@ -215,6 +214,76 @@ mod tests {
         let skill = env.player.main_skill.as_ref().unwrap();
         assert!(skill.is_attack, "Cleave should be an attack");
         assert!(!skill.is_spell, "Cleave should not be a spell");
+    }
+
+    #[test]
+    fn fireball_level_20_loads_fire_damage() {
+        // This test requires that data/gems.json contains a "fireball" entry with level 20 data.
+        // It verifies the gem level lookup actually works (not just the struct parsing).
+        // Uses the real data directory if available.
+        use std::path::PathBuf;
+
+        let data_dir = std::env::var("DATA_DIR").unwrap_or_default();
+        if data_dir.is_empty() {
+            // With stub data, no gem levels exist — just verify no panic
+            let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_29" bandit="None" mainSocketGroup="1"
+         className="Witch" ascendClassName="None"/>
+  <Skills activeSkillSet="1">
+    <SkillSet id="1">
+      <Skill mainActiveSkill="1" enabled="true" slot="Weapon 1">
+        <Gem skillId="Fireball" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Tree activeSpec="1"><Spec treeVersion="3_29" nodes="" classId="3" ascendClassId="0"/></Tree>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config/>
+</PathOfBuilding>"#;
+            let build = crate::build::parse_xml(xml).unwrap();
+            let data = make_data();
+            let mut env = crate::calc::setup::init_env(&build, data).unwrap();
+            run(&mut env, &build);
+            // With stub data, skill resolves but base_damage is empty
+            let skill = env.player.main_skill.unwrap();
+            assert!(skill.base_damage.is_empty(), "stub data has no gem levels");
+            return;
+        }
+
+        // With real data: verify the level 20 fire damage loads
+        // (build a minimal GameData from real files)
+        let gems_str = std::fs::read_to_string(format!("{data_dir}/gems.json")).unwrap();
+        let misc_str = std::fs::read_to_string(format!("{data_dir}/misc.json")).unwrap();
+        let combined = format!(r#"{{"gems": {gems_str}, "misc": {misc_str}}}"#);
+        let data = std::sync::Arc::new(crate::data::GameData::from_json(&combined).unwrap());
+
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_29" bandit="None" mainSocketGroup="1"
+         className="Witch" ascendClassName="None"/>
+  <Skills activeSkillSet="1">
+    <SkillSet id="1">
+      <Skill mainActiveSkill="1" enabled="true" slot="Weapon 1">
+        <Gem skillId="Fireball" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Tree activeSpec="1"><Spec treeVersion="3_29" nodes="" classId="3" ascendClassId="0"/></Tree>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config/>
+</PathOfBuilding>"#;
+        let build = crate::build::parse_xml(xml).unwrap();
+        let mut env = crate::calc::setup::init_env(&build, data).unwrap();
+        run(&mut env, &build);
+        let skill = env.player.main_skill.unwrap();
+        let fire = skill.base_damage.get("Fire").copied();
+        assert!(fire.is_some(), "Fireball L20 should have Fire base damage");
+        let (min, max) = fire.unwrap();
+        assert!(
+            min > 0.0 && max > min,
+            "Fire damage should be min={min} < max={max}"
+        );
     }
 
     #[test]

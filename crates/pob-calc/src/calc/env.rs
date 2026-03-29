@@ -134,6 +134,20 @@ pub struct CalcEnv {
     pub data: Arc<GameData>,
 }
 
+/// Get a numeric output value, returning 0.0 if absent or not a number.
+pub fn get_output_f64(output: &OutputTable, key: &str) -> f64 {
+    output
+        .get(key)
+        .and_then(|v| {
+            if let OutputValue::Number(n) = v {
+                Some(*n)
+            } else {
+                None
+            }
+        })
+        .unwrap_or(0.0)
+}
+
 impl CalcEnv {
     pub fn new(player_mod_db: ModDb, enemy_mod_db: ModDb, data: Arc<GameData>) -> Self {
         Self {

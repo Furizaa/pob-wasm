@@ -1,4 +1,4 @@
-use super::env::{CalcEnv, OutputValue};
+use super::env::{get_output_f64, CalcEnv, OutputValue};
 use crate::build::Build;
 use crate::mod_db::types::{KeywordFlags, ModFlags, ModType};
 
@@ -114,7 +114,8 @@ pub fn run(env: &mut CalcEnv, build: &Build) {
             ModFlags::NONE,
             KeywordFlags::NONE,
         );
-        let enemy_evasion = 15.0 + (build.level as f64).powi(2);
+        let lv = build.level as f64;
+        let enemy_evasion = 15.0 + 8.0 * lv * lv / (lv + 5.0);
         if accuracy <= 0.0 {
             0.05
         } else {
@@ -164,19 +165,6 @@ pub fn run(env: &mut CalcEnv, build: &Build) {
             ],
         );
     }
-}
-
-fn get_output_f64(output: &crate::calc::env::OutputTable, key: &str) -> f64 {
-    output
-        .get(key)
-        .and_then(|v| {
-            if let OutputValue::Number(n) = v {
-                Some(*n)
-            } else {
-                None
-            }
-        })
-        .unwrap_or(0.0)
 }
 
 #[cfg(test)]

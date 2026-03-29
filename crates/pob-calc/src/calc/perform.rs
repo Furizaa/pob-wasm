@@ -1,4 +1,4 @@
-use super::env::{CalcEnv, OutputValue};
+use super::env::{get_output_f64, CalcEnv, OutputValue};
 use crate::mod_db::types::{KeywordFlags, ModFlags, ModType};
 
 pub fn run(env: &mut CalcEnv) {
@@ -148,18 +148,7 @@ fn do_actor_attribs(env: &mut CalcEnv) {
     }
 
     // Strength bonus life: +1 max life per 2 Str (POB: life_per_str = 0.5)
-    let str_val = env
-        .player
-        .output
-        .get("Str")
-        .and_then(|v| {
-            if let OutputValue::Number(n) = v {
-                Some(*n)
-            } else {
-                None
-            }
-        })
-        .unwrap_or(0.0);
+    let str_val = get_output_f64(&env.player.output, "Str");
     let life_from_str = (str_val * 0.5).floor();
     // Add to the existing Life base — re-run life calc with updated base
     // (Simplified: add life_from_str directly to the output. Full impl re-runs the pass.)
