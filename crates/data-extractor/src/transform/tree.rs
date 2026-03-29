@@ -33,40 +33,30 @@ struct PassiveNode {
 // ---------------------------------------------------------------------------
 // Field offsets in PassiveSkills.datc64 rows (PoE2 schema)
 //
-// Id: string (8 bytes)                               offset 0
-// Icon_DDSFile: string (8 bytes)                     offset 8
-// Stats: [Stats] array ref (16 bytes)                offset 16
-// Stat1Value: i32 (4 bytes)                          offset 32
-// Stat2Value: i32 (4 bytes)                          offset 36
-// Stat3Value: i32 (4 bytes)                          offset 40
-// Stat4Value: i32 (4 bytes)                          offset 44
+// Calibrated against Content.ggpk (row_size=353, row_count=5592):
+//
+// Id: string ptr (8 bytes)                           offset 0
+// Icon_DDSFile: string ptr (8 bytes)                 offset 8
+// Stats: [Stats] array ref (count+offset, 16 bytes)  offset 16
+// Stat1..4 Values: i32 × 4                           offset 32
 // PassiveSkillGraphId: u16 (2 bytes)                 offset 48
-// (2 bytes padding)
-// Name: string (8 bytes)                             offset 52
-// Characters: [Characters] array ref (16 bytes)      offset 60
-// IsKeystone: bool (1 byte)                          offset 76
-// IsNotable: bool (1 byte)                           offset 77
-// (2 bytes padding)
-// FlavourText: string (8 bytes)                      offset 80
-// IsJustIcon: bool (1 byte)                          offset 88
-// (7 bytes padding)
-// AchievementItem: u64 (8 bytes)                     offset 96
-// IsJewelSocket: bool (1 byte)                       offset 104
-// (7 bytes padding)
+// Name: string ptr (8 bytes)                         offset 50  ← NOT 8-aligned
+// Characters: [Characters] array ref (16 bytes)      offset 58
+// IsKeystone: bool (1 byte)                          offset 74
+// IsNotable: bool (1 byte)                           offset 75
+// IsJewelSocket: bool (1 byte)                       offset 84
 // Ascendancy: u64 row ref (8 bytes)                  offset 112
-// IsAscendancyStartingNode: bool (1 byte)            offset 120
-// ... (more fields follow) ...
-// SkillPointsGranted: i32 is probed via scan below
+// IsAscendancyStartingNode: bool (1 byte)            offset 118
 // ---------------------------------------------------------------------------
 
 const OFF_ICON: usize = 8;
 const OFF_GRAPH_ID: usize = 48;
-const OFF_NAME: usize = 52;
-const OFF_IS_KEYSTONE: usize = 76;
-const OFF_IS_NOTABLE: usize = 77;
-const OFF_IS_JEWEL_SOCKET: usize = 104;
+const OFF_NAME: usize = 50;
+const OFF_IS_KEYSTONE: usize = 74;
+const OFF_IS_NOTABLE: usize = 75;
+const OFF_IS_JEWEL_SOCKET: usize = 84;
 const OFF_ASCENDANCY: usize = 112;
-const OFF_IS_ASCENDANCY_START: usize = 120;
+const OFF_IS_ASCENDANCY_START: usize = 118;
 
 // SkillPointsGranted — appears much later in the schema.
 // We look for it at a few candidate offsets; the caller validates the
@@ -146,7 +136,7 @@ pub fn extract(reader: &GgpkReader, output: &Path) -> Result<(), ExtractError> {
     }
 
     // Validate that the row_size is large enough to cover the last fixed offset we use
-    let min_row_size = OFF_IS_ASCENDANCY_START + 1; // 121 bytes minimum
+    let min_row_size = OFF_IS_ASCENDANCY_START + 1; // 119 bytes minimum
     if row_size < min_row_size {
         return Err(ExtractError::Dat64Parse {
             file: "PassiveSkills.datc64".to_string(),
@@ -167,9 +157,8 @@ pub fn extract(reader: &GgpkReader, output: &Path) -> Result<(), ExtractError> {
     let mut nodes: HashMap<u32, PassiveNode> = HashMap::new();
 
     for i in 0..row_count {
-        // Read PassiveSkillGraphId (u16 at offset 48, little-endian)
-        // Dat64 doesn't expose read_u16; read the full u32 and mask the low 16 bits.
-        // Because the layout is LE and there's 2-byte padding after, reading u32 is safe.
+        // Read PassiveSkillGraphId (u16 at offset 48, little-endian).
+        // Read as u32 and mask low 16 bits.
         let graph_id_raw = dat.read_u32(i, OFF_GRAPH_ID);
         let graph_id = (graph_id_raw & 0xFFFF) as u16;
 
@@ -248,6 +237,102 @@ fn write_tree(out: &TreeOutput, output: &Path) -> Result<(), ExtractError> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    #[ignore]
+    fn calibrate() {
+        let ggpk_path = std::env::var("GGPK_PATH").expect("GGPK_PATH not set");
+        let reader =
+            crate::ggpk_reader::GgpkReader::open(std::path::Path::new(&ggpk_path)).unwrap();
+        let bytes = reader.read_bytes("Data/PassiveSkills.datc64").unwrap();
+        let (row_count, row_size) =
+            crate::dat64::probe_row_size(&bytes).expect("probe_row_size failed");
+        println!("row_count={row_count}  row_size={row_size}");
+
+        let dat =
+            crate::dat64::Dat64::parse_datc64(bytes.clone(), row_size, "PassiveSkills.datc64")
+                .unwrap();
+
+        // Print first 20 rows with candidate fields
+        println!("\n=== FIRST 20 ROWS: gid@48u16 | name@50 | b74 b75 b84 b101 b118 b139 b140 b182 b244 ===");
+        for r in 0..row_count.min(20) {
+            let id = dat.read_string(r, 0);
+            let name = dat.read_string(r, 50);
+            let graph_id = (dat.read_u32(r, 48) & 0xFFFF) as u16;
+            let get_bool = |off: usize| -> u8 {
+                let w = dat.read_u32(r, off & !3);
+                ((w >> ((off & 3) * 8)) & 0xFF) as u8
+            };
+            println!(
+                "  r{:4}: gid={:6} b74={} b75={} b84={} b101={} b118={} b139={} b140={} b182={} b244={} | {:?} | {:?}",
+                r, graph_id,
+                get_bool(74), get_bool(75), get_bool(84), get_bool(101),
+                get_bool(118), get_bool(139), get_bool(140), get_bool(182), get_bool(244),
+                name, id
+            );
+        }
+
+        // Search all rows for known names at offset 50
+        println!("\n=== SEARCH ALL ROWS FOR KNOWN NAMES AT OFFSET 50 ===");
+        let targets = &[
+            "Lava Lash",
+            "Thick Skin",
+            "Iron Reflexes",
+            "Resolute Technique",
+            "Iron Will",
+            "Acrobatics",
+            "Blood Magic",
+            "Elemental Equilibrium",
+        ];
+        for target in targets {
+            for r in 0..row_count {
+                let name = dat.read_string(r, 50);
+                if name == *target {
+                    let graph_id = (dat.read_u32(r, 48) & 0xFFFF) as u16;
+                    let get_bool = |off: usize| -> u8 {
+                        let w = dat.read_u32(r, off & !3);
+                        ((w >> ((off & 3) * 8)) & 0xFF) as u8
+                    };
+                    println!(
+                        "  {:?}: row={} gid={} b74={} b75={} b84={} b101={} b118={} b139={} b140={} b182={} b244={}",
+                        target, r, graph_id,
+                        get_bool(74), get_bool(75), get_bool(84), get_bool(101),
+                        get_bool(118), get_bool(139), get_bool(140), get_bool(182), get_bool(244)
+                    );
+                    break;
+                }
+            }
+        }
+
+        // Bool fields summary (only scan offsets where a full u32 can be read)
+        println!("\n=== BOOL FIELDS SUMMARY ===");
+        for off in 0..row_size {
+            let aligned = off & !3;
+            if aligned + 4 > row_size {
+                continue;
+            }
+            let shift = (off & 3) * 8;
+            let count_true = (0..row_count)
+                .filter(|&r| {
+                    let w = dat.read_u32(r, aligned);
+                    ((w >> shift) & 0xFF) == 1
+                })
+                .count();
+            let all_bool = (0..row_count).all(|r| {
+                let w = dat.read_u32(r, aligned);
+                ((w >> shift) & 0xFF) <= 1
+            });
+            if all_bool && count_true > 0 && count_true < row_count {
+                println!(
+                    "  offset {:4}: {}/{} true ({:.1}%)",
+                    off,
+                    count_true,
+                    row_count,
+                    count_true as f64 / row_count as f64 * 100.0
+                );
+            }
+        }
+    }
+
     #[test]
     fn tree_poe2_schema() {
         let Some(ggpk_path) = std::env::var("GGPK_PATH").ok() else {
