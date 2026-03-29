@@ -20,6 +20,10 @@ struct TreeOutput {
 struct PassiveNode {
     id: u32,
     name: String,
+    /// Human-readable stat description strings (e.g. "+10 to maximum Life").
+    /// Populated by looking up the Stats key-array at offset 16 against
+    /// StatDescriptions.datc64.
+    stats: Vec<String>,
     is_keystone: bool,
     is_notable: bool,
     is_jewel_socket: bool,
@@ -51,6 +55,11 @@ struct PassiveNode {
 // ---------------------------------------------------------------------------
 
 const OFF_ICON: usize = 8;
+/// Stats: array ref (count u64 + offset u64 = 16 bytes) pointing into Stats.datc64 rows.
+/// UNVERIFIED ASSUMPTION: offset 16 is inferred from the schema layout (Id@0 + Icon@8 = 16
+/// bytes consumed before Stats). This must be validated against a live GGPK dump before
+/// relying on it for production data — if Stats data appears wrong, check this offset first.
+const OFF_STATS_ARRAY: usize = 16;
 const OFF_GRAPH_ID: usize = 48;
 const OFF_NAME: usize = 50;
 const OFF_IS_KEYSTONE: usize = 74;
@@ -63,6 +72,94 @@ const OFF_IS_ASCENDANCY_START: usize = 118;
 // We look for it at a few candidate offsets; the caller validates the
 // row_size is large enough before using the offset.
 const SKILL_POINTS_CANDIDATES: &[usize] = &[160, 164, 168, 172, 176];
+
+// ---------------------------------------------------------------------------
+// StatDescriptions lookup
+// ---------------------------------------------------------------------------
+
+/// Build a lookup table: Stats.datc64 row index → human-readable description string.
+///
+/// Pipeline:
+///   PassiveSkills[Stats] (offset 16) → array of u64 row indices into Stats.datc64
+///   Stats.datc64 row[i] → Id string (offset 0)
+///   StatDescriptions.datc64 → row whose Ids array (offset 0) contains that stat Id
+///                           → display text (offset 16)
+///
+/// Returns a vector indexed by Stats.datc64 row number.
+/// If either auxiliary file is missing, returns an empty vec (graceful degradation).
+fn build_stat_row_descriptions(reader: &GgpkReader) -> Result<Vec<String>, ExtractError> {
+    // --- Stats.datc64: Id (string ptr, 8 bytes) at offset 0 ---
+    let stats_bytes = match reader.read_bytes("Data/Stats.datc64") {
+        Ok(b) => b,
+        Err(ExtractError::FileNotFound(_)) => {
+            println!("  Stats.datc64 not found — stat descriptions will be empty");
+            return Ok(vec![]);
+        }
+        Err(e) => return Err(e),
+    };
+    let (stats_row_count, stats_row_size) = match probe_row_size(&stats_bytes) {
+        Some(r) => r,
+        None => {
+            println!("  Stats.datc64: probe_row_size failed — skipping stats");
+            return Ok(vec![]);
+        }
+    };
+    if stats_row_count == 0 || stats_row_size < 8 {
+        return Ok(vec![]);
+    }
+    let stats_dat = Dat64::parse_datc64(stats_bytes, stats_row_size, "Stats.datc64")?;
+    let stat_ids: Vec<String> = (0..stats_row_count)
+        .map(|i| stats_dat.read_string(i, 0))
+        .collect();
+
+    // --- StatDescriptions.datc64 ---
+    // Schema (from PoE game data):
+    //   offset  0: Ids  [string] array ref (16 bytes) — stat IDs this entry covers
+    //   offset 16: DisplayText string ptr (8 bytes)   — human-readable text
+    let sd_bytes = match reader.read_bytes("Data/StatDescriptions.datc64") {
+        Ok(b) => b,
+        Err(ExtractError::FileNotFound(_)) => {
+            println!("  StatDescriptions.datc64 not found — stat descriptions will be empty");
+            return Ok(vec![]);
+        }
+        Err(e) => return Err(e),
+    };
+    let (sd_row_count, sd_row_size) = match probe_row_size(&sd_bytes) {
+        Some(r) => r,
+        None => {
+            println!("  StatDescriptions.datc64: probe_row_size failed — skipping stats");
+            return Ok(vec![]);
+        }
+    };
+    if sd_row_count == 0 || sd_row_size < 24 {
+        return Ok(vec![]);
+    }
+    let sd_dat = Dat64::parse_datc64(sd_bytes, sd_row_size, "StatDescriptions.datc64")?;
+
+    // Build map: stat_id_string → display text
+    let mut id_to_desc: HashMap<String, String> = HashMap::new();
+    for i in 0..sd_row_count {
+        // Ids is a string array ref at offset 0: each element is a string pointer
+        let ids = sd_dat.read_string_array(i, 0);
+        let text = sd_dat.read_string(i, 16);
+        if text.is_empty() {
+            continue;
+        }
+        for id_str in ids {
+            if !id_str.is_empty() {
+                id_to_desc.entry(id_str).or_insert_with(|| text.clone());
+            }
+        }
+    }
+
+    // Map each Stats row → description (empty string if not found)
+    let descriptions: Vec<String> = stat_ids
+        .iter()
+        .map(|id| id_to_desc.get(id).cloned().unwrap_or_default())
+        .collect();
+
+    Ok(descriptions)
+}
 
 // ---------------------------------------------------------------------------
 // Ascendancy table helpers
@@ -105,6 +202,9 @@ fn read_ascendancy_names(reader: &GgpkReader) -> Result<Vec<String>, ExtractErro
 pub fn extract(reader: &GgpkReader, output: &Path) -> Result<(), ExtractError> {
     // --- Ascendancy lookup table ---
     let ascendancy_names = read_ascendancy_names(reader)?;
+
+    // --- Stat descriptions lookup (Stats row index → display text) ---
+    let stat_descriptions = build_stat_row_descriptions(reader)?;
 
     // --- PassiveSkills.datc64 ---
     let bytes = reader
@@ -176,6 +276,22 @@ pub fn extract(reader: &GgpkReader, output: &Path) -> Result<(), ExtractError> {
         let is_jewel_socket = dat.read_bool(i, OFF_IS_JEWEL_SOCKET);
         let is_ascendancy_start = dat.read_bool(i, OFF_IS_ASCENDANCY_START);
 
+        // Stats: read array of row-ref indices into Stats.datc64 (offset 16, 16-byte array ref)
+        let stats: Vec<String> = if !stat_descriptions.is_empty() {
+            dat.read_key_array(i, OFF_STATS_ARRAY)
+                .into_iter()
+                .filter_map(|row_ref| {
+                    let idx = row_ref as usize;
+                    stat_descriptions
+                        .get(idx)
+                        .cloned()
+                        .filter(|s| !s.is_empty())
+                })
+                .collect()
+        } else {
+            vec![]
+        };
+
         // Ascendancy foreign key (u64 row ref)
         let asc_ref = dat.read_u64(i, OFF_ASCENDANCY);
         let ascendancy_name = if asc_ref == u64::MAX || asc_ref as usize >= ascendancy_names.len() {
@@ -200,6 +316,7 @@ pub fn extract(reader: &GgpkReader, output: &Path) -> Result<(), ExtractError> {
             PassiveNode {
                 id: graph_id as u32,
                 name,
+                stats,
                 is_keystone,
                 is_notable,
                 is_jewel_socket,
@@ -359,5 +476,22 @@ mod tests {
         assert!(first.get("id").is_some());
         assert!(first.get("name").is_some());
         assert!(first.get("is_keystone").is_some());
+
+        // Verify that at least one well-known patched node has a non-empty stats array.
+        // Node 57279 ("Blood Magic") is present in data/tree/poe1_current.json with
+        // stats ["Spend Life instead of Mana for Skills", "+50 to maximum Life"].
+        // If this assertion fails it likely means OFF_STATS_ARRAY is wrong.
+        let blood_magic = nodes
+            .get("57279")
+            .expect("node 57279 (Blood Magic) must be present");
+        let stats = blood_magic
+            .get("stats")
+            .expect("Blood Magic must have a stats field")
+            .as_array()
+            .expect("stats must be an array");
+        assert!(
+            !stats.is_empty(),
+            "Blood Magic (node 57279) must have at least one stat string"
+        );
     }
 }

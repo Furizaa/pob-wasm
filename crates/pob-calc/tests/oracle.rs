@@ -7,56 +7,27 @@ use pob_calc::{build::parse_xml, calc::calculate, data::GameData};
 use std::sync::Arc;
 
 fn load_game_data() -> Option<Arc<GameData>> {
-    let _data_dir = std::env::var("DATA_DIR").ok()?;
-    // Load combined JSON from the data directory
-    // For now, construct a minimal stub JSON
-    let json = build_stub_game_data_json();
+    let data_dir = std::env::var("DATA_DIR").ok()?;
+    // Compose the combined JSON from individual data files
+    let json = build_real_game_data_json(&data_dir).ok()?;
     GameData::from_json(&json).ok().map(Arc::new)
 }
 
-fn build_stub_game_data_json() -> String {
-    // Minimal game data — enough for structure tests
-    // Real data comes from DATA_DIR in integration runs
-    r#"{
-        "gems": {},
-        "misc": {
-            "game_constants": {
-                "base_maximum_all_resistances_%": 75,
-                "maximum_block_%": 75,
-                "base_maximum_spell_block_%": 75,
-                "max_power_charges": 3,
-                "max_frenzy_charges": 3,
-                "max_endurance_charges": 3,
-                "maximum_life_leech_rate_%_per_minute": 20,
-                "maximum_mana_leech_rate_%_per_minute": 20,
-                "maximum_life_leech_amount_per_leech_%_max_life": 10,
-                "maximum_mana_leech_amount_per_leech_%_max_mana": 10,
-                "maximum_energy_shield_leech_amount_per_leech_%_max_energy_shield": 10,
-                "base_number_of_totems_allowed": 1,
-                "impaled_debuff_number_of_reflected_hits": 8,
-                "soul_eater_maximum_stacks": 40,
-                "maximum_righteous_charges": 10,
-                "maximum_blood_scythe_charges": 8,
-                "MonsterDamageReductionImprovement": 0,
-                "MonsterDamageReductionImprovement_Divisor": 1
-            },
-            "character_constants": {
-                "base_str": 0,
-                "base_dex": 0,
-                "base_int": 0,
-                "life_per_str": 0.5
-            },
-            "monster_life_table": [],
-            "monster_damage_table": [],
-            "monster_evasion_table": [],
-            "monster_accuracy_table": [],
-            "monster_ally_life_table": [],
-            "monster_ally_damage_table": [],
-            "monster_ailment_threshold_table": [],
-            "monster_phys_conversion_multi_table": []
-        }
-    }"#
-    .to_string()
+fn build_real_game_data_json(data_dir: &str) -> Result<String, Box<dyn std::error::Error>> {
+    let gems_str = std::fs::read_to_string(format!("{data_dir}/gems.json"))?;
+    let misc_str = std::fs::read_to_string(format!("{data_dir}/misc.json"))?;
+    let tree_str = std::fs::read_to_string(format!("{data_dir}/tree/poe1_current.json"))?;
+
+    let gems: serde_json::Value = serde_json::from_str(&gems_str)?;
+    let misc: serde_json::Value = serde_json::from_str(&misc_str)?;
+    let tree: serde_json::Value = serde_json::from_str(&tree_str)?;
+
+    let combined = serde_json::json!({
+        "gems": gems,
+        "misc": misc,
+        "tree": tree,
+    });
+    Ok(serde_json::to_string(&combined)?)
 }
 
 fn load_expected(name: &str) -> serde_json::Value {
@@ -124,4 +95,20 @@ fn oracle_melee_str_life_matches_pob() {
     let expected = load_expected("melee_str");
     let expected_output = expected.get("output").unwrap_or(&expected);
     assert_output_approx(&actual, expected_output, "Life");
+}
+
+#[test]
+fn oracle_melee_str_passives_life_matches_pob() {
+    let Some(data) = load_game_data() else {
+        eprintln!("DATA_DIR not set, skipping oracle test");
+        return;
+    };
+    let xml = load_build_xml("melee_str_passives");
+    let build = parse_xml(&xml).expect("parse");
+    let result = calculate(&build, Arc::clone(&data)).expect("calculate");
+    let actual = serde_json::to_value(&result.output).unwrap();
+    let expected = load_expected("melee_str_passives");
+    let expected_output = expected.get("output").unwrap_or(&expected);
+    assert_output_approx(&actual, expected_output, "Life");
+    assert_output_approx(&actual, expected_output, "Mana");
 }

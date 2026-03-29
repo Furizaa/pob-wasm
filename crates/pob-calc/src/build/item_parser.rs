@@ -92,6 +92,174 @@ pub fn parse_stat_text(text: &str, source: ModSource) -> Vec<Mod> {
             source,
         });
     }
+    // +N to all Attributes
+    else if let Some(n) = extract_prefix_num(text, "+", " to all Attributes") {
+        mods.push(Mod::new_base("Str", n, source.clone()));
+        mods.push(Mod::new_base("Dex", n, source.clone()));
+        mods.push(Mod::new_base("Int", n, source));
+    }
+    // N% increased Evasion Rating
+    else if let Some(n) = extract_inc_pattern(text, "Evasion Rating") {
+        mods.push(Mod {
+            name: "Evasion".into(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(n),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            conditions: vec![],
+            source,
+        });
+    }
+    // N% increased Energy Shield
+    else if let Some(n) = extract_inc_pattern(text, "Energy Shield") {
+        mods.push(Mod {
+            name: "EnergyShield".into(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(n),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            conditions: vec![],
+            source,
+        });
+    }
+    // N% increased Mana
+    else if let Some(n) = extract_inc_pattern(text, "Mana") {
+        mods.push(Mod {
+            name: "Mana".into(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(n),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            conditions: vec![],
+            source,
+        });
+    }
+    // N% increased Strength / Dexterity / Intelligence
+    else if let Some(n) = extract_inc_pattern(text, "Strength") {
+        mods.push(Mod {
+            name: "Str".into(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(n),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            conditions: vec![],
+            source,
+        });
+    } else if let Some(n) = extract_inc_pattern(text, "Dexterity") {
+        mods.push(Mod {
+            name: "Dex".into(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(n),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            conditions: vec![],
+            source,
+        });
+    } else if let Some(n) = extract_inc_pattern(text, "Intelligence") {
+        mods.push(Mod {
+            name: "Int".into(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(n),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            conditions: vec![],
+            source,
+        });
+    }
+    // N% increased Attack Speed
+    else if let Some(n) = extract_inc_pattern(text, "Attack Speed") {
+        mods.push(Mod {
+            name: "Speed".into(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(n),
+            flags: ModFlags(ModFlags::ATTACK.0),
+            keyword_flags: KeywordFlags::NONE,
+            conditions: vec![],
+            source,
+        });
+    }
+    // N% increased Cast Speed
+    else if let Some(n) = extract_inc_pattern(text, "Cast Speed") {
+        mods.push(Mod {
+            name: "Speed".into(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(n),
+            flags: ModFlags(ModFlags::SPELL.0),
+            keyword_flags: KeywordFlags::NONE,
+            conditions: vec![],
+            source,
+        });
+    }
+    // N% increased Physical Damage  (must come before generic "Damage")
+    else if let Some(n) = extract_inc_pattern(text, "Physical Damage") {
+        mods.push(Mod {
+            name: "PhysicalDamage".into(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(n),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            conditions: vec![],
+            source,
+        });
+    }
+    // N% increased Area of Effect
+    else if let Some(n) = extract_inc_pattern(text, "Area of Effect") {
+        mods.push(Mod {
+            name: "AreaOfEffect".into(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(n),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            conditions: vec![],
+            source,
+        });
+    }
+    // N% increased Projectile Speed
+    else if let Some(n) = extract_inc_pattern(text, "Projectile Speed") {
+        mods.push(Mod {
+            name: "ProjectileSpeed".into(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(n),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            conditions: vec![],
+            source,
+        });
+    }
+    // +N to Accuracy Rating  (before generic "Accuracy Rating" inc)
+    else if let Some(n) = extract_prefix_num(text, "+", " to Accuracy Rating") {
+        mods.push(Mod::new_base("Accuracy", n, source));
+    }
+    // N% increased Accuracy Rating
+    else if let Some(n) = extract_inc_pattern(text, "Accuracy Rating") {
+        mods.push(Mod {
+            name: "Accuracy".into(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(n),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            conditions: vec![],
+            source,
+        });
+    }
+    // N% increased Damage  (generic — must come after all specific damage types)
+    else if let Some(n) = extract_inc_pattern(text, "Damage") {
+        mods.push(Mod {
+            name: "Damage".into(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(n),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            conditions: vec![],
+            source,
+        });
+    }
+    // +N% to all Elemental Resistances
+    else if let Some(n) = extract_prefix_num(text, "+", "% to all Elemental Resistances") {
+        mods.push(Mod::new_base("FireResist", n, source.clone()));
+        mods.push(Mod::new_base("ColdResist", n, source.clone()));
+        mods.push(Mod::new_base("LightningResist", n, source));
+    }
 
     mods
 }
@@ -162,5 +330,48 @@ mod tests {
     fn unknown_stat_returns_empty() {
         let mods = parse_stat_text("Socketed Gems are Supported by Level 1 Trap", src());
         assert!(mods.is_empty());
+    }
+
+    #[test]
+    fn parses_all_attributes() {
+        let mods = parse_stat_text("+10 to all Attributes", src());
+        assert_eq!(mods.len(), 3);
+        assert!(mods.iter().any(|m| m.name == "Str"));
+        assert!(mods.iter().any(|m| m.name == "Dex"));
+        assert!(mods.iter().any(|m| m.name == "Int"));
+    }
+
+    #[test]
+    fn parses_all_elemental_resists() {
+        let mods = parse_stat_text("+15% to all Elemental Resistances", src());
+        assert_eq!(mods.len(), 3);
+        assert!(mods.iter().all(|m| m.value.as_f64() == 15.0));
+    }
+
+    #[test]
+    fn parses_inc_evasion() {
+        let mods = parse_stat_text("12% increased Evasion Rating", src());
+        assert_eq!(mods.len(), 1);
+        assert_eq!(mods[0].name, "Evasion");
+        assert!(matches!(
+            mods[0].mod_type,
+            crate::mod_db::types::ModType::Inc
+        ));
+    }
+
+    #[test]
+    fn parses_inc_physical_damage() {
+        let mods = parse_stat_text("20% increased Physical Damage", src());
+        assert_eq!(mods.len(), 1);
+        assert_eq!(mods[0].name, "PhysicalDamage");
+    }
+
+    #[test]
+    fn physical_damage_not_matched_as_generic_damage() {
+        let mods = parse_stat_text("20% increased Physical Damage", src());
+        assert!(
+            mods.iter().all(|m| m.name != "Damage"),
+            "Should match PhysicalDamage, not Damage"
+        );
     }
 }

@@ -10,7 +10,10 @@
       "is_ascendancy_start": false,
       "ascendancy_name": null,
       "icon": "Art/2DArt/SkillIcons/passives/auraareaofeffect.dds",
-      "skill_points_granted": 254
+      "skill_points_granted": 254,
+      "stats": [
+        "15% increased Area of Effect of Aura Skills"
+      ]
     },
     "34098": {
       "id": 34098,
@@ -22,7 +25,10 @@
       "is_ascendancy_start": false,
       "ascendancy_name": null,
       "icon": "Art/2DArt/SkillIcons/passives/heroicspirit.dds",
-      "skill_points_granted": 254
+      "skill_points_granted": 254,
+      "stats": [
+        "40% of Damage is taken from Mana before Life"
+      ]
     },
     "2474": {
       "id": 2474,
@@ -34,7 +40,10 @@
       "is_ascendancy_start": false,
       "ascendancy_name": null,
       "icon": "Art/2DArt/SkillIcons/passives/LifeRecoupNode.dds",
-      "skill_points_granted": 254
+      "skill_points_granted": 254,
+      "stats": [
+        "5% of Life Regenerated per second"
+      ]
     },
     "19749": {
       "id": 19749,
@@ -2278,7 +2287,11 @@
       "is_ascendancy_start": false,
       "ascendancy_name": null,
       "icon": "Art/2DArt/SkillIcons/passives/KeystoneBloodMagic.dds",
-      "skill_points_granted": 254
+      "skill_points_granted": 254,
+      "stats": [
+        "Spend Life instead of Mana for Skills",
+        "+50 to maximum Life"
+      ]
     },
     "38235": {
       "id": 38235,
@@ -50662,7 +50675,11 @@
       "is_ascendancy_start": false,
       "ascendancy_name": null,
       "icon": "Art/2DArt/SkillIcons/passives/thickskin.dds",
-      "skill_points_granted": 254
+      "skill_points_granted": 254,
+      "stats": [
+        "+40 to maximum Life",
+        "6% increased maximum Life"
+      ]
     },
     "31628": {
       "id": 31628,
@@ -53602,7 +53619,10 @@
       "is_ascendancy_start": false,
       "ascendancy_name": null,
       "icon": "Art/2DArt/SkillIcons/passives/KeystoneIronReflexes.dds",
-      "skill_points_granted": 254
+      "skill_points_granted": 254,
+      "stats": [
+        "Converts all Evasion Rating to Armour. Dexterity provides no bonus to Evasion Rating"
+      ]
     },
     "33179": {
       "id": 33179,
@@ -56722,7 +56742,11 @@
       "is_ascendancy_start": false,
       "ascendancy_name": null,
       "icon": "Art/2DArt/SkillIcons/passives/KeystoneResoluteTechnique.dds",
-      "skill_points_granted": 254
+      "skill_points_granted": 254,
+      "stats": [
+        "Your hits can't be Evaded",
+        "Never deal Critical Strikes"
+      ]
     },
     "31197": {
       "id": 31197,
@@ -57154,7 +57178,13 @@
       "is_ascendancy_start": false,
       "ascendancy_name": null,
       "icon": "Art/2DArt/SkillIcons/passives/KeystoneAcrobatics.dds",
-      "skill_points_granted": 254
+      "skill_points_granted": 254,
+      "stats": [
+        "30% Chance to Dodge Attack Hits",
+        "30% Chance to Dodge Spell Hits",
+        "30% less Armour, 30% less Energy Shield",
+        "-30% to all Elemental Resistances"
+      ]
     },
     "31501": {
       "id": 31501,
