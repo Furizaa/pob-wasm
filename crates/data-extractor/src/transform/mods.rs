@@ -13,11 +13,11 @@ pub struct ModEntry {
 }
 
 pub fn extract(reader: &GgpkReader, output: &Path) -> Result<(), ExtractError> {
-    // Mods.datc64 row_size = 654 (PoE2 probed layout):
+    // Mods.datc64 row_size = 654 (PoE1 modern bundle format, probed layout):
     // offset 0:   Id (str, 8)
     // offset 504: Domain (u32, 4)
     // offset 508: GenerationType (u32, 4)
-    // Name field not yet calibrated for PoE2 — stored as empty for now
+    // Name field not yet calibrated — stored as empty for now
     // NOTE: these offsets may need calibration; see docs/superpowers/plans for Phase 3 notes
     let bytes = reader.read_bytes("Data/Mods.datc64")?;
     let dat = Dat64::parse_datc64(bytes, 654, "Mods.datc64")?;

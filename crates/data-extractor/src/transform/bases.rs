@@ -23,7 +23,7 @@ pub fn extract(reader: &GgpkReader, output: &Path) -> Result<(), ExtractError> {
         class_names.push(item_classes.read_string(i, 8));
     }
 
-    // BaseItemTypes.datc64 row_size = 310 (PoE2 probed layout):
+    // BaseItemTypes.datc64 row_size = 310 (PoE1 modern bundle format, probed layout):
     // offset 0:  Id (str, 8)
     // offset 8:  ItemClassesKey (u64, 8) → row index into ItemClasses
     // offset 32: Name (str, 8)

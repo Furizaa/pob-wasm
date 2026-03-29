@@ -109,8 +109,8 @@ fn extract_monster_stats(
     ),
     ExtractError,
 > {
-    // DefaultMonsterStats.datc64 row_size = 72 (PoE2)
-    // PoE2 layout: offset 0-7 = string ptr (Id), then numeric fields start at 8
+    // DefaultMonsterStats.datc64 row_size = 72 (PoE1 modern bundle format)
+    // Layout: offset 0-7 = string ptr (Id), then numeric fields start at 8
     // Probed u32 values at level 1: off12=67, off16=14, off20=22, off24=20, off28=15, off32=16
     // These are best-guess assignments — calibration needed in Phase 3
     // NOTE: exact field positions differ from PoE1 spec

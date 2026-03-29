@@ -31,8 +31,9 @@ struct PassiveNode {
 }
 
 // ---------------------------------------------------------------------------
-// Field offsets in PassiveSkills.datc64 rows (PoE2 schema)
+// Field offsets in PassiveSkills.datc64 rows (PoE1, modern bundle format)
 //
+// PoE1 uses .datc64 (same binary layout as PoE2) since patch 3.21.2.
 // Calibrated against Content.ggpk (row_size=353, row_count=5592):
 //
 // Id: string ptr (8 bytes)                           offset 0
@@ -202,8 +203,8 @@ pub fn extract(reader: &GgpkReader, output: &Path) -> Result<(), ExtractError> {
                 is_keystone,
                 is_notable,
                 is_jewel_socket,
-                // PoE2 dat schema doesn't have a dedicated IsMastery field visible at
-                // these offsets; default false (can be derived later if needed).
+                // IsMastery / IsJustIcon is not yet mapped to an offset;
+                // default false (can be calibrated later if needed).
                 is_mastery: false,
                 is_ascendancy_start,
                 ascendancy_name,
@@ -225,9 +226,9 @@ fn write_tree(out: &TreeOutput, output: &Path) -> Result<(), ExtractError> {
     let tree_dir = output.join("tree");
     std::fs::create_dir_all(&tree_dir)?;
     let json = serde_json::to_string_pretty(out)?;
-    let dest = tree_dir.join("poe2_current.json");
+    let dest = tree_dir.join("poe1_current.json");
     std::fs::write(&dest, json)?;
-    println!("  Wrote tree/poe2_current.json");
+    println!("  Wrote tree/poe1_current.json");
     Ok(())
 }
 
@@ -334,7 +335,7 @@ mod tests {
     }
 
     #[test]
-    fn tree_poe2_schema() {
+    fn tree_poe1_schema() {
         let Some(ggpk_path) = std::env::var("GGPK_PATH").ok() else {
             eprintln!("GGPK_PATH not set, skipping integration test");
             return;
@@ -344,7 +345,7 @@ mod tests {
             crate::ggpk_reader::GgpkReader::open(std::path::Path::new(&ggpk_path)).unwrap();
         super::extract(&reader, tmp.path()).unwrap();
         let json: serde_json::Value = serde_json::from_str(
-            &std::fs::read_to_string(tmp.path().join("tree").join("poe2_current.json")).unwrap(),
+            &std::fs::read_to_string(tmp.path().join("tree").join("poe1_current.json")).unwrap(),
         )
         .unwrap();
         let nodes = json
