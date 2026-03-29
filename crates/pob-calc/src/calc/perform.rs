@@ -4,6 +4,33 @@ use crate::mod_db::types::{KeywordFlags, ModFlags, ModType};
 pub fn run(env: &mut CalcEnv) {
     do_actor_life_mana(env);
     do_actor_attribs(env);
+    do_actor_attack_cast_speed(env);
+}
+
+fn do_actor_attack_cast_speed(env: &mut CalcEnv) {
+    let inc_attack =
+        env.player
+            .mod_db
+            .sum(ModType::Inc, "Speed", ModFlags::ATTACK, KeywordFlags::NONE);
+    let more_attack = env
+        .player
+        .mod_db
+        .more("Speed", ModFlags::ATTACK, KeywordFlags::NONE);
+    env.player.set_output(
+        "AttackSpeedMod",
+        1.0 * (1.0 + inc_attack / 100.0) * more_attack,
+    );
+
+    let inc_cast =
+        env.player
+            .mod_db
+            .sum(ModType::Inc, "Speed", ModFlags::SPELL, KeywordFlags::NONE);
+    let more_cast = env
+        .player
+        .mod_db
+        .more("Speed", ModFlags::SPELL, KeywordFlags::NONE);
+    env.player
+        .set_output("CastSpeedMod", 1.0 * (1.0 + inc_cast / 100.0) * more_cast);
 }
 
 /// Mirrors doActorLifeMana() in CalcPerform.lua lines 68–130.

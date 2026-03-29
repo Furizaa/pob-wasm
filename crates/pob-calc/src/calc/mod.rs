@@ -29,7 +29,7 @@ pub fn calculate(build: &Build, data: Arc<GameData>) -> Result<CalcResult, CalcE
     perform::run(&mut env);
     defence::run(&mut env);
     active_skill::run(&mut env, build);
-    offence::run(&mut env);
+    offence::run(&mut env, build);
     triggers::run(&mut env, build);
     mirages::run(&mut env, build);
 
