@@ -1,7 +1,8 @@
-//! pob-calc: Path of Building calculation engine port.
-//!
-//! This crate has zero WebAssembly dependencies and compiles to native
-//! binaries for testing. The pob-wasm crate wraps it for WASM targets.
+pub mod error;
+pub mod data;
+pub mod mod_db;
+pub mod build;
+pub mod passive_tree;
 
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
@@ -9,11 +10,9 @@ pub fn version() -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn version_is_semver() {
-        let v = version();
-        assert!(v.contains('.'), "expected semver, got {v}");
+        let v = super::version();
+        assert!(v.contains('.'));
     }
 }
