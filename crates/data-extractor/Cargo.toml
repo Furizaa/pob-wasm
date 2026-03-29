@@ -1,0 +1,15 @@
+[package]
+name = "data-extractor"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "data-extractor"
+path = "src/main.rs"
+
+[dependencies]
+pob-calc = { path = "../pob-calc" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+ggpk = "1.2.2"
