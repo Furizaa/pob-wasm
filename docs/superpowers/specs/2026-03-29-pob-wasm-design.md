@@ -509,11 +509,30 @@ In `pob-calc` using `#[test]`. Tests construct `ModDb` directly with known mods 
 
 ### Layer 2 — Oracle tests (correctness against POB)
 
-Stored in `tests/oracle/`. Each oracle test is a pair:
+Stored in `crates/pob-calc/tests/oracle/`. Each oracle test is a pair:
 - `{name}.xml` — a POB build XML
 - `{name}.expected.json` — the output table captured from POB's HeadlessWrapper
 
-**Oracle generation:** A small Lua wrapper script (`scripts/gen_oracle.lua`) runs POB's HeadlessWrapper, loads a build XML, and runs `calcs.perform(env)` with breakdown explicitly enabled (by passing a pre-initialized `actor.breakdown = {}` table before the calc call — breakdown is normally `nil` in POB's headless mode and only populated in the UI path). The script then serializes both `env.player.output` and `env.player.breakdown` to JSON via `dkjson` or an equivalent pure-Lua JSON library. Output structure matches `CalculationResult` (without the `handle` field, which is WASM-only). Invoked as `luajit scripts/gen_oracle.lua {name}.xml > tests/oracle/{name}.expected.json`. This requires LuaJIT and the POB submodule to be initialized. Oracle files are generated once, committed, and only regenerated when POB's calculation logic changes.
+**Oracle generation:** `scripts/gen_oracle.lua` runs POB's HeadlessWrapper, loads a build XML, enables breakdown (`actor.breakdown = {}`), calls `calcs.perform(env)`, then serializes `env.player.output` and `env.player.breakdown` to JSON. Use `scripts/run_oracle.sh` (the shell wrapper) rather than invoking `luajit` directly — POB uses relative `dofile()` paths throughout, so the script must run from `third-party/PathOfBuilding/src/`, which `run_oracle.sh` handles automatically:
+
+```bash
+./scripts/run_oracle.sh tests/oracle/{name}.xml > crates/pob-calc/tests/oracle/{name}.expected.json
+```
+
+Oracle files are generated once, committed, and only regenerated when POB's calculation logic changes.
+
+**Environment requirements for oracle generation:**
+
+POB's `HeadlessWrapper.lua` was designed for a Windows runtime that bundles native Lua C extensions. On macOS/Linux with plain LuaJIT several issues arise:
+
+| Issue | Root cause | Fix applied in `gen_oracle.lua` |
+|---|---|---|
+| `GetVirtualScreenSize` is nil | HeadlessWrapper defines `GetScreenSize` but not `GetVirtualScreenSize`; `Launch.lua:394` calls it during `OnFrame` when a prompt/error is displayed | Pre-define `GetVirtualScreenSize` returning `1920, 1080` before loading HeadlessWrapper |
+| `lua-utf8` module not found | A C extension bundled in POB's Windows runtime; used only for number thousands-separator formatting | Stub as a pure-Lua fallback in `package.preload` before loading HeadlessWrapper |
+| `sha1` module path | Stored as `runtime/lua/sha1/init.lua`; requires `?/init.lua` in `package.path` | Add `runtime/lua/?/init.lua` pattern to `package.path` |
+| Relative `dofile` calls | POB calls `dofile("Launch.lua")`, `LoadModule("Modules/Calcs.lua")` etc. relative to cwd | Must run from `third-party/PathOfBuilding/src/`; handled by `run_oracle.sh` |
+
+For CI, the POB Docker container (`ghcr.io/pathofbuildingcommunity/pathofbuilding-tests:latest`) bundles all required native extensions and is the recommended environment for generating new oracle files. On a developer machine with macOS, the stubs in `gen_oracle.lua` are sufficient for builds that don't exercise `lua-utf8`'s advanced Unicode paths (which the standard PoE game data doesn't).
 
 **Oracle builds (representative archetypes):**
 
@@ -530,7 +549,7 @@ Stored in `tests/oracle/`. Each oracle test is a pair:
 | `mine_detonator` | Mine-based damage |
 | `poe2_basic` | PoE 2 class, basic build |
 
-Oracle tests run in CI but require LuaJIT; they are skipped if LuaJIT is not installed.
+Oracle Rust tests (`crates/pob-calc/tests/oracle.rs`) are unconditional — they always run. Tests that compare computed values against expected JSON only assert when `DATA_DIR` env var is set (pointing to a directory containing game data JSON); they skip gracefully otherwise. This means `cargo test` always works without any special setup, and full parity validation is available when game data is present.
 
 ### Layer 3 — WASM integration tests
 
