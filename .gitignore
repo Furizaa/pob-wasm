@@ -1,0 +1,3 @@
+.worktrees/
+/crates/pob-wasm/pkg/
+/target/
