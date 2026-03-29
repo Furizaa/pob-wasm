@@ -17,6 +17,7 @@ pub struct TabulatedMod {
 
 /// The central modifier database.
 /// Mirrors POB's ModDB class (ModDB.lua + ModStore.lua).
+#[derive(Debug)]
 pub struct ModDb {
     mods: HashMap<String, Vec<Mod>>,
     pub conditions: HashMap<String, bool>,

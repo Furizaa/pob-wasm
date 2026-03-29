@@ -4,11 +4,48 @@ use std::collections::HashMap;
 use std::path::Path;
 
 #[derive(Serialize)]
+pub struct GemLevelData {
+    pub level: u8,
+    #[serde(skip_serializing_if = "is_zero_f64")]
+    pub phys_min: f64,
+    #[serde(skip_serializing_if = "is_zero_f64")]
+    pub phys_max: f64,
+    #[serde(skip_serializing_if = "is_zero_f64")]
+    pub fire_min: f64,
+    #[serde(skip_serializing_if = "is_zero_f64")]
+    pub fire_max: f64,
+    #[serde(skip_serializing_if = "is_zero_f64")]
+    pub cold_min: f64,
+    #[serde(skip_serializing_if = "is_zero_f64")]
+    pub cold_max: f64,
+    #[serde(skip_serializing_if = "is_zero_f64")]
+    pub lightning_min: f64,
+    #[serde(skip_serializing_if = "is_zero_f64")]
+    pub lightning_max: f64,
+    #[serde(skip_serializing_if = "is_zero_f64")]
+    pub chaos_min: f64,
+    #[serde(skip_serializing_if = "is_zero_f64")]
+    pub chaos_max: f64,
+    #[serde(skip_serializing_if = "is_zero_f64")]
+    pub crit_chance: f64,
+    #[serde(skip_serializing_if = "is_zero_f64")]
+    pub cast_time: f64,
+    #[serde(skip_serializing_if = "is_zero_f64")]
+    pub attack_speed_mult: f64,
+}
+
+fn is_zero_f64(v: &f64) -> bool {
+    *v == 0.0
+}
+
+#[derive(Serialize)]
 pub struct GemData {
     pub id: String,
     pub display_name: String,
     pub is_support: bool,
     pub skill_types: Vec<u32>,
+    /// Per-level damage/timing data. Empty until GGPK offsets are calibrated.
+    pub levels: Vec<GemLevelData>,
 }
 
 pub fn extract(reader: &GgpkReader, output: &Path) -> Result<(), ExtractError> {
@@ -48,6 +85,7 @@ pub fn extract(reader: &GgpkReader, output: &Path) -> Result<(), ExtractError> {
                 display_name,
                 is_support,
                 skill_types,
+                levels: Vec::new(), // TODO: populate from GemEffects.datc64 when GGPK offsets are calibrated
             },
         );
     }

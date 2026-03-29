@@ -112,3 +112,67 @@ fn oracle_melee_str_passives_life_matches_pob() {
     assert_output_approx(&actual, expected_output, "Life");
     assert_output_approx(&actual, expected_output, "Mana");
 }
+
+#[test]
+fn oracle_crit_spellcaster_dps_matches_pob() {
+    let Some(data) = load_game_data() else {
+        eprintln!("DATA_DIR not set");
+        return;
+    };
+    let xml = load_build_xml("crit_spellcaster");
+    let build = parse_xml(&xml).expect("parse");
+    let result = calculate(&build, Arc::clone(&data)).expect("calculate");
+    let actual = serde_json::to_value(&result.output).unwrap();
+    let expected = load_expected("crit_spellcaster");
+    let expected_output = expected.get("output").unwrap_or(&expected);
+    assert_output_approx(&actual, expected_output, "TotalDPS");
+    assert_output_approx(&actual, expected_output, "AverageDamage");
+}
+
+#[test]
+fn oracle_ignite_dot_dps_matches_pob() {
+    let Some(data) = load_game_data() else {
+        eprintln!("DATA_DIR not set");
+        return;
+    };
+    let xml = load_build_xml("ignite_dot");
+    let build = parse_xml(&xml).expect("parse");
+    let result = calculate(&build, Arc::clone(&data)).expect("calculate");
+    let actual = serde_json::to_value(&result.output).unwrap();
+    let expected = load_expected("ignite_dot");
+    let expected_output = expected.get("output").unwrap_or(&expected);
+    assert_output_approx(&actual, expected_output, "TotalDPS");
+    assert_output_approx(&actual, expected_output, "IgniteDPS");
+}
+
+#[test]
+fn oracle_bleed_dot_dps_matches_pob() {
+    let Some(data) = load_game_data() else {
+        eprintln!("DATA_DIR not set");
+        return;
+    };
+    let xml = load_build_xml("bleed_dot");
+    let build = parse_xml(&xml).expect("parse");
+    let result = calculate(&build, Arc::clone(&data)).expect("calculate");
+    let actual = serde_json::to_value(&result.output).unwrap();
+    let expected = load_expected("bleed_dot");
+    let expected_output = expected.get("output").unwrap_or(&expected);
+    assert_output_approx(&actual, expected_output, "TotalDPS");
+    assert_output_approx(&actual, expected_output, "BleedDPS");
+}
+
+#[test]
+fn oracle_poison_dot_dps_matches_pob() {
+    let Some(data) = load_game_data() else {
+        eprintln!("DATA_DIR not set");
+        return;
+    };
+    let xml = load_build_xml("poison_dot");
+    let build = parse_xml(&xml).expect("parse");
+    let result = calculate(&build, Arc::clone(&data)).expect("calculate");
+    let actual = serde_json::to_value(&result.output).unwrap();
+    let expected = load_expected("poison_dot");
+    let expected_output = expected.get("output").unwrap_or(&expected);
+    assert_output_approx(&actual, expected_output, "TotalDPS");
+    assert_output_approx(&actual, expected_output, "PoisonDPS");
+}

@@ -76,6 +76,7 @@ pub struct Actor {
     pub output: OutputTable,
     pub breakdown: BreakdownTable,
     pub minion: Option<Box<Actor>>,
+    pub main_skill: Option<crate::build::types::ActiveSkill>,
 }
 
 impl Actor {
@@ -85,6 +86,7 @@ impl Actor {
             output: HashMap::new(),
             breakdown: HashMap::new(),
             minion: None,
+            main_skill: None,
         }
     }
 
@@ -130,6 +132,20 @@ pub struct CalcEnv {
     pub enemy: Actor,
     pub mode: CalcMode,
     pub data: Arc<GameData>,
+}
+
+/// Get a numeric output value, returning 0.0 if absent or not a number.
+pub fn get_output_f64(output: &OutputTable, key: &str) -> f64 {
+    output
+        .get(key)
+        .and_then(|v| {
+            if let OutputValue::Number(n) = v {
+                Some(*n)
+            } else {
+                None
+            }
+        })
+        .unwrap_or(0.0)
 }
 
 impl CalcEnv {

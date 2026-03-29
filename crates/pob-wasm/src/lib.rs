@@ -61,10 +61,10 @@ pub fn calculate(pob_xml: String) -> Result<String, JsValue> {
 
     pob_calc::calc::perform::run(&mut env);
     pob_calc::calc::defence::run(&mut env);
-    pob_calc::calc::active_skill::run(&mut env);
-    pob_calc::calc::offence::run(&mut env);
-    pob_calc::calc::triggers::run(&mut env);
-    pob_calc::calc::mirages::run(&mut env);
+    pob_calc::calc::active_skill::run(&mut env, &build);
+    pob_calc::calc::offence::run(&mut env, &build);
+    pob_calc::calc::triggers::run(&mut env, &build);
+    pob_calc::calc::mirages::run(&mut env, &build);
 
     // Assign a handle and store the env
     let handle = NEXT_HANDLE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -97,10 +97,10 @@ pub fn calculate_skill(pob_xml: String, skill_index: u32) -> Result<String, JsVa
         .map_err(|e| JsValue::from_str(&format!("setup error: {e}")))?;
     pob_calc::calc::perform::run(&mut env);
     pob_calc::calc::defence::run(&mut env);
-    pob_calc::calc::active_skill::run(&mut env);
-    pob_calc::calc::offence::run(&mut env);
-    pob_calc::calc::triggers::run(&mut env);
-    pob_calc::calc::mirages::run(&mut env);
+    pob_calc::calc::active_skill::run(&mut env, &build);
+    pob_calc::calc::offence::run(&mut env, &build);
+    pob_calc::calc::triggers::run(&mut env, &build);
+    pob_calc::calc::mirages::run(&mut env, &build);
 
     let handle = NEXT_HANDLE.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     let output = env.player.output.clone();
