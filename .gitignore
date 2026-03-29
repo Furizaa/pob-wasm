@@ -1,3 +1,9 @@
 .worktrees/
 /crates/pob-wasm/pkg/
 /target/
+
+# Generated data files (not committed; run scripts/extract.sh to regenerate)
+# data/*.json and data/tree/*.json are regenerated from Content.ggpk
+# Uncomment the lines below if you want to commit extracted data:
+# !data/*.json
+# !data/tree/*.json
