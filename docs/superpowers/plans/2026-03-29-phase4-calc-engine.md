@@ -304,129 +304,50 @@ git commit -m "feat(calc): add CalcEnv, CalcResult, and calc module stubs"
 
 **Files:**
 - Create: `scripts/gen_oracle.lua`
-- Create: `tests/oracle/melee_str.xml`
+- Create: `scripts/run_oracle.sh`
+- Create: `crates/pob-calc/tests/oracle/melee_str.xml`
 - Create: `crates/pob-calc/tests/oracle.rs`
 
 This sets up the ground-truth comparison system. The oracle script runs POB's HeadlessWrapper with breakdown enabled and captures output as JSON. The Rust test loads the same XML, runs the (stub) engine, and compares output. Tests will fail until calculation modules are filled in — that's expected. The infrastructure just needs to work.
 
-- [ ] **Step 1: Create `scripts/gen_oracle.lua`**
+> **Implementation note (2026-03-29):** POB's HeadlessWrapper has several environment requirements that are not obvious from reading the Lua source. See the design doc §6 for the full table of issues and fixes. Summary: `gen_oracle.lua` must be invoked via `scripts/run_oracle.sh` (which `cd`s to `third-party/PathOfBuilding/src/` first), and the script must pre-define `GetVirtualScreenSize` and stub `lua-utf8` before loading HeadlessWrapper. See the actual `scripts/gen_oracle.lua` file for the working implementation — the code below is the conceptual structure only. For CI, use the POB Docker container.
+
+- [ ] **Step 1: Create `scripts/gen_oracle.lua` and `scripts/run_oracle.sh`**
+
+Conceptual structure of `gen_oracle.lua` (see actual file for working implementation):
 
 ```lua
-#!/usr/bin/env luajit
--- gen_oracle.lua: Run a POB build XML through the POB engine (headless)
--- and output a CalculationResult JSON to stdout.
--- Usage: luajit scripts/gen_oracle.lua <path-to-build.xml>
--- Requires: LuaJIT, and the PathOfBuilding submodule initialized.
+-- IMPORTANT: Must run from third-party/PathOfBuilding/src/ (handled by run_oracle.sh)
+-- Pre-define missing globals and stub C extensions before loading HeadlessWrapper:
+--   1. package.path must include runtime/lua/?.lua and runtime/lua/?/init.lua
+--   2. package.preload['lua-utf8'] = <pure-lua stub> (C extension, unavailable in plain LuaJIT)
+--   3. function GetVirtualScreenSize() return 1920, 1080 end (missing from HeadlessWrapper)
+-- Then: dofile("./HeadlessWrapper.lua")
 
-local xml_path = arg[1]
-if not xml_path then
-    io.stderr:write("Usage: luajit gen_oracle.lua <build.xml>\n")
-    os.exit(1)
-end
-
--- Locate repo root (script is in scripts/, two levels up from here)
-local script_dir = debug.getinfo(1, "S").source:match("^@(.+)/[^/]+$") or "."
-local repo_root = script_dir .. "/.."
-local pob_dir = repo_root .. "/third-party/PathOfBuilding/src"
-
--- Bootstrap POB's headless wrapper
-package.path = pob_dir .. "/?.lua;" .. package.path
-dofile(pob_dir .. "/HeadlessWrapper.lua")
-
--- Load POB's modules enough to parse a build and run calcs
-LoadModule(pob_dir .. "/Modules/Common.lua")
-LoadModule(pob_dir .. "/Modules/Data.lua")
-
--- Simple JSON serializer (no external deps needed for basic types)
-local function to_json(val, indent)
-    indent = indent or ""
-    local t = type(val)
-    if t == "nil" then return "null"
-    elseif t == "boolean" then return tostring(val)
-    elseif t == "number" then
-        if val ~= val then return "null" end -- NaN
-        if val == math.huge or val == -math.huge then return "null" end
-        return string.format("%.10g", val)
-    elseif t == "string" then
-        return '"' .. val:gsub('\\','\\\\'):gsub('"','\\"'):gsub('\n','\\n') .. '"'
-    elseif t == "table" then
-        -- Check if array
-        local is_array = #val > 0
-        if is_array then
-            local parts = {}
-            for _, v in ipairs(val) do
-                table.insert(parts, to_json(v, indent .. "  "))
-            end
-            return "[" .. table.concat(parts, ",") .. "]"
-        else
-            local parts = {}
-            for k, v in pairs(val) do
-                if type(k) == "string" or type(k) == "number" then
-                    table.insert(parts, '"' .. tostring(k) .. '":' .. to_json(v, indent .. "  "))
-                end
-            end
-            table.sort(parts)
-            return "{" .. table.concat(parts, ",") .. "}"
-        end
-    end
-    return "null"
-end
-
--- Read and parse the build XML
-local f = io.open(xml_path, "r")
-if not f then
-    io.stderr:write("Cannot open: " .. xml_path .. "\n")
-    os.exit(1)
-end
-local xml_content = f:read("*a")
-f:close()
-
--- Load the build module
-local buildModule = LoadModule(pob_dir .. "/Modules/Build.lua")
-local build = new("Build", nil, "oracle_build", xml_content)
-
--- Run calculations with breakdown enabled
-local calcs = LoadModule(pob_dir .. "/Modules/Calcs.lua")
-local env, _, _, _ = calcs.initEnv(build, "NORMAL")
-
--- Enable breakdown on the player actor
-env.player.breakdown = {}
-if env.minion then env.minion.breakdown = {} end
-
-calcs.perform(env)
-
--- Collect output (filter out non-serializable values)
-local output = {}
-for k, v in pairs(env.player.output) do
-    local t = type(v)
-    if t == "number" or t == "boolean" or t == "string" then
-        output[k] = v
-    end
-end
-
--- Collect breakdown (only text lines for now)
-local breakdown = {}
-for k, v in pairs(env.player.breakdown) do
-    if type(v) == "table" then
-        local bd = {}
-        -- Lines (array of strings)
-        local lines = {}
-        for _, line in ipairs(v) do
-            if type(line) == "string" then
-                table.insert(lines, line)
-            end
-        end
-        if #lines > 0 then bd.lines = lines end
-        if next(bd) then breakdown[k] = bd end
-    end
-end
-
-local result = { output = output, breakdown = breakdown }
-io.write(to_json(result))
-io.write("\n")
+-- After HeadlessWrapper loads, POB engine is initialised. Then:
+--   local build = new("Build", nil, "oracle_build", xml_content)
+--   local calcs = LoadModule("Modules/Calcs.lua")
+--   local env = calcs.initEnv(build, "NORMAL")
+--   env.player.breakdown = {}
+--   calcs.perform(env)
+-- Collect env.player.output and env.player.breakdown, serialise to JSON, write to stdout.
 ```
 
-- [ ] **Step 2: Create a minimal oracle build XML at `tests/oracle/melee_str.xml`**
+`scripts/run_oracle.sh` handles the directory change:
+
+```bash
+#!/bin/bash
+# Usage: ./scripts/run_oracle.sh <path-to-build.xml>
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+POB_SRC="$SCRIPT_DIR/../third-party/PathOfBuilding/src"
+XML_PATH="$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
+cd "$POB_SRC"
+luajit "$SCRIPT_DIR/gen_oracle.lua" "$XML_PATH"
+```
+
+- [ ] **Step 2: Create a minimal oracle build XML at `crates/pob-calc/tests/oracle/melee_str.xml`**
+
+> **Note:** Oracle test files live in `crates/pob-calc/tests/oracle/` (not `tests/oracle/` at the repo root), because Cargo integration tests resolve relative paths from the crate directory. Both locations can coexist for convenience.
 
 This is a simple level-90 Marauder with a few passives and no items (items added later). The goal is a build simple enough to verify manually.
 
@@ -457,19 +378,25 @@ This is a simple level-90 Marauder with a few passives and no items (items added
 
 - [ ] **Step 3: Generate the expected oracle JSON**
 
+Use the shell wrapper (handles the `cd` to POB src):
 ```bash
-luajit scripts/gen_oracle.lua tests/oracle/melee_str.xml > tests/oracle/melee_str.expected.json
+./scripts/run_oracle.sh crates/pob-calc/tests/oracle/melee_str.xml \
+  > crates/pob-calc/tests/oracle/melee_str.expected.json
 ```
 
 Verify the file was created and has content:
 ```bash
-wc -c tests/oracle/melee_str.expected.json
+wc -c crates/pob-calc/tests/oracle/melee_str.expected.json
 ```
 
-Expected: a non-zero byte count. If the script errors, check that `third-party/PathOfBuilding` submodule is initialized:
+Expected: a non-zero byte count. If the script errors with `cannot open .../HeadlessWrapper.lua`, check that the submodule is initialized:
 ```bash
 git submodule update --init third-party/PathOfBuilding
 ```
+
+If the generated file is empty or the script hangs, you may be hitting a POB environment issue — see the design doc §6 for the full troubleshooting table. For CI, use the POB Docker container instead of plain LuaJIT.
+
+> **Fallback:** If oracle generation is blocked, create a minimal placeholder `melee_str.expected.json` with `{"output":{},"breakdown":{}}`. The parse and calculate-returns-result tests will still pass; only the life-matches-pob test will skip (it checks `DATA_DIR` anyway).
 
 - [ ] **Step 4: Create `crates/pob-calc/tests/oracle.rs`**
 
@@ -579,9 +506,13 @@ fn oracle_melee_str_parses() {
 fn oracle_melee_str_calculate_returns_result() {
     // Check that calculate() returns a result without panicking,
     // even if values are all zeroes at this stage.
+    // Skip if DATA_DIR is not set (load_game_data returns None when unset).
+    let Some(data) = load_game_data() else {
+        eprintln!("DATA_DIR not set, skipping oracle test");
+        return;
+    };
     let xml = load_build_xml("melee_str");
     let build = parse_xml(&xml).expect("parse");
-    let data = load_game_data().expect("game data");
     let result = calculate(&build, data).expect("calculate should not error");
     // At minimum, the result should be a valid struct (no panic)
     let _ = serde_json::to_string(&result).expect("result should serialize");
@@ -624,7 +555,7 @@ Expected: either skipped (no DATA_DIR) or FAIL with a diff showing expected > 0 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add scripts/gen_oracle.lua tests/oracle/ crates/pob-calc/tests/
+git add scripts/gen_oracle.lua scripts/run_oracle.sh crates/pob-calc/tests/
 git commit -m "test: add oracle infrastructure and melee_str test build"
 ```
 

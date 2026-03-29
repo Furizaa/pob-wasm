@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head><title>pob-wasm smoke test</title></head>
+<body>
+<pre id="output">Loading...</pre>
+<script type="module">
+import init, { version, init as initEngine, calculate, getMods, releaseBuild }
+  from './pkg/pob_wasm.js';
+
+async function run() {
+  await init(); // initialize WASM module
+
+  document.getElementById('output').textContent = 'Engine version: ' + version();
+
+  // Load game data (fetch from data/ directory relative to this file)
+  // For smoke test, use a minimal inline object
+  const gameData = JSON.stringify({
+    gems: {},
+    misc: {
+      game_constants: { "base_maximum_all_resistances_%": 75, "maximum_block_%": 75,
+        "base_maximum_spell_block_%": 75, "max_power_charges": 3, "max_frenzy_charges": 3,
+        "max_endurance_charges": 3, "maximum_life_leech_rate_%_per_minute": 20,
+        "maximum_mana_leech_rate_%_per_minute": 20,
+        "maximum_life_leech_amount_per_leech_%_max_life": 10,
+        "maximum_mana_leech_amount_per_leech_%_max_mana": 10,
+        "maximum_energy_shield_leech_amount_per_leech_%_max_energy_shield": 10,
+        "base_number_of_totems_allowed": 1,
+        "impaled_debuff_number_of_reflected_hits": 8,
+        "soul_eater_maximum_stacks": 40,
+        "maximum_righteous_charges": 10, "maximum_blood_scythe_charges": 8 },
+      character_constants: { life_per_str: 0.5 },
+      monster_life_table: [], monster_damage_table: [], monster_evasion_table: [],
+      monster_accuracy_table: [], monster_ally_life_table: [], monster_ally_damage_table: [],
+      monster_ailment_threshold_table: [], monster_phys_conversion_multi_table: []
+    }
+  });
+
+  initEngine(gameData);
+
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_29" bandit="None" mainSocketGroup="1"
+         className="Marauder" ascendClassName="None"></Build>
+  <Skills activeSkillSet="1"><SkillSet id="1">
+    <Skill mainActiveSkill="1" enabled="true" slot="Weapon 1">
+      <Gem skillId="Cleave" level="20" quality="0" enabled="true"/>
+    </Skill>
+  </SkillSet></Skills>
+  <Tree activeSpec="1">
+    <Spec treeVersion="3_29" nodes="" classId="1" ascendClassId="0"/>
+  </Tree>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config/>
+</PathOfBuilding>`;
+
+  const resultJson = calculate(xml);
+  const result = JSON.parse(resultJson);
+
+  const lifeModsJson = getMods(result.handle, 'Life');
+  const lifeMods = JSON.parse(lifeModsJson);
+
+  releaseBuild(result.handle);
+
+  document.getElementById('output').textContent =
+    'Life: ' + result.output['Life'] + '\n' +
+    'Life mods: ' + lifeMods.length + '\n' +
+    JSON.stringify(result.output, null, 2);
+}
+
+run().catch(e => {
+  document.getElementById('output').textContent = 'ERROR: ' + e;
+  console.error(e);
+});
+</script>
+</body>
+</html>
