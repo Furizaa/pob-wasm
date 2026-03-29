@@ -47,6 +47,35 @@ pub struct Gem {
     pub is_support: bool,
 }
 
+/// A fully resolved active skill, ready for offence calculations.
+/// Mirrors POB's activeSkill table (env.player.mainSkill).
+#[derive(Debug)]
+pub struct ActiveSkill {
+    /// The active gem's skill ID (e.g. "Fireball", "Cleave")
+    pub skill_id: String,
+    /// Gem level (1–20)
+    pub level: u8,
+    /// Combined modifier database for this skill's context
+    pub skill_mod_db: crate::mod_db::ModDb,
+    /// True if this is an attack (uses attack speed, weapon damage)
+    pub is_attack: bool,
+    /// True if this is a spell
+    pub is_spell: bool,
+    /// True if this skill uses melee mechanics
+    pub is_melee: bool,
+    /// True if the skill can crit
+    pub can_crit: bool,
+    /// Base critical strike chance (0.0–1.0). From gem data.
+    pub base_crit_chance: f64,
+    /// Base damage (min, max) per damage type, from gem level scaling.
+    /// Key: "Physical" | "Lightning" | "Cold" | "Fire" | "Chaos"
+    pub base_damage: std::collections::HashMap<String, (f64, f64)>,
+    /// Attack speed (uses per second, for attacks)
+    pub attack_speed_base: f64,
+    /// Cast time in seconds (for spells)
+    pub cast_time: f64,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct ItemSet {
     pub id: u32,

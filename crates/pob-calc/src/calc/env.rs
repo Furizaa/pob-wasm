@@ -76,6 +76,7 @@ pub struct Actor {
     pub output: OutputTable,
     pub breakdown: BreakdownTable,
     pub minion: Option<Box<Actor>>,
+    pub main_skill: Option<crate::build::types::ActiveSkill>,
 }
 
 impl Actor {
@@ -85,6 +86,7 @@ impl Actor {
             output: HashMap::new(),
             breakdown: HashMap::new(),
             minion: None,
+            main_skill: None,
         }
     }
 
