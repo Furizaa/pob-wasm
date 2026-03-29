@@ -2,6 +2,7 @@ use crate::error::ExtractError;
 
 /// Probe the actual row size of a .datc64 file by scanning for the 0xBB sentinel.
 /// Returns (row_count, row_size) or None if the sentinel is not found.
+#[allow(dead_code)]
 pub fn probe_row_size(bytes: &[u8]) -> Option<(usize, usize)> {
     if bytes.len() < 12 {
         return None;
@@ -36,6 +37,7 @@ pub struct Dat64 {
 impl Dat64 {
     /// Parse raw bytes from a .dat64 file (PoE1 format, no pointer bias).
     /// `row_size` must be determined by the caller from the table schema.
+    #[allow(dead_code)]
     pub fn parse(bytes: Vec<u8>, row_size: usize, file_name: &str) -> Result<Self, ExtractError> {
         Self::parse_with_bias(bytes, row_size, file_name, 0)
     }

@@ -14,41 +14,7 @@ use crate::error::ExtractError;
 // The path is lowercased; no ++ salt. Seed = 0x1337b33f.
 // ---------------------------------------------------------------------------
 pub fn filepath_hash(path: &str) -> u64 {
-    murmur_hash64a(path.to_lowercase().as_bytes(), 0x1337b33f)
-}
-
-fn murmur_hash64a(data: &[u8], seed: u64) -> u64 {
-    const M: u64 = 0xc6a4a7935bd1e995;
-    const R: u32 = 47;
-
-    let len = data.len();
-    let mut h: u64 = seed ^ ((len as u64).wrapping_mul(M));
-
-    let chunks = len / 8;
-    for i in 0..chunks {
-        let offset = i * 8;
-        let mut k = u64::from_le_bytes(data[offset..offset + 8].try_into().unwrap());
-        k = k.wrapping_mul(M);
-        k ^= k >> R;
-        k = k.wrapping_mul(M);
-        h ^= k;
-        h = h.wrapping_mul(M);
-    }
-
-    let tail = &data[chunks * 8..];
-    if !tail.is_empty() {
-        let mut k: u64 = 0;
-        for (i, &byte) in tail.iter().enumerate() {
-            k ^= (byte as u64) << (i * 8);
-        }
-        h ^= k;
-        h = h.wrapping_mul(M);
-    }
-
-    h ^= h >> R;
-    h = h.wrapping_mul(M);
-    h ^= h >> R;
-    h
+    murmurhash64::murmur_hash64a(path.to_lowercase().as_bytes(), 0x1337b33f)
 }
 
 // ---------------------------------------------------------------------------
@@ -167,6 +133,7 @@ struct IndexEntry {
 struct BundleIndex {
     files: HashMap<u64, IndexEntry>,
     /// All decoded path strings (for diagnostics / discovery)
+    #[allow(dead_code)]
     pub paths: Vec<String>,
 }
 
@@ -227,6 +194,7 @@ impl BundleIndex {
     }
 
     /// Find all paths in the index matching a substring (case-insensitive).
+    #[allow(dead_code)]
     pub fn find_paths(&self, needle: &str) -> Vec<&str> {
         let needle_lc = needle.to_lowercase();
         self.paths
@@ -254,6 +222,7 @@ impl GgpkReader {
     }
 
     /// Find paths in the index matching a substring (for diagnostics).
+    #[allow(dead_code)]
     pub fn find_paths(&self, needle: &str) -> Vec<&str> {
         self.index.find_paths(needle)
     }
