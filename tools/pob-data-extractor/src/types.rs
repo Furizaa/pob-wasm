@@ -189,7 +189,8 @@ pub struct BaseRequirements {
 // Unique Items
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct UniqueItemData {
     pub name: String,
     pub base_type: String,
