@@ -71,7 +71,7 @@ pub fn emit_manual_manifest(data: &ParsedModParser) -> Result<String, String> {
         let handler_id = format!("manual_{}", idx);
         let (regex_str, capture_count) =
             lua_pattern_to_regex(&entry.pattern.0).unwrap_or_else(|_| (entry.pattern.0.clone(), 0));
-        let escaped = escape_rust_string(&regex_str);
+        let escaped = escape_for_raw_string(&regex_str);
         let lua_line = entry.line_number;
         if let SpecialModTemplate::ManualRequired { ref lua_body, .. } = entry.template {
             let body_preview: String = lua_body.chars().take(120).collect();
@@ -166,7 +166,7 @@ fn emit_form_patterns(out: &mut String, forms: &[FormEntry]) -> Result<(), Strin
         let (regex_str, _caps) = lua_pattern_to_regex(&entry.pattern.0)
             .map_err(|e| format!("form pattern '{}': {}", entry.pattern.0, e))?;
         let form_variant = form_type_to_rust(&entry.form);
-        let escaped = escape_rust_string(&regex_str);
+        let escaped = escape_for_raw_string(&regex_str);
         out.push_str(&format!(
             "    (Lazy::new(|| Regex::new(r#\"{}\"#).unwrap()), FormType::{}),\n",
             escaped, form_variant
@@ -282,7 +282,7 @@ fn emit_pre_flag_patterns(out: &mut String, pre_flags: &[PreFlagEntry]) -> Resul
     for entry in pre_flags {
         let (regex_str, _) = lua_pattern_to_regex(&entry.pattern.0)
             .map_err(|e| format!("pre_flag '{}': {}", entry.pattern.0, e))?;
-        let escaped = escape_rust_string(&regex_str);
+        let escaped = escape_for_raw_string(&regex_str);
         let flags_expr = emit_mod_flags_expr(&entry.flags);
         let kw_expr = emit_keyword_flags_expr(&entry.keyword_flags);
         let tags_items = emit_static_tag_vec_items(&entry.tags);
@@ -334,7 +334,7 @@ fn emit_mod_tag_patterns(out: &mut String, mod_tags: &[ModTagEntry]) -> Result<(
     for entry in mod_tags {
         let (regex_str, _) = lua_pattern_to_regex(&entry.pattern.0)
             .map_err(|e| format!("mod_tag '{}': {}", entry.pattern.0, e))?;
-        let escaped = escape_rust_string(&regex_str);
+        let escaped = escape_for_raw_string(&regex_str);
         let tags_items = emit_static_tag_vec_items(&entry.tags);
         out.push_str(&format!(
             "    (Lazy::new(|| Regex::new(r#\"{}\"#).unwrap()), StaticModTagEntry {{\n\
@@ -642,7 +642,7 @@ fn emit_special_mods(out: &mut String, special_mods: &[SpecialModEntry]) -> Resu
     for entry in special_mods {
         let (regex_str, _) = lua_pattern_to_regex(&entry.pattern.0)
             .map_err(|e| format!("special_mod '{}': {}", entry.pattern.0, e))?;
-        let escaped = escape_rust_string(&regex_str);
+        let escaped = escape_for_raw_string(&regex_str);
         out.push_str(&format!(
             "    Lazy::new(|| Regex::new(r#\"{}\"#).unwrap()),\n",
             escaped
@@ -2298,4 +2298,13 @@ fn escape_rust_string(s: &str) -> String {
         .replace('\n', "\\n")
         .replace('\r', "\\r")
         .replace('\t', "\\t")
+}
+
+/// Escape a string for use inside a Rust raw string literal r#"..."#.
+/// Raw strings don't interpret backslash escapes, so we only need to
+/// ensure the string doesn't contain the raw string delimiter `"#`.
+fn escape_for_raw_string(s: &str) -> String {
+    // Raw strings can contain backslashes and quotes freely.
+    // The only thing that breaks a r#"..."# literal is the sequence "#.
+    s.replace("\"#", "\"##")
 }
