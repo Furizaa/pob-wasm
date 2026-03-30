@@ -66,7 +66,7 @@ pub fn parse_stat_text(text: &str, source: ModSource) -> Vec<Mod> {
             value: ModValue::Number(n),
             flags: ModFlags::NONE,
             keyword_flags: KeywordFlags::NONE,
-            conditions: vec![],
+            tags: vec![],
             source,
         });
     }
@@ -88,7 +88,7 @@ pub fn parse_stat_text(text: &str, source: ModSource) -> Vec<Mod> {
             value: ModValue::Number(n),
             flags: ModFlags::NONE,
             keyword_flags: KeywordFlags::NONE,
-            conditions: vec![],
+            tags: vec![],
             source,
         });
     }
@@ -106,7 +106,7 @@ pub fn parse_stat_text(text: &str, source: ModSource) -> Vec<Mod> {
             value: ModValue::Number(n),
             flags: ModFlags::NONE,
             keyword_flags: KeywordFlags::NONE,
-            conditions: vec![],
+            tags: vec![],
             source,
         });
     }
@@ -118,7 +118,7 @@ pub fn parse_stat_text(text: &str, source: ModSource) -> Vec<Mod> {
             value: ModValue::Number(n),
             flags: ModFlags::NONE,
             keyword_flags: KeywordFlags::NONE,
-            conditions: vec![],
+            tags: vec![],
             source,
         });
     }
@@ -130,7 +130,7 @@ pub fn parse_stat_text(text: &str, source: ModSource) -> Vec<Mod> {
             value: ModValue::Number(n),
             flags: ModFlags::NONE,
             keyword_flags: KeywordFlags::NONE,
-            conditions: vec![],
+            tags: vec![],
             source,
         });
     }
@@ -142,7 +142,7 @@ pub fn parse_stat_text(text: &str, source: ModSource) -> Vec<Mod> {
             value: ModValue::Number(n),
             flags: ModFlags::NONE,
             keyword_flags: KeywordFlags::NONE,
-            conditions: vec![],
+            tags: vec![],
             source,
         });
     } else if let Some(n) = extract_inc_pattern(text, "Dexterity") {
@@ -152,7 +152,7 @@ pub fn parse_stat_text(text: &str, source: ModSource) -> Vec<Mod> {
             value: ModValue::Number(n),
             flags: ModFlags::NONE,
             keyword_flags: KeywordFlags::NONE,
-            conditions: vec![],
+            tags: vec![],
             source,
         });
     } else if let Some(n) = extract_inc_pattern(text, "Intelligence") {
@@ -162,7 +162,7 @@ pub fn parse_stat_text(text: &str, source: ModSource) -> Vec<Mod> {
             value: ModValue::Number(n),
             flags: ModFlags::NONE,
             keyword_flags: KeywordFlags::NONE,
-            conditions: vec![],
+            tags: vec![],
             source,
         });
     }
@@ -174,7 +174,7 @@ pub fn parse_stat_text(text: &str, source: ModSource) -> Vec<Mod> {
             value: ModValue::Number(n),
             flags: ModFlags(ModFlags::ATTACK.0),
             keyword_flags: KeywordFlags::NONE,
-            conditions: vec![],
+            tags: vec![],
             source,
         });
     }
@@ -186,7 +186,7 @@ pub fn parse_stat_text(text: &str, source: ModSource) -> Vec<Mod> {
             value: ModValue::Number(n),
             flags: ModFlags(ModFlags::SPELL.0),
             keyword_flags: KeywordFlags::NONE,
-            conditions: vec![],
+            tags: vec![],
             source,
         });
     }
@@ -198,7 +198,7 @@ pub fn parse_stat_text(text: &str, source: ModSource) -> Vec<Mod> {
             value: ModValue::Number(n),
             flags: ModFlags::NONE,
             keyword_flags: KeywordFlags::NONE,
-            conditions: vec![],
+            tags: vec![],
             source,
         });
     }
@@ -210,7 +210,7 @@ pub fn parse_stat_text(text: &str, source: ModSource) -> Vec<Mod> {
             value: ModValue::Number(n),
             flags: ModFlags::NONE,
             keyword_flags: KeywordFlags::NONE,
-            conditions: vec![],
+            tags: vec![],
             source,
         });
     }
@@ -222,7 +222,7 @@ pub fn parse_stat_text(text: &str, source: ModSource) -> Vec<Mod> {
             value: ModValue::Number(n),
             flags: ModFlags::NONE,
             keyword_flags: KeywordFlags::NONE,
-            conditions: vec![],
+            tags: vec![],
             source,
         });
     }
@@ -238,7 +238,7 @@ pub fn parse_stat_text(text: &str, source: ModSource) -> Vec<Mod> {
             value: ModValue::Number(n),
             flags: ModFlags::NONE,
             keyword_flags: KeywordFlags::NONE,
-            conditions: vec![],
+            tags: vec![],
             source,
         });
     }
@@ -250,7 +250,7 @@ pub fn parse_stat_text(text: &str, source: ModSource) -> Vec<Mod> {
             value: ModValue::Number(n),
             flags: ModFlags::NONE,
             keyword_flags: KeywordFlags::NONE,
-            conditions: vec![],
+            tags: vec![],
             source,
         });
     }

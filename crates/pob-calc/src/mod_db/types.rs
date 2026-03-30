@@ -172,20 +172,100 @@ impl ModValue {
     }
 }
 
-/// A condition that gates whether a mod applies.
-/// Mirrors POB's tag system: { type = "Condition", var = "FullLife" }, etc.
+/// A tag that gates or scales a modifier's value.
+/// Mirrors PoB's mod tag system from EvalMod in ModStore.lua.
+/// Each tag type corresponds to a `type = "..."` tag in PoB's mod tables.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub enum Condition {
-    /// Mod applies only when this condition flag is true in modDB.conditions
-    Flag { var: String, negated: bool },
-    /// Mod applies only when a multiplier meets a threshold
+pub enum ModTag {
+    /// Scales value by a multiplier variable from modDB.multipliers.
+    /// value = value * floor((multiplier + base) / div), capped by limit.
+    Multiplier {
+        var: String,
+        div: f64,
+        limit: Option<f64>,
+        base: f64,
+    },
+
+    /// Gates mod on multiplier >= threshold (or < threshold if upper=true).
     MultiplierThreshold {
         var: String,
         threshold: f64,
-        negated: bool,
+        upper: bool,
     },
-    /// Mod always applies (no condition)
-    None,
+
+    /// Scales value by an output stat.
+    /// value = value * floor((stat_value + base) / div), capped by limit.
+    PerStat {
+        stat: String,
+        div: f64,
+        limit: Option<f64>,
+        base: f64,
+    },
+
+    /// Gates mod on output stat >= threshold (or < threshold if upper=true).
+    StatThreshold {
+        stat: String,
+        threshold: f64,
+        upper: bool,
+    },
+
+    /// Gates mod on a condition flag being true (or false if neg=true).
+    Condition { var: String, neg: bool },
+
+    /// Gates mod on another actor's condition flag.
+    ActorCondition {
+        actor: String,
+        var: String,
+        neg: bool,
+    },
+
+    /// Caps the cumulative value of this mod (applied after scaling).
+    Limit { limit: f64 },
+
+    /// Gates mod on the active skill having a specific skill type flag.
+    SkillType { skill_type: u32 },
+
+    /// Gates mod on the active skill's equipment slot.
+    SlotName { slot_name: String, neg: bool },
+
+    /// OR-based flag check (instead of the default AND matching).
+    /// Passes if (cfg_flags & mod_flags) != 0.
+    ModFlagOr { mod_flags: ModFlags },
+
+    /// AND-based keyword check (instead of the default OR matching).
+    /// Passes if (cfg_keywords & keyword_flags) == keyword_flags.
+    KeywordFlagAnd { keyword_flags: KeywordFlags },
+
+    /// Marks this mod as a buff/debuff for the GlobalEffect system.
+    GlobalEffect {
+        effect_type: String,
+        unscalable: bool,
+    },
+}
+
+/// Configuration for the active skill being evaluated.
+/// Passed to ModDb query methods to filter mods by skill context.
+/// Mirrors PoB's `cfg` table passed to Sum/More/Flag.
+#[derive(Debug, Clone, Default)]
+pub struct SkillCfg {
+    /// ModFlag bits for the skill (e.g. ATTACK|HIT|MELEE).
+    pub flags: ModFlags,
+    /// KeywordFlag bits for the skill (e.g. FIRE|SPELL).
+    pub keyword_flags: KeywordFlags,
+    /// Equipment slot this skill is socketed in (e.g. "Weapon 1").
+    pub slot_name: Option<String>,
+    /// Skill name for SkillName tag matching.
+    pub skill_name: Option<String>,
+    /// Skill ID for SkillId tag matching.
+    pub skill_id: Option<String>,
+    /// Skill part index for SkillPart tag matching.
+    pub skill_part: Option<u32>,
+    /// Set of SkillType flags the active skill has.
+    pub skill_types: std::collections::HashSet<u32>,
+    /// Per-skill conditions (e.g. "usedByMirage" = true).
+    pub skill_cond: std::collections::HashMap<String, bool>,
+    /// Source attribution string.
+    pub source: Option<String>,
 }
 
 /// Where a mod came from. Used for source attribution in the UI.
@@ -216,8 +296,8 @@ pub struct Mod {
     pub value: ModValue,
     pub flags: ModFlags,
     pub keyword_flags: KeywordFlags,
-    /// All conditions must be satisfied for this mod to apply
-    pub conditions: Vec<Condition>,
+    /// Tags that gate or scale this mod's value (replaces old `conditions` field).
+    pub tags: Vec<ModTag>,
     pub source: ModSource,
 }
 
@@ -229,7 +309,7 @@ impl Mod {
             value: ModValue::Number(value),
             flags: ModFlags::NONE,
             keyword_flags: KeywordFlags::NONE,
-            conditions: Vec::new(),
+            tags: Vec::new(),
             source,
         }
     }
@@ -241,7 +321,7 @@ impl Mod {
             value: ModValue::Bool(true),
             flags: ModFlags::NONE,
             keyword_flags: KeywordFlags::NONE,
-            conditions: Vec::new(),
+            tags: Vec::new(),
             source,
         }
     }
@@ -405,5 +485,71 @@ mod tests {
     fn keyword_flags_bitwise_or() {
         let combined = KeywordFlags::FIRE | KeywordFlags::COLD;
         assert_eq!(combined.0, 0x60);
+    }
+
+    #[test]
+    fn mod_tag_condition_creates_correctly() {
+        let tag = ModTag::Condition {
+            var: "FullLife".into(),
+            neg: false,
+        };
+        match &tag {
+            ModTag::Condition { var, neg } => {
+                assert_eq!(var, "FullLife");
+                assert!(!neg);
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn mod_tag_multiplier_creates_correctly() {
+        let tag = ModTag::Multiplier {
+            var: "PowerCharge".into(),
+            div: 1.0,
+            limit: None,
+            base: 0.0,
+        };
+        match &tag {
+            ModTag::Multiplier {
+                var,
+                div,
+                limit,
+                base,
+            } => {
+                assert_eq!(var, "PowerCharge");
+                assert_eq!(*div, 1.0);
+                assert!(limit.is_none());
+                assert_eq!(*base, 0.0);
+            }
+            _ => panic!("wrong variant"),
+        }
+    }
+
+    #[test]
+    fn skill_cfg_default_has_no_flags() {
+        let cfg = SkillCfg::default();
+        assert_eq!(cfg.flags, ModFlags::NONE);
+        assert_eq!(cfg.keyword_flags, KeywordFlags::NONE);
+        assert!(cfg.slot_name.is_none());
+        assert!(cfg.skill_types.is_empty());
+        assert!(cfg.skill_cond.is_empty());
+    }
+
+    #[test]
+    fn mod_struct_uses_tags_field() {
+        let m = Mod {
+            name: "Life".into(),
+            mod_type: ModType::Base,
+            value: ModValue::Number(100.0),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            tags: vec![ModTag::Condition {
+                var: "FullLife".into(),
+                neg: false,
+            }],
+            source: ModSource::new("Test", "test"),
+        };
+        assert_eq!(m.tags.len(), 1);
     }
 }

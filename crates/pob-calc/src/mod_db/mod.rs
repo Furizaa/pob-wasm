@@ -2,7 +2,7 @@ pub mod types;
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use types::{Condition, KeywordFlags, Mod, ModFlags, ModType, ModValue};
+use types::{KeywordFlags, Mod, ModFlags, ModTag, ModType, ModValue};
 
 /// Per-mod display row returned by tabulate().
 /// Mirrors the rows POB's Tabulate() method returns.
@@ -59,33 +59,39 @@ impl ModDb {
         self.multipliers.insert(var.to_string(), value);
     }
 
-    fn eval_conditions(&self, conditions: &[Condition]) -> bool {
-        for cond in conditions {
-            match cond {
-                Condition::None => {}
-                Condition::Flag { var, negated } => {
+    /// Temporary bridge: evaluate tags that are pure gates (Condition, MultiplierThreshold).
+    /// This will be replaced by eval_mod() in Task 5 when we refactor query methods.
+    fn eval_tags_as_gates(&self, tags: &[ModTag]) -> bool {
+        for tag in tags {
+            match tag {
+                ModTag::Condition { var, neg } => {
                     let set = self.conditions.get(var).copied().unwrap_or(false);
-                    if *negated && set {
+                    if *neg && set {
                         return false;
                     }
-                    if !*negated && !set {
+                    if !*neg && !set {
                         return false;
                     }
                 }
-                Condition::MultiplierThreshold {
+                ModTag::MultiplierThreshold {
                     var,
                     threshold,
-                    negated,
+                    upper,
                 } => {
                     let val = self.multipliers.get(var).copied().unwrap_or(0.0);
-                    let meets = val >= *threshold;
-                    if *negated && meets {
-                        return false;
-                    }
-                    if !*negated && !meets {
-                        return false;
+                    if *upper {
+                        // upper=true means "less than threshold" gates the mod
+                        if val >= *threshold {
+                            return false;
+                        }
+                    } else {
+                        if val < *threshold {
+                            return false;
+                        }
                     }
                 }
+                // Other tag types are handled by eval_mod() — for now, skip them
+                _ => {}
             }
         }
         true
@@ -101,7 +107,7 @@ impl ModDb {
         &m.mod_type == mod_type
             && flags.contains(m.flags)
             && keyword_flags.contains(m.keyword_flags)
-            && self.eval_conditions(&m.conditions)
+            && self.eval_tags_as_gates(&m.tags)
     }
 
     /// Sum all BASE or INC mods for `name` that pass the flag/keyword/condition filters.
@@ -208,7 +214,7 @@ impl Default for ModDb {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use types::{Condition, KeywordFlags, Mod, ModFlags, ModSource, ModType, ModValue};
+    use types::{KeywordFlags, Mod, ModFlags, ModSource, ModTag, ModType, ModValue};
 
     fn src() -> ModSource {
         ModSource::new("Test", "test")
@@ -234,7 +240,7 @@ mod tests {
             value: ModValue::Number(20.0),
             flags: ModFlags::NONE,
             keyword_flags: KeywordFlags::NONE,
-            conditions: vec![],
+            tags: vec![],
             source: src(),
         });
         db.add(Mod {
@@ -243,7 +249,7 @@ mod tests {
             value: ModValue::Number(10.0),
             flags: ModFlags::NONE,
             keyword_flags: KeywordFlags::NONE,
-            conditions: vec![],
+            tags: vec![],
             source: src(),
         });
         let result = db.more("Life", ModFlags::NONE, KeywordFlags::NONE);
@@ -267,7 +273,7 @@ mod tests {
             value: ModValue::Number(50.0),
             flags: ModFlags::SPELL,
             keyword_flags: KeywordFlags::NONE,
-            conditions: vec![],
+            tags: vec![],
             source: src(),
         });
         assert_eq!(
@@ -306,9 +312,9 @@ mod tests {
             value: ModValue::Number(500.0),
             flags: ModFlags::NONE,
             keyword_flags: KeywordFlags::NONE,
-            conditions: vec![Condition::Flag {
+            tags: vec![ModTag::Condition {
                 var: "FullLife".into(),
-                negated: false,
+                neg: false,
             }],
             source: src(),
         });
