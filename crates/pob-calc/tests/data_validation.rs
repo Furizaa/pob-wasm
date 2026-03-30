@@ -7,7 +7,12 @@ use pob_calc::data::GameData;
 use pob_calc::passive_tree::NodeType;
 
 fn load_game_data() -> GameData {
-    let data_dir = std::env::var("DATA_DIR").unwrap_or_else(|_| "../../data".to_string());
+    // DATA_DIR can be absolute or relative to workspace root.
+    // When not set, derive from CARGO_MANIFEST_DIR (crates/pob-calc/).
+    let data_dir = std::env::var("DATA_DIR").unwrap_or_else(|_| {
+        let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".to_string());
+        format!("{manifest}/../../data")
+    });
 
     let gems_str =
         std::fs::read_to_string(format!("{data_dir}/gems.json")).expect("gems.json not found");
