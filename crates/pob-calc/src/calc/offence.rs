@@ -7,6 +7,22 @@ pub fn run(env: &mut CalcEnv, build: &Build) {
         return;
     };
 
+    // Summoner skills: set placeholder outputs and return
+    // Full minion actor calculation is deferred (TODO: Phase 9)
+    let is_summoner = env.player.mod_db.flag(
+        "Summoner",
+        crate::mod_db::types::ModFlags::NONE,
+        crate::mod_db::types::KeywordFlags::NONE,
+    );
+    if is_summoner {
+        let minion_count = crate::calc::env::get_output_f64(&env.player.output, "MinionCount");
+        env.player.set_output("TotalDPS", 0.0);
+        env.player.set_output("CombinedDPS", 0.0);
+        env.player.set_output("MinionDPS", 0.0);
+        env.player.set_output("MinionCount", minion_count); // preserve it
+        return;
+    }
+
     // Extract skill values before mutably borrowing env.player for set_output
     let (is_attack, is_spell, base_crit_chance, attack_speed_base, cast_time) = {
         let skill = env.player.main_skill.as_ref().unwrap();
