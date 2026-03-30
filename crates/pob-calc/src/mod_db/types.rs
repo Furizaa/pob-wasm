@@ -71,9 +71,72 @@ pub struct KeywordFlags(pub u32);
 
 impl KeywordFlags {
     pub const NONE: Self = KeywordFlags(0);
+    pub const AURA: Self = KeywordFlags(0x01);
+    pub const CURSE: Self = KeywordFlags(0x02);
+    pub const WARCRY: Self = KeywordFlags(0x04);
+    pub const MOVEMENT: Self = KeywordFlags(0x08);
+    pub const PHYSICAL: Self = KeywordFlags(0x10);
+    pub const FIRE: Self = KeywordFlags(0x20);
+    pub const COLD: Self = KeywordFlags(0x40);
+    pub const LIGHTNING: Self = KeywordFlags(0x80);
+    pub const CHAOS: Self = KeywordFlags(0x100);
+    pub const VAAL: Self = KeywordFlags(0x200);
+    pub const BOW: Self = KeywordFlags(0x400);
+    pub const ARROW: Self = KeywordFlags(0x800);
+    pub const TRAP: Self = KeywordFlags(0x1000);
+    pub const MINE: Self = KeywordFlags(0x2000);
+    pub const TOTEM: Self = KeywordFlags(0x4000);
+    pub const MINION: Self = KeywordFlags(0x8000);
+    pub const ATTACK: Self = KeywordFlags(0x10000);
+    pub const SPELL: Self = KeywordFlags(0x20000);
+    pub const HIT: Self = KeywordFlags(0x40000);
+    pub const AILMENT: Self = KeywordFlags(0x80000);
+    pub const BRAND: Self = KeywordFlags(0x100000);
+    pub const POISON: Self = KeywordFlags(0x200000);
+    pub const BLEED: Self = KeywordFlags(0x400000);
+    pub const IGNITE: Self = KeywordFlags(0x800000);
+    pub const PHYSICAL_DOT: Self = KeywordFlags(0x1000000);
+    pub const LIGHTNING_DOT: Self = KeywordFlags(0x2000000);
+    pub const COLD_DOT: Self = KeywordFlags(0x4000000);
+    pub const FIRE_DOT: Self = KeywordFlags(0x8000000);
+    pub const CHAOS_DOT: Self = KeywordFlags(0x10000000);
+    pub const MATCH_ALL: Self = KeywordFlags(0x40000000);
 
+    /// Mask that strips the MatchAll control bit, leaving only keyword bits.
+    const KEYWORD_MASK: u32 = !0x40000000;
+
+    /// PoB's MatchKeywordFlags logic.
+    /// - If mod has MatchAll: AND — all mod keyword bits must be in cfg.
+    /// - Else: OR — any overlap passes, or mod has no keywords (always matches).
+    pub fn match_keyword_flags(self, mod_flags: Self) -> bool {
+        let mod_masked = mod_flags.0 & Self::KEYWORD_MASK;
+        if mod_flags.0 & Self::MATCH_ALL.0 != 0 {
+            // AND: all mod bits must be present in cfg
+            (self.0 & mod_masked) == mod_masked
+        } else {
+            // OR: no keywords = always match, else any overlap
+            mod_masked == 0 || (self.0 & mod_masked) != 0
+        }
+    }
+
+    /// Legacy method — OR matching without MatchAll awareness.
+    /// Kept for backward compatibility with existing ModDb code.
     pub fn contains(self, other: Self) -> bool {
         other.0 == 0 || (self.0 & other.0) != 0
+    }
+}
+
+impl std::ops::BitOr for KeywordFlags {
+    type Output = Self;
+    fn bitor(self, rhs: Self) -> Self {
+        KeywordFlags(self.0 | rhs.0)
+    }
+}
+
+impl std::ops::BitAnd for KeywordFlags {
+    type Output = Self;
+    fn bitand(self, rhs: Self) -> Self {
+        KeywordFlags(self.0 & rhs.0)
     }
 }
 
@@ -269,5 +332,78 @@ mod tests {
         assert!(combined.contains(ModFlags::ATTACK));
         assert!(combined.contains(ModFlags::SPELL));
         assert!(!combined.contains(ModFlags::HIT));
+    }
+
+    #[test]
+    fn keyword_flags_all_constants_defined() {
+        assert_eq!(KeywordFlags::AURA.0, 0x01);
+        assert_eq!(KeywordFlags::CURSE.0, 0x02);
+        assert_eq!(KeywordFlags::WARCRY.0, 0x04);
+        assert_eq!(KeywordFlags::MOVEMENT.0, 0x08);
+        assert_eq!(KeywordFlags::PHYSICAL.0, 0x10);
+        assert_eq!(KeywordFlags::FIRE.0, 0x20);
+        assert_eq!(KeywordFlags::COLD.0, 0x40);
+        assert_eq!(KeywordFlags::LIGHTNING.0, 0x80);
+        assert_eq!(KeywordFlags::CHAOS.0, 0x100);
+        assert_eq!(KeywordFlags::VAAL.0, 0x200);
+        assert_eq!(KeywordFlags::BOW.0, 0x400);
+        assert_eq!(KeywordFlags::ARROW.0, 0x800);
+        assert_eq!(KeywordFlags::TRAP.0, 0x1000);
+        assert_eq!(KeywordFlags::MINE.0, 0x2000);
+        assert_eq!(KeywordFlags::TOTEM.0, 0x4000);
+        assert_eq!(KeywordFlags::MINION.0, 0x8000);
+        assert_eq!(KeywordFlags::ATTACK.0, 0x10000);
+        assert_eq!(KeywordFlags::SPELL.0, 0x20000);
+        assert_eq!(KeywordFlags::HIT.0, 0x40000);
+        assert_eq!(KeywordFlags::AILMENT.0, 0x80000);
+        assert_eq!(KeywordFlags::BRAND.0, 0x100000);
+        assert_eq!(KeywordFlags::POISON.0, 0x200000);
+        assert_eq!(KeywordFlags::BLEED.0, 0x400000);
+        assert_eq!(KeywordFlags::IGNITE.0, 0x800000);
+        assert_eq!(KeywordFlags::PHYSICAL_DOT.0, 0x1000000);
+        assert_eq!(KeywordFlags::LIGHTNING_DOT.0, 0x2000000);
+        assert_eq!(KeywordFlags::COLD_DOT.0, 0x4000000);
+        assert_eq!(KeywordFlags::FIRE_DOT.0, 0x8000000);
+        assert_eq!(KeywordFlags::CHAOS_DOT.0, 0x10000000);
+        assert_eq!(KeywordFlags::MATCH_ALL.0, 0x40000000);
+    }
+
+    #[test]
+    fn keyword_flags_or_matching() {
+        // Default (no MatchAll): OR logic — any overlap passes
+        let cfg = KeywordFlags(KeywordFlags::FIRE.0 | KeywordFlags::COLD.0);
+        let mod_kw = KeywordFlags(KeywordFlags::FIRE.0);
+        assert!(cfg.match_keyword_flags(mod_kw));
+
+        // No overlap → fail
+        let mod_kw2 = KeywordFlags(KeywordFlags::LIGHTNING.0);
+        assert!(!cfg.match_keyword_flags(mod_kw2));
+    }
+
+    #[test]
+    fn keyword_flags_none_mod_always_matches() {
+        // A mod with NONE keywords always matches (no keyword restriction)
+        let cfg = KeywordFlags(KeywordFlags::FIRE.0);
+        assert!(cfg.match_keyword_flags(KeywordFlags::NONE));
+        assert!(KeywordFlags::NONE.match_keyword_flags(KeywordFlags::NONE));
+    }
+
+    #[test]
+    fn keyword_flags_match_all_and_logic() {
+        // With MatchAll bit set: AND logic — all mod bits must be present in cfg
+        let cfg = KeywordFlags(KeywordFlags::FIRE.0 | KeywordFlags::COLD.0);
+        let mod_kw =
+            KeywordFlags(KeywordFlags::FIRE.0 | KeywordFlags::COLD.0 | KeywordFlags::MATCH_ALL.0);
+        assert!(cfg.match_keyword_flags(mod_kw));
+
+        // Missing COLD from cfg → fail with MatchAll
+        let cfg2 = KeywordFlags(KeywordFlags::FIRE.0);
+        assert!(!cfg2.match_keyword_flags(mod_kw));
+    }
+
+    #[test]
+    fn keyword_flags_bitwise_or() {
+        let combined = KeywordFlags::FIRE | KeywordFlags::COLD;
+        assert_eq!(combined.0, 0x60);
     }
 }
