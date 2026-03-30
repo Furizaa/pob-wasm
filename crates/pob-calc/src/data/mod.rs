@@ -1,6 +1,7 @@
 pub mod bases;
 pub mod gems;
 pub mod misc;
+pub mod uniques;
 
 use crate::error::DataError;
 use crate::passive_tree::PassiveTree;
