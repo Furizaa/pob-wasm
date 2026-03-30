@@ -31,3 +31,28 @@ jobs:
 
       - name: Run WASM tests in headless Chrome
         run: wasm-pack test --headless --chrome crates/pob-wasm
+
+  oracle:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install LuaJIT
+        run: sudo apt-get install -y luajit
+
+      - name: Run oracle parity tests
+        env:
+          DATA_DIR: ${{ github.workspace }}/data
+        run: cargo test --package pob-calc --test oracle --release -- --ignored --nocapture 2>&1 | tee oracle-results.txt
+
+      - name: Upload oracle results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: oracle-results
+          path: oracle-results.txt
