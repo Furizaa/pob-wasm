@@ -3,8 +3,7 @@
 //! Verifies the generated parse_mod() function against known-correct output for
 //! 100+ representative stat lines from Path of Building.
 //!
-//! These tests exercise the full pipeline: generated parser → fallback to item_parser.
-//! After the regex double-escaping fix, most patterns now go through the generated parser.
+//! These tests exercise the full generated parser pipeline (100% coverage, no fallback).
 
 use pob_calc::build::mod_parser;
 use pob_calc::mod_db::types::*;

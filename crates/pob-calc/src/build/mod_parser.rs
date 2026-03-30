@@ -31,15 +31,8 @@ const _: () = assert!(
 /// Parse a stat text line into zero or more Mod values.
 ///
 /// Mirrors Path of Building's `ModParser.parseMod()` function.
-/// Tries the generated parser first; falls back to `item_parser` for patterns
-/// not yet handled by the generated code (transitional — removed in Task 14).
+/// 100% coverage of ModParser.lua's pattern tables — templated entries
+/// handled by generated code, remaining entries by hand-written handlers.
 pub fn parse_mod(line: &str, source: ModSource) -> Vec<Mod> {
-    let result =
-        generated::parse_mod_generated(line, &source, &mod_parser_manual::handle_manual_special);
-    if result.is_empty() {
-        // Fallback: the generated parser doesn't handle this pattern yet.
-        // Use the hand-written item_parser until full coverage is validated.
-        return super::item_parser::parse_stat_text(line, source);
-    }
-    result
+    generated::parse_mod_generated(line, &source, &mod_parser_manual::handle_manual_special)
 }

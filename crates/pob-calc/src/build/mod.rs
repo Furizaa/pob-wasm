@@ -1,4 +1,3 @@
-pub mod item_parser;
 pub mod mod_parser;
 pub mod types;
 pub mod xml_parser;

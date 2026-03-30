@@ -286,9 +286,7 @@ pub static FORM_PATTERNS: Lazy<Vec<(Lazy<Regex>, FormType)>> = Lazy::new(|| {
             FormType::DmgAttacks,
         ),
         (
-            Lazy::new(|| {
-                Regex::new(r#"adds (\d+)\-(\d+) ([a-zA-Z]+) damage to attacks"#).unwrap()
-            }),
+            Lazy::new(|| Regex::new(r#"adds (\d+)\-(\d+) ([a-zA-Z]+) damage to attacks"#).unwrap()),
             FormType::DmgAttacks,
         ),
         (
@@ -300,9 +298,7 @@ pub static FORM_PATTERNS: Lazy<Vec<(Lazy<Regex>, FormType)>> = Lazy::new(|| {
             FormType::DmgAttacks,
         ),
         (
-            Lazy::new(|| {
-                Regex::new(r#"(\d+) to (\d+) added attack ([a-zA-Z]+) damage"#).unwrap()
-            }),
+            Lazy::new(|| Regex::new(r#"(\d+) to (\d+) added attack ([a-zA-Z]+) damage"#).unwrap()),
             FormType::DmgAttacks,
         ),
         (
@@ -312,9 +308,7 @@ pub static FORM_PATTERNS: Lazy<Vec<(Lazy<Regex>, FormType)>> = Lazy::new(|| {
             FormType::DmgSpells,
         ),
         (
-            Lazy::new(|| {
-                Regex::new(r#"adds (\d+)\-(\d+) ([a-zA-Z]+) damage to spells"#).unwrap()
-            }),
+            Lazy::new(|| Regex::new(r#"adds (\d+)\-(\d+) ([a-zA-Z]+) damage to spells"#).unwrap()),
             FormType::DmgSpells,
         ),
         (
@@ -342,8 +336,7 @@ pub static FORM_PATTERNS: Lazy<Vec<(Lazy<Regex>, FormType)>> = Lazy::new(|| {
         ),
         (
             Lazy::new(|| {
-                Regex::new(r#"adds (\d+)\-(\d+) ([a-zA-Z]+) damage to attacks and spells"#)
-                    .unwrap()
+                Regex::new(r#"adds (\d+)\-(\d+) ([a-zA-Z]+) damage to attacks and spells"#).unwrap()
             }),
             FormType::DmgBoth,
         ),
@@ -356,15 +349,12 @@ pub static FORM_PATTERNS: Lazy<Vec<(Lazy<Regex>, FormType)>> = Lazy::new(|| {
         ),
         (
             Lazy::new(|| {
-                Regex::new(r#"adds (\d+)\-(\d+) ([a-zA-Z]+) damage to spells and attacks"#)
-                    .unwrap()
+                Regex::new(r#"adds (\d+)\-(\d+) ([a-zA-Z]+) damage to spells and attacks"#).unwrap()
             }),
             FormType::DmgBoth,
         ),
         (
-            Lazy::new(|| {
-                Regex::new(r#"adds (\d+) to (\d+) ([a-zA-Z]+) damage to hits"#).unwrap()
-            }),
+            Lazy::new(|| Regex::new(r#"adds (\d+) to (\d+) ([a-zA-Z]+) damage to hits"#).unwrap()),
             FormType::DmgBoth,
         ),
         (
@@ -10521,8 +10511,7 @@ pub static MOD_TAG_PATTERNS: Lazy<Vec<(Lazy<Regex>, StaticModTagEntry)>> = Lazy:
         ),
         (
             Lazy::new(|| {
-                Regex::new(r#"for each (\d+) total mana y?o?u? ?h?a?v?e? ?spent recently"#)
-                    .unwrap()
+                Regex::new(r#"for each (\d+) total mana y?o?u? ?h?a?v?e? ?spent recently"#).unwrap()
             }),
             StaticModTagEntry { tags: vec![] },
         ),
@@ -10964,9 +10953,7 @@ pub static MOD_TAG_PATTERNS: Lazy<Vec<(Lazy<Regex>, StaticModTagEntry)>> = Lazy:
             StaticModTagEntry { tags: vec![] },
         ),
         (
-            Lazy::new(|| {
-                Regex::new(r#"per (\d+) unreserved maximum mana, up to (\d+)%"#).unwrap()
-            }),
+            Lazy::new(|| Regex::new(r#"per (\d+) unreserved maximum mana, up to (\d+)%"#).unwrap()),
             StaticModTagEntry { tags: vec![] },
         ),
         (
@@ -11973,10 +11960,8 @@ pub static MOD_TAG_PATTERNS: Lazy<Vec<(Lazy<Regex>, StaticModTagEntry)>> = Lazy:
         ),
         (
             Lazy::new(|| {
-                Regex::new(
-                    r#"if both equipped ([a-zA-Z\s]+) have a?n? ?([a-zA-Z\s]+) modifiers?"#,
-                )
-                .unwrap()
+                Regex::new(r#"if both equipped ([a-zA-Z\s]+) have a?n? ?([a-zA-Z\s]+) modifiers?"#)
+                    .unwrap()
             }),
             StaticModTagEntry { tags: vec![] },
         ),
@@ -15297,9 +15282,7 @@ pub static MOD_TAG_PATTERNS: Lazy<Vec<(Lazy<Regex>, StaticModTagEntry)>> = Lazy:
             },
         ),
         (
-            Lazy::new(|| {
-                Regex::new(r#"against enemies affected by (\d+) spider's webs"#).unwrap()
-            }),
+            Lazy::new(|| Regex::new(r#"against enemies affected by (\d+) spider's webs"#).unwrap()),
             StaticModTagEntry { tags: vec![] },
         ),
         (
@@ -16331,10 +16314,8 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             Regex::new(r#"^cursed enemies you or your minions kill have a (\d+)% chance to explode, dealing a (.+) of their maximum life as (.+) damage$"#).unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(
-                r#"^enemies you kill explode, dealing (\d+)% of their life as (.+) damage$"#,
-            )
-            .unwrap()
+            Regex::new(r#"^enemies you kill explode, dealing (\d+)% of their life as (.+) damage$"#)
+                .unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^enemies killed explode dealing (\d+)% of their life as (.+) damage$"#)
@@ -16816,11 +16797,13 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             Regex::new(r#"^gain (\d+)% increased armour per (\d+) power for 8 seconds when you warcry, up to a maximum of (\d+)%$"#).unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(r#"^warcries grant (\d+) rage per (\d+) power if you have less than (\d+) rage$"#).unwrap()
+            Regex::new(
+                r#"^warcries grant (\d+) rage per (\d+) power if you have less than (\d+) rage$"#,
+            )
+            .unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(r#"^warcries grant (\d+) rage per (\d+) enemy power, up to (\d+)$"#)
-                .unwrap()
+            Regex::new(r#"^warcries grant (\d+) rage per (\d+) enemy power, up to (\d+)$"#).unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^exerted attacks deal (\d+)% more attack damage if a warcry sacrificed rage recently$"#).unwrap()
@@ -16888,10 +16871,8 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
         Lazy::new(|| Regex::new(r#"^projectiles pierce all nearby targets$"#).unwrap()),
         Lazy::new(|| Regex::new(r#"^gain \+(\d+) life when you hit a bleeding enemy$"#).unwrap()),
         Lazy::new(|| {
-            Regex::new(
-                r#"^(\d+)% increased blink arrow and mirror arrow cooldown recovery speed$"#,
-            )
-            .unwrap()
+            Regex::new(r#"^(\d+)% increased blink arrow and mirror arrow cooldown recovery speed$"#)
+                .unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^critical strikes which inflict bleeding also inflict rupture$"#).unwrap()
@@ -16903,8 +16884,7 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
         }),
         Lazy::new(|| Regex::new(r#"^you and nearby allies have tailwind$"#).unwrap()),
         Lazy::new(|| {
-            Regex::new(r#"^projectiles deal (\d+)% more damage for each remaining chain$"#)
-                .unwrap()
+            Regex::new(r#"^projectiles deal (\d+)% more damage for each remaining chain$"#).unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^projectiles deal (\d+)% increased damage with hits and ailments for each remaining chain$"#).unwrap()
@@ -16976,10 +16956,8 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
         Lazy::new(|| Regex::new(r#"^summoned golems are immune to elemental damage$"#).unwrap()),
         Lazy::new(|| Regex::new(r#"^(\d+)% increased golem damage per summoned golem$"#).unwrap()),
         Lazy::new(|| {
-            Regex::new(
-                r#"^shocks from your hits always increase damage taken by at least (\d+)%$"#,
-            )
-            .unwrap()
+            Regex::new(r#"^shocks from your hits always increase damage taken by at least (\d+)%$"#)
+                .unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^chills from your hits always reduce action speed by at least (\d+)%$"#)
@@ -17053,10 +17031,16 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
         }),
         Lazy::new(|| Regex::new(r#"^retaliation skills have (\d+)% increased speed$"#).unwrap()),
         Lazy::new(|| {
-            Regex::new(r#"^grants armour equal to (\d+)% of your reserved life to you and nearby allies$"#).unwrap()
+            Regex::new(
+                r#"^grants armour equal to (\d+)% of your reserved life to you and nearby allies$"#,
+            )
+            .unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(r#"^grants armour equal to (\d+)% of your reserved mana to you and nearby allies$"#).unwrap()
+            Regex::new(
+                r#"^grants armour equal to (\d+)% of your reserved mana to you and nearby allies$"#,
+            )
+            .unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^grants maximum energy shield equal to (\d+)% of your reserved mana to you and nearby allies$"#).unwrap()
@@ -17125,10 +17109,8 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             Regex::new(r#"^critical strikes ignore enemy monster elemental resistances$"#).unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(
-                r#"^non\-critical strikes penetrate (\d+)% of enemy elemental resistances$"#,
-            )
-            .unwrap()
+            Regex::new(r#"^non\-critical strikes penetrate (\d+)% of enemy elemental resistances$"#)
+                .unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^consecrated ground you create applies (\d+)% increased damage taken to enemies$"#).unwrap()
@@ -17220,8 +17202,7 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
                 .unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(r#"^nearby hindered enemies deal (\d+)% reduced damage over time$"#)
-                .unwrap()
+            Regex::new(r#"^nearby hindered enemies deal (\d+)% reduced damage over time$"#).unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^nearby chilled enemies deal (\d+)% reduced damage with hits$"#).unwrap()
@@ -17466,10 +17447,8 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             Regex::new(r#"^gain life from leech instantly from hits with this weapon$"#).unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(
-                r#"^(\d+)% of leech from hits with this weapon is instant per enemy power$"#,
-            )
-            .unwrap()
+            Regex::new(r#"^(\d+)% of leech from hits with this weapon is instant per enemy power$"#)
+                .unwrap()
         }),
         Lazy::new(|| Regex::new(r#"^instant recovery$"#).unwrap()),
         Lazy::new(|| Regex::new(r#"^(\d+)% of recovery applied instantly$"#).unwrap()),
@@ -17535,19 +17514,15 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             Regex::new(r#"^(\d+)% chance to [c?t?][a?r?][s?i?][t?g?]g?e?r? socketed spells when you spend at least (\d+) life on an upfront cost to use or trigger a skill, with a ([\d.]+) second cooldown$"#).unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(
-                r#"^trigger a socketed fire spell on hit, with a ([\d.]+) second cooldown$"#,
-            )
-            .unwrap()
+            Regex::new(r#"^trigger a socketed fire spell on hit, with a ([\d.]+) second cooldown$"#)
+                .unwrap()
         }),
         Lazy::new(|| Regex::new(r#"^([+\-]\d+) to level of socketed gems$"#).unwrap()),
         Lazy::new(|| {
-            Regex::new(r#"^([+\-]\d+)%? to ([a-zA-Z]+) of socketed ?([a-zA-Z -]*) gems$"#)
-                .unwrap()
+            Regex::new(r#"^([+\-]\d+)%? to ([a-zA-Z]+) of socketed ?([a-zA-Z -]*) gems$"#).unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(r#"^([+\-]\d+) to level of socketed skill gems per socketed gem$"#)
-                .unwrap()
+            Regex::new(r#"^([+\-]\d+) to level of socketed skill gems per socketed gem$"#).unwrap()
         }),
         Lazy::new(|| Regex::new(r#"^([+\-]\d+)% to quality of all skill gems$"#).unwrap()),
         Lazy::new(|| {
@@ -17652,8 +17627,7 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             Regex::new(r#"^attack skills gain (\d+)% of physical damage as extra fire damage per socketed red gem$"#).unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(r#"^(\d+)% of damage taken recouped as life per socketed red gem$"#)
-                .unwrap()
+            Regex::new(r#"^(\d+)% of damage taken recouped as life per socketed red gem$"#).unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^you have vaal pact while all socketed gems are red$"#).unwrap()
@@ -17680,8 +17654,7 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
         Lazy::new(|| Regex::new(r#"^grants (\D+)$"#).unwrap()),
         Lazy::new(|| Regex::new(r#"^grants level (\d+) (.+)$"#).unwrap()),
         Lazy::new(|| {
-            Regex::new(r#"^grants level (\d+) (.+), which will be used by shaper memory$"#)
-                .unwrap()
+            Regex::new(r#"^grants level (\d+) (.+), which will be used by shaper memory$"#).unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^[ct][ar][si][tg]g?e?r?s? level (\d+) (.+) when equipped$"#).unwrap()
@@ -17712,7 +17685,10 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
         }),
         Lazy::new(|| Regex::new(r#"^(.+) can trigger level (\d+) (.+)$"#).unwrap()),
         Lazy::new(|| {
-            Regex::new(r#"^trigger level (\d+) (.+) when you use a skill while you have a spirit charge$"#).unwrap()
+            Regex::new(
+                r#"^trigger level (\d+) (.+) when you use a skill while you have a spirit charge$"#,
+            )
+            .unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^trigger level (\d+) (.+) when you hit an enemy while cursed$"#).unwrap()
@@ -17721,8 +17697,7 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             Regex::new(r#"^trigger level (\d+) (.+) when you hit a bleeding enemy$"#).unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(r#"^trigger level (\d+) (.+) when you hit a rare or unique enemy$"#)
-                .unwrap()
+            Regex::new(r#"^trigger level (\d+) (.+) when you hit a rare or unique enemy$"#).unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^trigger level (\d+) (.+) when you hit a rare or unique enemy and have no mark$"#).unwrap()
@@ -17758,8 +17733,7 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             Regex::new(r#"^trigger level (\d+) (.+) on melee hit with this weapon$"#).unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(r#"^trigger level (\d+) (.+) every [\d.]+ seconds while phasing$"#)
-                .unwrap()
+            Regex::new(r#"^trigger level (\d+) (.+) every [\d.]+ seconds while phasing$"#).unwrap()
         }),
         Lazy::new(|| {
             Regex::new(
@@ -17777,9 +17751,7 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             Regex::new(r#"^trigger level (\d+) (.+) on critical strike with cleave or reave$"#)
                 .unwrap()
         }),
-        Lazy::new(|| {
-            Regex::new(r#"^trigger level (\d+) (.+) on melee critical strike$"#).unwrap()
-        }),
+        Lazy::new(|| Regex::new(r#"^trigger level (\d+) (.+) on melee critical strike$"#).unwrap()),
         Lazy::new(|| {
             Regex::new(
                 r#"^trigger level (\d+) (.+) on critical strike against marked unique enemy$"#,
@@ -17788,7 +17760,10 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
         }),
         Lazy::new(|| Regex::new(r#"^trigger level (\d+) (.+) on critical strike$"#).unwrap()),
         Lazy::new(|| {
-            Regex::new(r#"^trigger level (\d+) (.+) when you take a critical strike from a unique enemy$"#).unwrap()
+            Regex::new(
+                r#"^trigger level (\d+) (.+) when you take a critical strike from a unique enemy$"#,
+            )
+            .unwrap()
         }),
         Lazy::new(|| {
             Regex::new(
@@ -17855,10 +17830,8 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             Regex::new(r#"^(\d+)% chance to trigger level (\d+) (.+) when you or a nearby ally kill an enemy, or hit a rare or unique enemy$"#).unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(
-                r#"^(\d+)% chance to [ct][ar][si][tg]g?e?r? level (\d+) (.+) on [a-zA-Z]+$"#,
-            )
-            .unwrap()
+            Regex::new(r#"^(\d+)% chance to [ct][ar][si][tg]g?e?r? level (\d+) (.+) on [a-zA-Z]+$"#)
+                .unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^attack with level (\d+) (.+) when you kill a bleeding enemy$"#).unwrap()
@@ -17879,7 +17852,10 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             Regex::new(r#"^\d+% chance to curse n?o?n?\-?c?u?r?s?e?d? ?enemies with (\D+) on [a-zA-Z]+, with (\d+)% increased effect$"#).unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(r#"^\d+% chance to curse n?o?n?\-?c?u?r?s?e?d? ?enemies with (\D+) on [a-zA-Z]+$"#).unwrap()
+            Regex::new(
+                r#"^\d+% chance to curse n?o?n?\-?c?u?r?s?e?d? ?enemies with (\D+) on [a-zA-Z]+$"#,
+            )
+            .unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^curse enemies with level (\d+) (\D+) on [a-zA-Z]+, which can apply to hexproof enemies$"#).unwrap()
@@ -18059,10 +18035,8 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
                 .unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(
-                r#"^gain (\d+)% of weapon physical damage as extra damage of each element$"#,
-            )
-            .unwrap()
+            Regex::new(r#"^gain (\d+)% of weapon physical damage as extra damage of each element$"#)
+                .unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^gain (\d+)% of physical damage as extra damage of each element per spirit charge$"#).unwrap()
@@ -18348,10 +18322,8 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
                 .unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(
-                r#"^non\-damaging elemental ailments you inflict have (\d+)% more effect$"#,
-            )
-            .unwrap()
+            Regex::new(r#"^non\-damaging elemental ailments you inflict have (\d+)% more effect$"#)
+                .unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^immun[ei]t?y? to elemental ailments while on consecrated ground if you have at least (\d+) devotion$"#).unwrap()
@@ -18386,8 +18358,7 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
         }),
         Lazy::new(|| Regex::new(r#"^scorch enemies in close range when you block$"#).unwrap()),
         Lazy::new(|| {
-            Regex::new(r#"^(\d+)% chance to shock attackers for (\d+) seconds on block$"#)
-                .unwrap()
+            Regex::new(r#"^(\d+)% chance to shock attackers for (\d+) seconds on block$"#).unwrap()
         }),
         Lazy::new(|| Regex::new(r#"^shock attackers for (\d+) seconds on block$"#).unwrap()),
         Lazy::new(|| {
@@ -18682,10 +18653,8 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             .unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(
-                r#"^you take (\d+)% reduced extra damage from suppressed critical strikes$"#,
-            )
-            .unwrap()
+            Regex::new(r#"^you take (\d+)% reduced extra damage from suppressed critical strikes$"#)
+                .unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^+(\d+)% chance to suppress spell damage if your e?q?u?i?p?p?e?d? ?boots, helmet and gloves have evasion$"#).unwrap()
@@ -18711,7 +18680,10 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
         Lazy::new(|| Regex::new(r#"^arcane surge$"#).unwrap()),
         Lazy::new(|| Regex::new(r#"^your aura buffs do not affect allies$"#).unwrap()),
         Lazy::new(|| {
-            Regex::new(r#"^your curses have (\d+)% increased effect if (\d+)% of curse duration expired$"#).unwrap()
+            Regex::new(
+                r#"^your curses have (\d+)% increased effect if (\d+)% of curse duration expired$"#,
+            )
+            .unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^non\-aura hexes expire upon reaching (\d+)% of base effect non\-aura hexes gain (\d+)% increased effect per second$"#).unwrap()
@@ -18746,7 +18718,10 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             Regex::new(r#"^auras from your skills have (\d+)% increased effect on you for each herald affecting you, up to (\d+)%$"#).unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(r#"^(\d+)% increased area of effect per power charge, up to a maximum of (\d+)%$"#).unwrap()
+            Regex::new(
+                r#"^(\d+)% increased area of effect per power charge, up to a maximum of (\d+)%$"#,
+            )
+            .unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^(\d+)% increased area of effect per second you've been stationary, up to a maximum of (\d+)%$"#).unwrap()
@@ -18815,10 +18790,8 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
         }),
         Lazy::new(|| Regex::new(r#"^you can apply one fewer curse$"#).unwrap()),
         Lazy::new(|| {
-            Regex::new(
-                r#"^curses on enemies in your chilling areas have (\d+)% increased effect$"#,
-            )
-            .unwrap()
+            Regex::new(r#"^curses on enemies in your chilling areas have (\d+)% increased effect$"#)
+                .unwrap()
         }),
         Lazy::new(|| {
             Regex::new(
@@ -18827,7 +18800,10 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             .unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(r#"^nearby enemies have an additional (\d+)% chance to receive a critical strike$"#).unwrap()
+            Regex::new(
+                r#"^nearby enemies have an additional (\d+)% chance to receive a critical strike$"#,
+            )
+            .unwrap()
         }),
         Lazy::new(|| Regex::new(r#"^nearby enemies have (\-\d+)% to all resistances$"#).unwrap()),
         Lazy::new(|| {
@@ -18855,9 +18831,7 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
         Lazy::new(|| Regex::new(r#"^([+\-][\d.]+) seconds to cat's stealth duration$"#).unwrap()),
         Lazy::new(|| Regex::new(r#"^([+\-][\d.]+) seconds to cat's agility duration$"#).unwrap()),
         Lazy::new(|| Regex::new(r#"^([+\-][\d.]+) seconds to avian's might duration$"#).unwrap()),
-        Lazy::new(|| {
-            Regex::new(r#"^([+\-][\d.]+) seconds to avian's flight duration$"#).unwrap()
-        }),
+        Lazy::new(|| Regex::new(r#"^([+\-][\d.]+) seconds to avian's flight duration$"#).unwrap()),
         Lazy::new(|| {
             Regex::new(
                 r#"^aspect of the spider can inflict spider's web on enemies an additional time$"#,
@@ -18997,10 +18971,8 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             .unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(
-                r#"^enemies in your chilling areas take (\d+)% increased lightning damage$"#,
-            )
-            .unwrap()
+            Regex::new(r#"^enemies in your chilling areas take (\d+)% increased lightning damage$"#)
+                .unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^warcries count as having (\d+) additional nearby enemies$"#).unwrap()
@@ -19028,7 +19000,10 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             Regex::new(r#"^inflict withered for (\d+) seconds on hit if you've cast (.*?) in the past (\d+) seconds$"#).unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(r#"^(\d+)% chance to inflict withered for (\d+) seconds on hit with this weapon$"#).unwrap()
+            Regex::new(
+                r#"^(\d+)% chance to inflict withered for (\d+) seconds on hit with this weapon$"#,
+            )
+            .unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^(\d+)% chance to inflict withered for (\d+) seconds on hit against cursed enemies$"#).unwrap()
@@ -19071,8 +19046,7 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             Regex::new(r#"^elemental damage you deal with hits is resisted by lowest elemental resistance instead$"#).unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(r#"^you take (\d+) chaos damage per second for 3 seconds on kill$"#)
-                .unwrap()
+            Regex::new(r#"^you take (\d+) chaos damage per second for 3 seconds on kill$"#).unwrap()
         }),
         Lazy::new(|| {
             Regex::new(
@@ -19163,10 +19137,8 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             .unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(
-                r#"^inflict (\w+) exposure on hit, applying \-(\d+)% to (\w+) resistance$"#,
-            )
-            .unwrap()
+            Regex::new(r#"^inflict (\w+) exposure on hit, applying \-(\d+)% to (\w+) resistance$"#)
+                .unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^while a unique enemy is in your presence, inflict (\w+) exposure on hit, applying \-(\d+)% to (\w+) resistance$"#).unwrap()
@@ -19230,7 +19202,10 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             Regex::new(r#"^you count as on full ([a-zA-Z]+) while at (\d+)% of maximum ([a-zA-Z]+) or above$"#).unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(r#"^(\d+)% more maximum life if you have at least (\d+) life masteries allocated$"#).unwrap()
+            Regex::new(
+                r#"^(\d+)% more maximum life if you have at least (\d+) life masteries allocated$"#,
+            )
+            .unwrap()
         }),
         Lazy::new(|| {
             Regex::new(
@@ -19268,7 +19243,10 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             .unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(r#"^counterattacks have a (\d+)% chance to debilitate on hit for (\d+) seconds?$"#).unwrap()
+            Regex::new(
+                r#"^counterattacks have a (\d+)% chance to debilitate on hit for (\d+) seconds?$"#,
+            )
+            .unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^retaliation skills debilitate enemies for (\d+) seconds on hit$"#)
@@ -19290,10 +19268,8 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             Regex::new(r#"^when (\d+)% of your hex's duration expires on an enemy, eat (\d+) soul per enemy power$"#).unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(
-                r#"^eat (\d+) souls when you kill a rare or unique enemy with this weapon$"#,
-            )
-            .unwrap()
+            Regex::new(r#"^eat (\d+) souls when you kill a rare or unique enemy with this weapon$"#)
+                .unwrap()
         }),
         Lazy::new(|| Regex::new(r#"^maximum (\d+) eaten souls$"#).unwrap()),
         Lazy::new(|| Regex::new(r#"^([+\-]\d+) to maximum number of eaten souls$"#).unwrap()),
@@ -19311,14 +19287,11 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             Regex::new(r#"^with a searching eye jewel socketed, blind enemies for (\d) seconds on hit with attacks$"#).unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(r#"^enemies maimed by you take (\d+)% increased damage over time$"#)
-                .unwrap()
+            Regex::new(r#"^enemies maimed by you take (\d+)% increased damage over time$"#).unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(
-                r#"^(\d+)% increased defences while you have at least four linked targets$"#,
-            )
-            .unwrap()
+            Regex::new(r#"^(\d+)% increased defences while you have at least four linked targets$"#)
+                .unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^your movement speed is equal to the highest movement speed among linked players$"#).unwrap()
@@ -19351,7 +19324,10 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             .unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(r#"^linked targets always count as in range of non\-curse auras from your skills$"#).unwrap()
+            Regex::new(
+                r#"^linked targets always count as in range of non\-curse auras from your skills$"#,
+            )
+            .unwrap()
         }),
         Lazy::new(|| Regex::new(r#"^gain unholy might on block for (\d) seconds$"#).unwrap()),
         Lazy::new(|| Regex::new(r#"^your warcries inflict hallowing flame$"#).unwrap()),
@@ -19363,8 +19339,7 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
         }),
         Lazy::new(|| Regex::new(r#"^inflict hallowing flame on melee hit$"#).unwrap()),
         Lazy::new(|| {
-            Regex::new(r#"^traps and mines deal (\d+)\-(\d+) additional physical damage$"#)
-                .unwrap()
+            Regex::new(r#"^traps and mines deal (\d+)\-(\d+) additional physical damage$"#).unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^traps and mines deal (\d+) to (\d+) additional physical damage$"#)
@@ -19406,8 +19381,7 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
                 .unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(r#"^skills which throw traps throw up to (\d+) additional traps?$"#)
-                .unwrap()
+            Regex::new(r#"^skills which throw traps throw up to (\d+) additional traps?$"#).unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^can have up to (\d+) additional totems? summoned at a time$"#).unwrap()
@@ -19435,19 +19409,15 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
         Lazy::new(|| Regex::new(r#"^you can cast an additional brand$"#).unwrap()),
         Lazy::new(|| Regex::new(r#"^you can cast (\d+) additional brands$"#).unwrap()),
         Lazy::new(|| {
-            Regex::new(
-                r#"^(\d+)% increased damage while you are wielding a bow and have a totem$"#,
-            )
-            .unwrap()
+            Regex::new(r#"^(\d+)% increased damage while you are wielding a bow and have a totem$"#)
+                .unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^each totem applies (\d+)% increased damage taken to enemies near it$"#)
                 .unwrap()
         }),
         Lazy::new(|| Regex::new(r#"^totems gain \+(\d+)% to (\w+) resistance$"#).unwrap()),
-        Lazy::new(|| {
-            Regex::new(r#"^totems gain \+(\d+)% to all elemental resistances$"#).unwrap()
-        }),
+        Lazy::new(|| Regex::new(r#"^totems gain \+(\d+)% to all elemental resistances$"#).unwrap()),
         Lazy::new(|| {
             Regex::new(r#"^rejuvenation totem also grants mana regeneration equal to 15% of its life regeneration$"#).unwrap()
         }),
@@ -19466,10 +19436,8 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             Regex::new(r#"^(\d+)% increased minion damage if you have hit recently$"#).unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(
-                r#"^(\d+)% increased minion damage if you've used a minion skill recently$"#,
-            )
-            .unwrap()
+            Regex::new(r#"^(\d+)% increased minion damage if you've used a minion skill recently$"#)
+                .unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^minions deal (\d+)% increased damage if you have warcried recently$"#)
@@ -19497,7 +19465,10 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             Regex::new(r#"^minions deal (\d+)% increased damage per (\d+) dexterity$"#).unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(r#"^minions have (\d+)% chance to deal double damage while they are on full life$"#).unwrap()
+            Regex::new(
+                r#"^minions have (\d+)% chance to deal double damage while they are on full life$"#,
+            )
+            .unwrap()
         }),
         Lazy::new(|| {
             Regex::new(
@@ -19544,9 +19515,7 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             Regex::new(r#"^raised zombies and spectres gain adrenaline for 8 seconds when raised$"#)
                 .unwrap()
         }),
-        Lazy::new(|| {
-            Regex::new(r#"^raised spectres fire (\d+) additional projectiles$"#).unwrap()
-        }),
+        Lazy::new(|| Regex::new(r#"^raised spectres fire (\d+) additional projectiles$"#).unwrap()),
         Lazy::new(|| {
             Regex::new(r#"^gain onslaught for 10 seconds when you cast socketed golem skill$"#)
                 .unwrap()
@@ -19657,10 +19626,8 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             Regex::new(r#"^summoned arbalists' projectiles chain \+(\d+) times$"#).unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(
-                r#"^summoned arbalists have (\d+)% chance to inflict (.+) exposure on hit$"#,
-            )
-            .unwrap()
+            Regex::new(r#"^summoned arbalists have (\d+)% chance to inflict (.+) exposure on hit$"#)
+                .unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^summoned arbalists convert (\d+)% of (.+) damage to (.+) damage$"#)
@@ -19716,12 +19683,13 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
         Lazy::new(|| Regex::new(r#"^wand attacks fire an additional projectile$"#).unwrap()),
         Lazy::new(|| Regex::new(r#"^skills fire an additional projectile$"#).unwrap()),
         Lazy::new(|| {
-            Regex::new(r#"^skills fire an additional projectile if (\d+) ([a-zA-Z]+) items are equipped$"#).unwrap()
+            Regex::new(
+                r#"^skills fire an additional projectile if (\d+) ([a-zA-Z]+) items are equipped$"#,
+            )
+            .unwrap()
         }),
         Lazy::new(|| Regex::new(r#"^spells [hf][ai][vr]e an additional projectile$"#).unwrap()),
-        Lazy::new(|| {
-            Regex::new(r#"^spells [hf][ai][vr]e (\d+) additional projectiles$"#).unwrap()
-        }),
+        Lazy::new(|| Regex::new(r#"^spells [hf][ai][vr]e (\d+) additional projectiles$"#).unwrap()),
         Lazy::new(|| Regex::new(r#"^attacks fire an additional projectile$"#).unwrap()),
         Lazy::new(|| {
             Regex::new(r#"^attacks [hf][ai][vr]e (\d+) additional projectiles$"#).unwrap()
@@ -19735,12 +19703,10 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             Regex::new(r#"^attacks have an additional projectile when in off hand$"#).unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(r#"^caustic arrow and scourge arrow fire (\d+)% more projectiles$"#)
-                .unwrap()
+            Regex::new(r#"^caustic arrow and scourge arrow fire (\d+)% more projectiles$"#).unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(r#"^essence drain and soulrend fire (\d+) additional projectiles$"#)
-                .unwrap()
+            Regex::new(r#"^essence drain and soulrend fire (\d+) additional projectiles$"#).unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^(\d+)% reduced essence drain and soulrend projectile speed$"#).unwrap()
@@ -19778,7 +19744,10 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
         }),
         Lazy::new(|| Regex::new(r#"^arrows that pierce deal (\d+)% increased damage$"#).unwrap()),
         Lazy::new(|| {
-            Regex::new(r#"^projectiles gain (\d+)% of non\-chaos damage as extra chaos damage per chain$"#).unwrap()
+            Regex::new(
+                r#"^projectiles gain (\d+)% of non\-chaos damage as extra chaos damage per chain$"#,
+            )
+            .unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^projectiles that have chained gain (\d+)% of non\-chaos damage as extra chaos damage$"#).unwrap()
@@ -19893,18 +19862,14 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
         Lazy::new(|| {
             Regex::new(r#"^(\d+) life gained for each cursed enemy hit by your attacks$"#).unwrap()
         }),
-        Lazy::new(|| {
-            Regex::new(r#"^gain (\d+) life per cursed enemy hit with attacks$"#).unwrap()
-        }),
+        Lazy::new(|| Regex::new(r#"^gain (\d+) life per cursed enemy hit with attacks$"#).unwrap()),
         Lazy::new(|| {
             Regex::new(r#"^gain (\d+) life for each ignited enemy hit with attacks$"#).unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^(\d+) mana gained for each cursed enemy hit by your attacks$"#).unwrap()
         }),
-        Lazy::new(|| {
-            Regex::new(r#"^gain (\d+) mana per cursed enemy hit with attacks$"#).unwrap()
-        }),
+        Lazy::new(|| Regex::new(r#"^gain (\d+) mana per cursed enemy hit with attacks$"#).unwrap()),
         Lazy::new(|| {
             Regex::new(r#"^gain (\d+) life per blinded enemy hit with this weapon$"#).unwrap()
         }),
@@ -19915,9 +19880,7 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
         Lazy::new(|| {
             Regex::new(r#"^recover (\d+)% of life on killing a poisoned enemy$"#).unwrap()
         }),
-        Lazy::new(|| {
-            Regex::new(r#"^recover (\d+)% of life on killing a chilled enemy$"#).unwrap()
-        }),
+        Lazy::new(|| Regex::new(r#"^recover (\d+)% of life on killing a chilled enemy$"#).unwrap()),
         Lazy::new(|| {
             Regex::new(r#"^recover (\d+)% of life when you kill a cursed enemy$"#).unwrap()
         }),
@@ -19935,12 +19898,10 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             Regex::new(r#"^recover (\d+)% of mana when you kill a cursed enemy$"#).unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(r#"^recover (\d+)% of energy shield when you kill a cursed enemy$"#)
-                .unwrap()
+            Regex::new(r#"^recover (\d+)% of energy shield when you kill a cursed enemy$"#).unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(r#"^recover (\d+)% of life on kill if you've spent life recently$"#)
-                .unwrap()
+            Regex::new(r#"^recover (\d+)% of life on kill if you've spent life recently$"#).unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^(\d+)% chance to recover all life when you kill an enemy$"#).unwrap()
@@ -20038,9 +19999,7 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
         Lazy::new(|| {
             Regex::new(r#"^recover (\d+) energy shield when you suppress spell damage$"#).unwrap()
         }),
-        Lazy::new(|| {
-            Regex::new(r#"^recover (\d+) life when you suppress spell damage$"#).unwrap()
-        }),
+        Lazy::new(|| Regex::new(r#"^recover (\d+) life when you suppress spell damage$"#).unwrap()),
         Lazy::new(|| Regex::new(r#"^recover (\d+)% of life when you block$"#).unwrap()),
         Lazy::new(|| {
             Regex::new(
@@ -20056,8 +20015,7 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             Regex::new(r#"^recover (\d+)% of energy shield when you block spell damage while wielding a staff$"#).unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(r#"^replenishes energy shield by (\d+)% of armour when you block$"#)
-                .unwrap()
+            Regex::new(r#"^replenishes energy shield by (\d+)% of armour when you block$"#).unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^recover energy shield equal to (\d+)% of armour when you block$"#)
@@ -20154,9 +20112,7 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
         Lazy::new(|| {
             Regex::new(r#"^evasion rating is increased by overcapped cold resistance$"#).unwrap()
         }),
-        Lazy::new(|| {
-            Regex::new(r#"^reflects (\d+) physical damage to melee attackers$"#).unwrap()
-        }),
+        Lazy::new(|| Regex::new(r#"^reflects (\d+) physical damage to melee attackers$"#).unwrap()),
         Lazy::new(|| Regex::new(r#"^ignore all movement penalties from armour$"#).unwrap()),
         Lazy::new(|| Regex::new(r#"^gain armour equal to your reserved mana$"#).unwrap()),
         Lazy::new(|| {
@@ -20387,8 +20343,7 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
                 .unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(r#"^(\d+)% of your energy shield is added to your stun threshold$"#)
-                .unwrap()
+            Regex::new(r#"^(\d+)% of your energy shield is added to your stun threshold$"#).unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^(\d+)% increased armour per second you've been stationary, up to a maximum of (\d+)%$"#).unwrap()
@@ -20482,8 +20437,7 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
         Lazy::new(|| Regex::new(r#"^g?a?i?n? ?unholy might during f?l?a?s?k? ?effect$"#).unwrap()),
         Lazy::new(|| Regex::new(r#"^zealot's oath during f?l?a?s?k? ?effect$"#).unwrap()),
         Lazy::new(|| {
-            Regex::new(r#"^grants level (\d+) (.+) curse aura during f?l?a?s?k? ?effect$"#)
-                .unwrap()
+            Regex::new(r#"^grants level (\d+) (.+) curse aura during f?l?a?s?k? ?effect$"#).unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^shocks nearby enemies during f?l?a?s?k? ?effect, causing (\d+)% increased damage taken$"#).unwrap()
@@ -20631,8 +20585,7 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             Regex::new(r#"^flasks applied to you have (\d+)% increased effect$"#).unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(r#"^flasks applied to you have (\d+)% increased effect per level$"#)
-                .unwrap()
+            Regex::new(r#"^flasks applied to you have (\d+)% increased effect per level$"#).unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^equipped magic flasks have (\d+)% increased effect on you if no flasks are adjacent to them$"#).unwrap()
@@ -20703,9 +20656,7 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
         Lazy::new(|| Regex::new(r#"^can't use other rings$"#).unwrap()),
         Lazy::new(|| Regex::new(r#"^uses both hand slots$"#).unwrap()),
         Lazy::new(|| Regex::new(r#"^can't use flask in fifth slot$"#).unwrap()),
-        Lazy::new(|| {
-            Regex::new(r#"^boneshatter has (\d+)% chance to grant \+1 trauma$"#).unwrap()
-        }),
+        Lazy::new(|| Regex::new(r#"^boneshatter has (\d+)% chance to grant \+1 trauma$"#).unwrap()),
         Lazy::new(|| {
             Regex::new(r#"^your minimum frenzy, endurance and power charges are equal to your maximum while you are stationary$"#).unwrap()
         }),
@@ -20760,8 +20711,7 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
                 .unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(r#"^skills deal (\d+)% more damage for each warcry exerting them$"#)
-                .unwrap()
+            Regex::new(r#"^skills deal (\d+)% more damage for each warcry exerting them$"#).unwrap()
         }),
         Lazy::new(|| Regex::new(r#"^iron will$"#).unwrap()),
         Lazy::new(|| Regex::new(r#"^iron reflexes while stationary$"#).unwrap()),
@@ -20803,7 +20753,10 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
         }),
         Lazy::new(|| Regex::new(r#"^spells cost \+(\d+)% of life$"#).unwrap()),
         Lazy::new(|| {
-            Regex::new(r#"^trigger a socketed elemental spell on block, with a ([\d.]+) second cooldown$"#).unwrap()
+            Regex::new(
+                r#"^trigger a socketed elemental spell on block, with a ([\d.]+) second cooldown$"#,
+            )
+            .unwrap()
         }),
         Lazy::new(|| {
             Regex::new(
@@ -20886,9 +20839,7 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
         Lazy::new(|| Regex::new(r#"^your spells are disabled$"#).unwrap()),
         Lazy::new(|| Regex::new(r#"^your warcries are disabled$"#).unwrap()),
         Lazy::new(|| Regex::new(r#"^your travel skills are disabled$"#).unwrap()),
-        Lazy::new(|| {
-            Regex::new(r#"^aura skills other than ([a-zA-Z\s]+) are disabled$"#).unwrap()
-        }),
+        Lazy::new(|| Regex::new(r#"^aura skills other than ([a-zA-Z\s]+) are disabled$"#).unwrap()),
         Lazy::new(|| {
             Regex::new(r#"^travel skills other than ([a-zA-Z\s]+) are disabled$"#).unwrap()
         }),
@@ -21039,9 +20990,7 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
         Lazy::new(|| {
             Regex::new(r#"^with a murderous eye jewel socketed, melee attacks grant (\d+) rage on hit, no more than once every second$"#).unwrap()
         }),
-        Lazy::new(|| {
-            Regex::new(r#"^gain \d+ rage after spending a total of \d+ mana$"#).unwrap()
-        }),
+        Lazy::new(|| Regex::new(r#"^gain \d+ rage after spending a total of \d+ mana$"#).unwrap()),
         Lazy::new(|| Regex::new(r#"^rage grants cast speed instead of attack speed$"#).unwrap()),
         Lazy::new(|| Regex::new(r#"^rage grants spell damage instead of attack damage$"#).unwrap()),
         Lazy::new(|| Regex::new(r#"^inherent loss of rage is (\d+)% slower$"#).unwrap()),
@@ -21176,9 +21125,7 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
         Lazy::new(|| {
             Regex::new(r#"^final repeat of spells has (\d+)% increased area of effect$"#).unwrap()
         }),
-        Lazy::new(|| {
-            Regex::new(r#"^hexes you inflict have ([+\-]\d+) to maximum doom$"#).unwrap()
-        }),
+        Lazy::new(|| Regex::new(r#"^hexes you inflict have ([+\-]\d+) to maximum doom$"#).unwrap()),
         Lazy::new(|| {
             Regex::new(r#"^while stationary, gain (\d+)% increased area of effect every second, up to a maximum of (\d+)%$"#).unwrap()
         }),
@@ -21223,10 +21170,8 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             Regex::new(r#"^left ring slot: skills supported by unleash have \+(\d) to maximum number of seals$"#).unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(
-                r#"^skills supported by unleash have (\d+)% increased seal gain frequency$"#,
-            )
-            .unwrap()
+            Regex::new(r#"^skills supported by unleash have (\d+)% increased seal gain frequency$"#)
+                .unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^(\d+)% increased critical strike chance with spells which remove the maximum number of seals$"#).unwrap()
@@ -21277,9 +21222,7 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             )
             .unwrap()
         }),
-        Lazy::new(|| {
-            Regex::new(r#"^focus has (\d+)% increased cooldown recovery rate$"#).unwrap()
-        }),
+        Lazy::new(|| Regex::new(r#"^focus has (\d+)% increased cooldown recovery rate$"#).unwrap()),
         Lazy::new(|| Regex::new(r#"^focus has (\d+)% reduced cooldown recovery rate$"#).unwrap()),
         Lazy::new(|| {
             Regex::new(r#"^(\d+)% more frozen legion and general's cry cooldown recovery rate$"#)
@@ -21420,7 +21363,10 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             Regex::new(r#"^caustic arrow has (\d+)% chance to inflict withered on hit for (\d+) seconds base duration$"#).unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(r#"^venom gyre has a (\d+)% chance to inflict withered for (\d+) seconds on hit$"#).unwrap()
+            Regex::new(
+                r#"^venom gyre has a (\d+)% chance to inflict withered for (\d+) seconds on hit$"#,
+            )
+            .unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^sigil of power's buff also grants (\d+)% increased critical strike chance per stage$"#).unwrap()
@@ -21488,8 +21434,7 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
         Lazy::new(|| Regex::new(r#"^(\d+)% increased attack speed with snipe$"#).unwrap()),
         Lazy::new(|| Regex::new(r#"^\+(\d+) to maximum snipe stages$"#).unwrap()),
         Lazy::new(|| {
-            Regex::new(r#"^chain hook has \+([\d.]+) metres? to radius per (\d+) rage$"#)
-                .unwrap()
+            Regex::new(r#"^chain hook has \+([\d.]+) metres? to radius per (\d+) rage$"#).unwrap()
         }),
         Lazy::new(|| Regex::new(r#"^\+([\d.]+) metres? to discharge radius$"#).unwrap()),
         Lazy::new(|| Regex::new(r#"^quality does not increase physical damage$"#).unwrap()),
@@ -21505,24 +21450,17 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             Regex::new(r#"^\+([\d.]+) metres? to weapon range per 10% quality$"#).unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(r#"^grants (\d+)% increased elemental damage per (\d+)% quality$"#)
-                .unwrap()
+            Regex::new(r#"^grants (\d+)% increased elemental damage per (\d+)% quality$"#).unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^grants (\d+)% increased area of effect per (\d+)% quality$"#).unwrap()
         }),
         Lazy::new(|| Regex::new(r#"^quality does not increase defences$"#).unwrap()),
-        Lazy::new(|| {
-            Regex::new(r#"^grants \+(\d+) to maximum life per (\d+)% quality$"#).unwrap()
-        }),
-        Lazy::new(|| {
-            Regex::new(r#"^grants \+(\d+) to maximum mana per (\d+)% quality$"#).unwrap()
-        }),
+        Lazy::new(|| Regex::new(r#"^grants \+(\d+) to maximum life per (\d+)% quality$"#).unwrap()),
+        Lazy::new(|| Regex::new(r#"^grants \+(\d+) to maximum mana per (\d+)% quality$"#).unwrap()),
         Lazy::new(|| Regex::new(r#"^grants \+(\d+) to strength per (\d+)% quality$"#).unwrap()),
         Lazy::new(|| Regex::new(r#"^grants \+(\d+) to dexterity per (\d+)% quality$"#).unwrap()),
-        Lazy::new(|| {
-            Regex::new(r#"^grants \+(\d+) to intelligence per (\d+)% quality$"#).unwrap()
-        }),
+        Lazy::new(|| Regex::new(r#"^grants \+(\d+) to intelligence per (\d+)% quality$"#).unwrap()),
         Lazy::new(|| {
             Regex::new(r#"^grants \+(\d+)% to fire resistance per (\d+)% quality$"#).unwrap()
         }),
@@ -21530,8 +21468,7 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             Regex::new(r#"^grants \+(\d+)% to cold resistance per (\d+)% quality$"#).unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(r#"^grants \+(\d+)% to lightning resistance per (\d+)% quality$"#)
-                .unwrap()
+            Regex::new(r#"^grants \+(\d+)% to lightning resistance per (\d+)% quality$"#).unwrap()
         }),
         Lazy::new(|| Regex::new(r#"^\+(\d+)% to quality$"#).unwrap()),
         Lazy::new(|| {
@@ -21639,8 +21576,7 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             Regex::new(r#"^you take (\d+)% reduced extra damage from critical strikes$"#).unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(r#"^you take (\d+)% increased extra damage from critical strikes$"#)
-                .unwrap()
+            Regex::new(r#"^you take (\d+)% increased extra damage from critical strikes$"#).unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^you take (\d+)% reduced extra damage from critical strikes while you have no power charges$"#).unwrap()
@@ -21649,19 +21585,23 @@ pub static SPECIAL_MOD_PATTERNS: Lazy<Vec<Lazy<Regex>>> = Lazy::new(|| {
             Regex::new(r#"^you take (\d+)% reduced extra damage from critical strikes by poisoned enemies$"#).unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(r#"^you take (\d+)% reduced extra damage from critical strikes by cursed enemies$"#).unwrap()
+            Regex::new(
+                r#"^you take (\d+)% reduced extra damage from critical strikes by cursed enemies$"#,
+            )
+            .unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^nearby allies have (\d+)% chance to block attack damage per (\d+) strength you have$"#).unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(
-                r#"^physical skills have (\d+)% increased duration per (\d+) intelligence$"#,
-            )
-            .unwrap()
+            Regex::new(r#"^physical skills have (\d+)% increased duration per (\d+) intelligence$"#)
+                .unwrap()
         }),
         Lazy::new(|| {
-            Regex::new(r#"^y?o?u?r? ?maximum energy shield is equal to (\d+)% of y?o?u?r? ?maximum life$"#).unwrap()
+            Regex::new(
+                r#"^y?o?u?r? ?maximum energy shield is equal to (\d+)% of y?o?u?r? ?maximum life$"#,
+            )
+            .unwrap()
         }),
         Lazy::new(|| {
             Regex::new(r#"^immun[ei]t?y? to elemental ailments while bleeding$"#).unwrap()
