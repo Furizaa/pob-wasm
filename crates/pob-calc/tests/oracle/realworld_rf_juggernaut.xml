@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="92" targetVersion="3_0" bandit="None" className="Marauder" ascendClassName="Juggernaut" mainSocketGroup="1" viewMode="CALCS" pantheonMajorGod="None" pantheonMinorGod="None">
+  </Build>
+  <Import/>
+  <Calcs>
+    <Input name="misc_buffMode" string="EFFECTIVE"/>
+  </Calcs>
+  <Skills activeSkillSet="1" sortGemsByDPS="true" defaultGemQuality="nil" defaultGemLevel="nil">
+    <SkillSet id="1">
+      <Skill mainActiveSkill="1" enabled="true" slot="Body Armour">
+        <Gem skillId="RighteousFire" level="21" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Righteous Fire"/>
+        <Gem skillId="SupportBurningDamage" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Burning Damage"/>
+        <Gem skillId="SupportConcentratedEffect" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Concentrated Effect"/>
+        <Gem skillId="SupportEfficacy" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Efficacy"/>
+        <Gem skillId="SupportRapidDecay" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Swift Affliction"/>
+        <Gem skillId="SupportElementalFocus" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Elemental Focus"/>
+      </Skill>
+      <Skill mainActiveSkill="1" enabled="true" slot="Helmet">
+        <Gem skillId="PurityOfFireAura" level="21" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Purity of Fire"/>
+        <Gem skillId="Vitality" level="20" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Vitality"/>
+        <Gem skillId="DamageOverTimeAura" level="20" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Malevolence"/>
+      </Skill>
+      <Skill mainActiveSkill="1" enabled="true" slot="Gloves">
+        <Gem skillId="ScorchingRay" level="20" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Scorching Ray"/>
+        <Gem skillId="SupportCastWhileChannelling" level="20" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Cast while Channelling"/>
+        <Gem skillId="FlamabilityAura" level="20" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Flammability"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Tree activeSpec="1">
+    <Spec treeVersion="3_13" nodes="25367,66771,14001,56370,60529,49178,49412,25933,65770,7082,66768,14993,44169,61050,23090,46578,47175,16380,65762,13714,55190,23984,65754,66777,10532,32251,65706,65744,2225,65682,50024,65698,30691,15868,34400,39023,31257,65690,65760,49080,48438,66714,57839,37501,5865,36047,24383,66706,50515,65702,10594,61198,65701,5152,66752,48287,14056,24970,65680,56355,20551,63282,1340,30380,3644,32739,5233,29353,9271,34009,33287,18302,47426,22627,24914,57992,49415,37647,2491,43833,62319,59928,53118,55676,14930,12795,63048,59920,62429,46519,29294,31080,56460,65746,66704,63723,18552,35053,58831,28475,476,55166,26712,58449,33582,59494,26725,65696,30733,63673,224,61666,64024,48807,55485,38999,6289,50904,18901,38664,53987,35288,8592,34191,22703,43374" classId="1" ascendClassId="1">
+      <EditedNodes/>
+    </Spec>
+  </Tree>
+  <Items activeItemSet="1" useSecondWeaponSet="false">
+    <Item id="1">
+      Rarity: RARE
+Fire Sceptre
+Opal Sceptre
+Item Level: 83
+Quality: 20
+Sockets: R-B-B
+LevelReq: 62
+Implicits: 1
+40% increased Elemental Damage
++1 to Level of all Fire Spell Skill Gems
+65% increased Spell Damage
++30% to Fire Damage over Time Multiplier
+22% increased Cast Speed
+{crafted}+20% to Burning Damage over Time Multiplier
+    </Item>
+    <Item id="2">
+      Rarity: RARE
+Pyre Shield
+Pinnacle Tower Shield
+Item Level: 82
+Quality: 20
+Sockets: R-R-R
+LevelReq: 66
+Implicits: 0
++28 to maximum Life
+2200 added Armour
++100 to maximum Life
++1 to Level of all Fire Spell Skill Gems
++42% to Fire Resistance
++35% to Cold Resistance
+    </Item>
+    <Item id="3">
+      Rarity: RARE
+Flame Plate
+Astral Plate
+Item Level: 84
+Quality: 20
+Sockets: R-R-B-B-R-B
+LevelReq: 62
+Implicits: 1
++12% to all Elemental Resistances
++125 to maximum Life
+12% increased maximum Life
++45% to Fire Resistance
++38% to Cold Resistance
+    </Item>
+    <Item id="4">
+      Rarity: RARE
+Fire Crown
+Royal Burgonet
+Item Level: 82
+Quality: 20
+Sockets: R-R-B-R
+LevelReq: 65
+Implicits: 0
++100 to maximum Life
++42% to Fire Resistance
++38% to Lightning Resistance
++300 to Armour
+Regenerate 2% of Life per second
+    </Item>
+    <Item id="5">
+      Rarity: RARE
+Blaze Fist
+Titan Gauntlets
+Item Level: 80
+Quality: 20
+Sockets: R-B-B-R
+LevelReq: 69
+Implicits: 0
++80 to maximum Life
++38% to Fire Resistance
++32% to Cold Resistance
++280 to Armour
+    </Item>
+    <Item id="6">
+      Rarity: RARE
+Flame Step
+Titan Greaves
+Item Level: 80
+Quality: 20
+Sockets: R-R-G-R
+LevelReq: 68
+Implicits: 0
++90 to maximum Life
++40% to Fire Resistance
++32% to Cold Resistance
+30% increased Movement Speed
++250 to Armour
+    </Item>
+    <Item id="7">
+      Rarity: RARE
+Pyre Clasp
+Marble Amulet
+Item Level: 84
+LevelReq: 74
+Implicits: 1
+Regenerate 1.6% of Life per second
++1 to Level of all Fire Skill Gems
++75 to maximum Life
++18% to Fire Damage over Time Multiplier
++15% to all Elemental Resistances
+    </Item>
+    <Item id="8">
+      Rarity: RARE
+Flame Bind
+Rustic Sash
+Item Level: 82
+LevelReq: 50
+Implicits: 1
+24% increased Global Physical Damage
++95 to maximum Life
++42% to Fire Resistance
++38% to Cold Resistance
++30% to Lightning Resistance
+    </Item>
+    <Item id="9">
+      Rarity: RARE
+Pyre Eye
+Ruby Ring
+Item Level: 80
+LevelReq: 60
+Implicits: 1
++30% to Fire Resistance
++68 to maximum Life
++38% to Cold Resistance
++32% to Lightning Resistance
+Regenerate 30 Life per second
+    </Item>
+    <Item id="10">
+      Rarity: RARE
+Flame Loop
+Ruby Ring
+Item Level: 80
+LevelReq: 60
+Implicits: 1
++30% to Fire Resistance
++62 to maximum Life
++35% to Cold Resistance
++28% to Lightning Resistance
++22% to Chaos Resistance
+    </Item>
+    <Slot name="Weapon 1" itemId="1"/>
+    <Slot name="Weapon 2" itemId="2"/>
+    <Slot name="Body Armour" itemId="3"/>
+    <Slot name="Helmet" itemId="4"/>
+    <Slot name="Gloves" itemId="5"/>
+    <Slot name="Boots" itemId="6"/>
+    <Slot name="Amulet" itemId="7"/>
+    <Slot name="Belt" itemId="8"/>
+    <Slot name="Ring 1" itemId="9"/>
+    <Slot name="Ring 2" itemId="10"/>
+    <ItemSet useSecondWeaponSet="false" id="1">
+    <Slot name="Weapon 1" itemId="1"/>
+    <Slot name="Weapon 2" itemId="2"/>
+    <Slot name="Body Armour" itemId="3"/>
+    <Slot name="Helmet" itemId="4"/>
+    <Slot name="Gloves" itemId="5"/>
+    <Slot name="Boots" itemId="6"/>
+    <Slot name="Amulet" itemId="7"/>
+    <Slot name="Belt" itemId="8"/>
+    <Slot name="Ring 1" itemId="9"/>
+    <Slot name="Ring 2" itemId="10"/>
+    </ItemSet>
+  </Items>
+  <Config>
+    <Input name="enemyLevel" number="84"/>
+    <Input name="enemyIsBoss" string="Shaper"/>
+    <Input name="useEnduranceCharges" boolean="true"/>
+  </Config>
+</PathOfBuilding>

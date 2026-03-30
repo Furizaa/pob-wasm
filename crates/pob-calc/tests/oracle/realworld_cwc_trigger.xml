@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="92" targetVersion="3_0" bandit="None" className="Templar" ascendClassName="Inquisitor" mainSocketGroup="1" viewMode="CALCS" pantheonMajorGod="None" pantheonMinorGod="None">
+  </Build>
+  <Import/>
+  <Calcs>
+    <Input name="misc_buffMode" string="EFFECTIVE"/>
+  </Calcs>
+  <Skills activeSkillSet="1" sortGemsByDPS="true" defaultGemQuality="nil" defaultGemLevel="nil">
+    <SkillSet id="1">
+      <Skill mainActiveSkill="1" enabled="true" slot="Body Armour">
+        <Gem skillId="ScorchingRay" level="21" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Scorching Ray"/>
+        <Gem skillId="SupportCastWhileChannelling" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Cast while Channelling"/>
+        <Gem skillId="Firestorm" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Firestorm"/>
+        <Gem skillId="SupportBurningDamage" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Burning Damage"/>
+        <Gem skillId="SupportEfficacy" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Efficacy"/>
+        <Gem skillId="SupportControlledDestruction" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Controlled Destruction"/>
+      </Skill>
+      <Skill mainActiveSkill="1" enabled="true" slot="Helmet">
+        <Gem skillId="DamageOverTimeAura" level="21" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Malevolence"/>
+        <Gem skillId="Zealotry" level="20" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Zealotry"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Tree activeSpec="1">
+    <Spec treeVersion="3_13" nodes="7388,4184,40644,2292,46896,44955,48362,61308,32345,30338,49254,39085,15073,36774,8948,47251,61320,21575,61419,41263,4973,8001,1203,15711,21835,35894,58198,46408,18769,37127,17018,55247,38190,5129,48778,17821,32710,38900,6712,33435,1031,41989,3452,47630,4397,13009,11162,25058,15365,21170,24050,21075,42583,19939,18378,33296,60398,37671,17579,42686,8833,27203,41472,13714,61653,27659,1767,46910,55485,51212,16775,9877" classId="5" ascendClassId="1">
+      <EditedNodes/>
+    </Spec>
+  </Tree>
+  <Items activeItemSet="1" useSecondWeaponSet="false">
+    <Item id="1">
+      Rarity: RARE
+Flame Gutter
+Opal Sceptre
+Item Level: 83
+Quality: 20
+Sockets: R-B-B
+LevelReq: 62
+Implicits: 1
+40% increased Elemental Damage
++1 to Level of all Fire Spell Skill Gems
+62% increased Spell Damage
+22% increased Cast Speed
++25% to Fire Damage over Time Multiplier
+    </Item>
+    <Item id="2">
+      Rarity: RARE
+Sol Guard
+Titanium Spirit Shield
+Item Level: 82
+LevelReq: 68
+Implicits: 1
++5% Chance to Block Spell Damage
++88 to maximum Life
++42% to Fire Resistance
++90 to maximum Energy Shield
++35% to Cold Resistance
+    </Item>
+    <Item id="3">
+      Rarity: RARE
+Pyre Coat
+Vaal Regalia
+Item Level: 84
+Quality: 20
+Sockets: R-B-B-B-R-B
+LevelReq: 68
+Implicits: 0
++108 to maximum Life
++42% to Fire Resistance
++38% to Cold Resistance
++135 to maximum Energy Shield
+    </Item>
+    <Item id="4">
+      Rarity: RARE
+Fire Crown
+Hubris Circlet
+Item Level: 82
+Quality: 20
+Sockets: B-B-R-R
+LevelReq: 69
+Implicits: 0
++90 to maximum Life
++38% to Fire Resistance
++35% to Lightning Resistance
++95 to maximum Energy Shield
+    </Item>
+    <Item id="5">
+      Rarity: RARE
+Blaze Grip
+Fingerless Silk Gloves
+Item Level: 80
+Quality: 20
+Sockets: R-B-B-B
+LevelReq: 70
+Implicits: 1
+16% increased Spell Damage
++68 to maximum Life
++32% to Fire Resistance
++50 to maximum Energy Shield
++28% to Cold Resistance
+    </Item>
+    <Item id="6">
+      Rarity: RARE
+Ember Step
+Sorcerer Boots
+Item Level: 80
+Quality: 20
+Sockets: R-B-B-B
+LevelReq: 67
+Implicits: 0
++78 to maximum Life
++35% to Fire Resistance
+30% increased Movement Speed
++48 to maximum Energy Shield
++25% to Lightning Resistance
+    </Item>
+    <Item id="7">
+      Rarity: RARE
+Pyre Locket
+Citrine Amulet
+Item Level: 82
+LevelReq: 60
+Implicits: 1
++16 to Strength and Dexterity
++1 to Level of all Fire Skill Gems
++68 to maximum Life
++15% to Fire Damage over Time Multiplier
++15% to all Elemental Resistances
+    </Item>
+    <Item id="8">
+      Rarity: RARE
+Channel Bind
+Crystal Belt
+Item Level: 82
+LevelReq: 79
+Implicits: 1
++75 to maximum Energy Shield
++85 to maximum Life
++38% to Fire Resistance
++35% to Cold Resistance
++28% to Lightning Resistance
+    </Item>
+    <Item id="9">
+      Rarity: RARE
+Flame Eye
+Ruby Ring
+Item Level: 80
+LevelReq: 60
+Implicits: 1
++30% to Fire Resistance
++58 to maximum Life
++35% to Cold Resistance
++28% to Lightning Resistance
+22% increased Fire Damage
+    </Item>
+    <Item id="10">
+      Rarity: RARE
+Sol Band
+Diamond Ring
+Item Level: 80
+LevelReq: 60
+Implicits: 1
+26% increased Global Critical Strike Chance
++55 to maximum Life
++35% to Fire Resistance
++30% to Lightning Resistance
++48 to maximum Energy Shield
+    </Item>
+    <Slot name="Weapon 1" itemId="1"/>
+    <Slot name="Weapon 2" itemId="2"/>
+    <Slot name="Body Armour" itemId="3"/>
+    <Slot name="Helmet" itemId="4"/>
+    <Slot name="Gloves" itemId="5"/>
+    <Slot name="Boots" itemId="6"/>
+    <Slot name="Amulet" itemId="7"/>
+    <Slot name="Belt" itemId="8"/>
+    <Slot name="Ring 1" itemId="9"/>
+    <Slot name="Ring 2" itemId="10"/>
+    <ItemSet useSecondWeaponSet="false" id="1">
+    <Slot name="Weapon 1" itemId="1"/>
+    <Slot name="Weapon 2" itemId="2"/>
+    <Slot name="Body Armour" itemId="3"/>
+    <Slot name="Helmet" itemId="4"/>
+    <Slot name="Gloves" itemId="5"/>
+    <Slot name="Boots" itemId="6"/>
+    <Slot name="Amulet" itemId="7"/>
+    <Slot name="Belt" itemId="8"/>
+    <Slot name="Ring 1" itemId="9"/>
+    <Slot name="Ring 2" itemId="10"/>
+    </ItemSet>
+  </Items>
+  <Config>
+    <Input name="enemyLevel" number="84"/>
+    <Input name="enemyIsBoss" string="Shaper"/>
+    <Input name="conditionEnemyIgnited" boolean="true"/>
+  </Config>
+</PathOfBuilding>

@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="92" targetVersion="3_0" bandit="None" className="Shadow" ascendClassName="Trickster" mainSocketGroup="1" viewMode="CALCS" pantheonMajorGod="None" pantheonMinorGod="None">
+  </Build>
+  <Import/>
+  <Calcs>
+    <Input name="misc_buffMode" string="EFFECTIVE"/>
+  </Calcs>
+  <Skills activeSkillSet="1" sortGemsByDPS="true" defaultGemQuality="nil" defaultGemLevel="nil">
+    <SkillSet id="1">
+      <Skill mainActiveSkill="1" enabled="true" slot="Body Armour">
+        <Gem skillId="EssenceDrain" level="21" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Essence Drain"/>
+        <Gem skillId="SupportControlledDestruction" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Controlled Destruction"/>
+        <Gem skillId="SupportVoidManipulation" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Void Manipulation"/>
+        <Gem skillId="SupportRapidDecay" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Swift Affliction"/>
+        <Gem skillId="SupportEfficacy" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Efficacy"/>
+        <Gem skillId="SupportEnergyLeech" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Energy Leech"/>
+      </Skill>
+      <Skill mainActiveSkill="1" enabled="true" slot="Helmet">
+        <Gem skillId="Contagion" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Contagion"/>
+        <Gem skillId="SupportIncreasedAreaOfEffect" level="20" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Increased Area of Effect"/>
+        <Gem skillId="SupportIntensify" level="20" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Intensify"/>
+      </Skill>
+      <Skill mainActiveSkill="1" enabled="true" slot="Gloves">
+        <Gem skillId="DamageOverTimeAura" level="21" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Malevolence"/>
+        <Gem skillId="Discipline" level="20" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Discipline"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Tree activeSpec="1">
+    <Spec treeVersion="3_13" nodes="65875,10829,64583,16775,46896,21984,46289,63976,65829,53086,24472,30338,15073,7614,1006,56856,22748,65830,4973,8001,3656,20807,46408,9206,5129,23912,59606,32710,33753,59585,13170,65824,54142,65894,24050,42583,19939,62021,22266,65817,34483,5823,18436,65895,13714,65167,28330,65872,49605,32763,39665,9797,46910,19144,33479,65888,65826,55485,9864,53042,65811,50459,65881,65034,39821,65834,13885,22893,6910,46578,4502,8012,54307,7112,12412,38995,16167,1461,36287,51212,38149,63139" classId="6" ascendClassId="3">
+      <EditedNodes/>
+    </Spec>
+  </Tree>
+  <Items activeItemSet="1" useSecondWeaponSet="false">
+    <Item id="1">
+      Rarity: RARE
+Dire Gutter
+Imbued Wand
+Item Level: 82
+Quality: 20
+Sockets: B-B-B
+LevelReq: 59
+Implicits: 1
+38% increased Spell Damage
++1 to Level of all Chaos Spell Skill Gems
++18% to Damage over Time Multiplier
+62% increased Spell Damage
+22% increased Cast Speed
+{crafted}+20% to Chaos Damage over Time Multiplier
+    </Item>
+    <Item id="2">
+      Rarity: RARE
+Glyph Ward
+Titanium Spirit Shield
+Item Level: 82
+LevelReq: 68
+Implicits: 1
++5% Chance to Block Spell Damage
++1 to Level of all Chaos Spell Skill Gems
++85 to maximum Life
++42% to Cold Resistance
++95 to maximum Energy Shield
++38% to Lightning Resistance
+    </Item>
+    <Item id="3">
+      Rarity: RARE
+Doom Wrap
+Vaal Regalia
+Item Level: 84
+Quality: 20
+Sockets: B-B-B-B-B-B
+LevelReq: 68
+Implicits: 0
++115 to maximum Life
++150 to maximum Energy Shield
++45% to Cold Resistance
++35% to Lightning Resistance
+    </Item>
+    <Item id="4">
+      Rarity: RARE
+Ghoul Horn
+Hubris Circlet
+Item Level: 82
+Quality: 20
+Sockets: B-B-B-B
+LevelReq: 69
+Implicits: 0
++88 to maximum Life
++35% to Fire Resistance
++110 to maximum Energy Shield
+Nearby Enemies have -9% to Chaos Resistance
+    </Item>
+    <Item id="5">
+      Rarity: RARE
+Mind Clutches
+Fingerless Silk Gloves
+Item Level: 80
+Quality: 20
+Sockets: B-B-G-G
+LevelReq: 70
+Implicits: 1
+16% increased Spell Damage
++72 to maximum Life
++35% to Fire Resistance
++65 to maximum Energy Shield
++30% to Lightning Resistance
+    </Item>
+    <Item id="6">
+      Rarity: RARE
+Blight Stride
+Sorcerer Boots
+Item Level: 80
+Quality: 20
+Sockets: B-B-R-G
+LevelReq: 67
+Implicits: 0
++82 to maximum Life
++35% to Fire Resistance
+30% increased Movement Speed
++55 to maximum Energy Shield
++28% to Cold Resistance
+    </Item>
+    <Item id="7">
+      Rarity: RARE
+Gloom Locket
+Agate Amulet
+Item Level: 82
+LevelReq: 60
+Implicits: 1
++16 to Strength and Intelligence
++1 to Level of all Chaos Skill Gems
++72 to maximum Life
++12% to Chaos Damage over Time Multiplier
++15% to all Elemental Resistances
+{crafted}+20% to Damage over Time Multiplier
+    </Item>
+    <Item id="8">
+      Rarity: RARE
+Spirit Bind
+Crystal Belt
+Item Level: 82
+LevelReq: 79
+Implicits: 1
++75 to maximum Energy Shield
++88 to maximum Life
++40% to Fire Resistance
++35% to Cold Resistance
++32% to Lightning Resistance
+    </Item>
+    <Item id="9">
+      Rarity: RARE
+Dread Eye
+Amethyst Ring
+Item Level: 80
+LevelReq: 60
+Implicits: 1
++17% to Chaos Resistance
++62 to maximum Life
++35% to Fire Resistance
++28% to Lightning Resistance
++50 to maximum Energy Shield
+    </Item>
+    <Item id="10">
+      Rarity: RARE
+Doom Hold
+Moonstone Ring
+Item Level: 80
+LevelReq: 60
+Implicits: 1
++25 to maximum Energy Shield
++58 to maximum Life
++40% to Cold Resistance
++32% to Lightning Resistance
++15% to Chaos Resistance
+    </Item>
+    <Slot name="Weapon 1" itemId="1"/>
+    <Slot name="Weapon 2" itemId="2"/>
+    <Slot name="Body Armour" itemId="3"/>
+    <Slot name="Helmet" itemId="4"/>
+    <Slot name="Gloves" itemId="5"/>
+    <Slot name="Boots" itemId="6"/>
+    <Slot name="Amulet" itemId="7"/>
+    <Slot name="Belt" itemId="8"/>
+    <Slot name="Ring 1" itemId="9"/>
+    <Slot name="Ring 2" itemId="10"/>
+    <ItemSet useSecondWeaponSet="false" id="1">
+    <Slot name="Weapon 1" itemId="1"/>
+    <Slot name="Weapon 2" itemId="2"/>
+    <Slot name="Body Armour" itemId="3"/>
+    <Slot name="Helmet" itemId="4"/>
+    <Slot name="Gloves" itemId="5"/>
+    <Slot name="Boots" itemId="6"/>
+    <Slot name="Amulet" itemId="7"/>
+    <Slot name="Belt" itemId="8"/>
+    <Slot name="Ring 1" itemId="9"/>
+    <Slot name="Ring 2" itemId="10"/>
+    </ItemSet>
+  </Items>
+  <Config>
+    <Input name="enemyLevel" number="84"/>
+    <Input name="enemyIsBoss" string="Shaper"/>
+
+  </Config>
+</PathOfBuilding>

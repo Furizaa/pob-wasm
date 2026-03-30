@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="95" targetVersion="3_0" bandit="None" className="Scion" ascendClassName="Ascendant" mainSocketGroup="1" viewMode="CALCS" pantheonMajorGod="None" pantheonMinorGod="None">
+  </Build>
+  <Import/>
+  <Calcs>
+    <Input name="misc_buffMode" string="EFFECTIVE"/>
+  </Calcs>
+  <Skills activeSkillSet="1" sortGemsByDPS="true" defaultGemQuality="nil" defaultGemLevel="nil">
+    <SkillSet id="1">
+      <Skill mainActiveSkill="1" enabled="true" slot="Body Armour">
+        <Gem skillId="SparkProjectile" level="21" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Spark"/>
+        <Gem skillId="SupportPenetration" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Lightning Penetration"/>
+        <Gem skillId="SupportSpellEcho" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Spell Echo"/>
+        <Gem skillId="SupportIncreasedCriticalStrikes" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Increased Critical Strikes"/>
+        <Gem skillId="SupportControlledDestruction" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Controlled Destruction"/>
+        <Gem skillId="SupportAddedLightningDamage" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Added Lightning Damage"/>
+      </Skill>
+      <Skill mainActiveSkill="1" enabled="true" slot="Helmet">
+        <Gem skillId="WrathAura" level="21" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Wrath"/>
+        <Gem skillId="Zealotry" level="21" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Zealotry"/>
+        <Gem skillId="HatredAura" level="21" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Hatred"/>
+        <Gem skillId="Discipline" level="21" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Discipline"/>
+      </Skill>
+      <Skill mainActiveSkill="1" enabled="true" slot="Gloves">
+        <Gem skillId="VaalGrace" level="21" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Vaal Grace"/>
+        <Gem skillId="PurityOfElements" level="21" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Purity of Elements"/>
+        <Gem skillId="AccuracyAndCritsAura" level="21" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Precision"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Tree activeSpec="1">
+    <Spec treeVersion="3_13" nodes="7388,4184,40644,2292,46896,44955,48362,61308,32345,30338,49254,39085,15073,36774,8948,47251,4973,8001,1203,15711,21835,35894,58198,46408,18769,37127,17018,55247,38190,5129,48778,17821,32710,38900,42760,38805,36858,1822,36634,42583,19939,24050,21075,62021,65167,65034,4502,63976,38995,51212,16775,9877,55485" classId="0" ascendClassId="1">
+      <EditedNodes/>
+    </Spec>
+  </Tree>
+  <Items activeItemSet="1" useSecondWeaponSet="false">
+    <Item id="1">
+      Rarity: RARE
+Aura Wand
+Opal Wand
+Item Level: 86
+Quality: 20
+Sockets: B-B-B
+LevelReq: 62
+Implicits: 1
+38% increased Spell Damage
++1 to Level of all Spell Skill Gems
+75% increased Spell Damage
+22% increased Cast Speed
+Adds 5 to 80 Lightning Damage to Spells
+    </Item>
+    <Item id="2">
+      Rarity: RARE
+Prism Shield
+Titanium Spirit Shield
+Item Level: 84
+LevelReq: 68
+Implicits: 1
++5% Chance to Block Spell Damage
++1 to Level of all Spell Skill Gems
++180 to maximum Energy Shield
++40% to Fire Resistance
++35% to Cold Resistance
++30% to Lightning Resistance
+    </Item>
+    <Item id="3">
+      Rarity: RARE
+Aura Robe
+Vaal Regalia
+Item Level: 86
+Quality: 20
+Sockets: B-B-B-B-B-B
+LevelReq: 68
+Implicits: 0
++350 to maximum Energy Shield
++42% to Fire Resistance
++38% to Cold Resistance
++35% to Lightning Resistance
+    </Item>
+    <Item id="4">
+      Rarity: RARE
+Prism Crown
+Hubris Circlet
+Item Level: 84
+Quality: 20
+Sockets: B-B-B-B
+LevelReq: 69
+Implicits: 0
++220 to maximum Energy Shield
++40% to Fire Resistance
++35% to Cold Resistance
++30% to Lightning Resistance
+    </Item>
+    <Item id="5">
+      Rarity: RARE
+Aura Grip
+Sorcerer Gloves
+Item Level: 82
+Quality: 20
+Sockets: B-B-B-B
+LevelReq: 69
+Implicits: 0
++140 to maximum Energy Shield
++35% to Fire Resistance
++30% to Cold Resistance
++28% to Lightning Resistance
+    </Item>
+    <Item id="6">
+      Rarity: RARE
+Prism Step
+Sorcerer Boots
+Item Level: 82
+Quality: 20
+Sockets: B-B-R-B
+LevelReq: 67
+Implicits: 0
++150 to maximum Energy Shield
++35% to Fire Resistance
+30% increased Movement Speed
++30% to Cold Resistance
++25% to Lightning Resistance
+    </Item>
+    <Item id="7">
+      Rarity: RARE
+Aura Clasp
+Lapis Amulet
+Item Level: 84
+LevelReq: 60
+Implicits: 1
++30 to Intelligence
++1 to Level of all Lightning Skill Gems
++100 to maximum Energy Shield
++15% to all Elemental Resistances
++25% to Global Critical Strike Multiplier
+    </Item>
+    <Item id="8">
+      Rarity: RARE
+Prism Lash
+Crystal Belt
+Item Level: 84
+LevelReq: 79
+Implicits: 1
++75 to maximum Energy Shield
++130 to maximum Energy Shield
++40% to Fire Resistance
++35% to Cold Resistance
++30% to Lightning Resistance
+    </Item>
+    <Item id="9">
+      Rarity: RARE
+Aura Eye
+Moonstone Ring
+Item Level: 82
+LevelReq: 60
+Implicits: 1
++25 to maximum Energy Shield
++85 to maximum Energy Shield
++35% to Fire Resistance
++30% to Cold Resistance
++25% to Lightning Resistance
+    </Item>
+    <Item id="10">
+      Rarity: RARE
+Prism Band
+Moonstone Ring
+Item Level: 82
+LevelReq: 60
+Implicits: 1
++25 to maximum Energy Shield
++80 to maximum Energy Shield
++38% to Fire Resistance
++32% to Cold Resistance
++28% to Lightning Resistance
+    </Item>
+    <Slot name="Weapon 1" itemId="1"/>
+    <Slot name="Weapon 2" itemId="2"/>
+    <Slot name="Body Armour" itemId="3"/>
+    <Slot name="Helmet" itemId="4"/>
+    <Slot name="Gloves" itemId="5"/>
+    <Slot name="Boots" itemId="6"/>
+    <Slot name="Amulet" itemId="7"/>
+    <Slot name="Belt" itemId="8"/>
+    <Slot name="Ring 1" itemId="9"/>
+    <Slot name="Ring 2" itemId="10"/>
+    <ItemSet useSecondWeaponSet="false" id="1">
+    <Slot name="Weapon 1" itemId="1"/>
+    <Slot name="Weapon 2" itemId="2"/>
+    <Slot name="Body Armour" itemId="3"/>
+    <Slot name="Helmet" itemId="4"/>
+    <Slot name="Gloves" itemId="5"/>
+    <Slot name="Boots" itemId="6"/>
+    <Slot name="Amulet" itemId="7"/>
+    <Slot name="Belt" itemId="8"/>
+    <Slot name="Ring 1" itemId="9"/>
+    <Slot name="Ring 2" itemId="10"/>
+    </ItemSet>
+  </Items>
+  <Config>
+    <Input name="enemyLevel" number="84"/>
+    <Input name="enemyIsBoss" string="Shaper"/>
+    <Input name="keystone_CI" boolean="true"/>
+  </Config>
+</PathOfBuilding>

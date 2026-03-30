@@ -1,0 +1,202 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="92" targetVersion="3_0" bandit="None" className="Ranger" ascendClassName="Pathfinder" mainSocketGroup="1" viewMode="CALCS" pantheonMajorGod="None" pantheonMinorGod="None">
+  </Build>
+  <Import/>
+  <Calcs>
+    <Input name="misc_buffMode" string="EFFECTIVE"/>
+  </Calcs>
+  <Skills activeSkillSet="1" sortGemsByDPS="true" defaultGemQuality="nil" defaultGemLevel="nil">
+    <SkillSet id="1">
+      <Skill mainActiveSkill="1" enabled="true" slot="Body Armour">
+        <Gem skillId="PestilentStrike" level="21" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Pestilent Strike"/>
+        <Gem skillId="SupportVoidManipulation" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Void Manipulation"/>
+        <Gem skillId="SupportDeadlyAilments" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Deadly Ailments"/>
+        <Gem skillId="SupportAdditionalAccuracy" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Greater Multiple Projectiles"/>
+        <Gem skillId="SupportMultistrike" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Multistrike"/>
+        <Gem skillId="SupportUnboundAilments" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Unbound Ailments"/>
+      </Skill>
+      <Skill mainActiveSkill="1" enabled="true" slot="Helmet">
+        <Gem skillId="HeraldOfAgony" level="21" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Herald of Agony"/>
+        <Gem skillId="DamageOverTimeAura" level="20" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Malevolence"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Tree activeSpec="1">
+    <Spec treeVersion="3_13" nodes="65875,10829,64583,16775,46896,21984,46289,63976,11497,65829,53086,24472,30338,24848,1729,29089,15073,41866,22618,7614,1006,56856,22748,65830,4973,8001,3656,20807,46408,9206,60440,930,5129,23912,59606,2094,9786,32710,33753,59837,4573,23334,65808,66832,59585,13170,65824,54142,51881,65894,24050,42583,19939,62021,9535,22266,65817,66841,34483,36221,61306,5823,18436,65895,13714,65167,94,2185,28330,65872,49605,28012,2872,32763,39665,9797,46910,3309,19144,33479,65888,65826,36687,19858,60942,55485,9864,53042,46344,65811,50459,66835,65881,5408,66905,22852,21033,65034,39821,66899,65834,13885,22893,6910,66896,46578,4502,8012,54307,60803,6250,7112,14674,12412,38995,6542,65890,16167,59252,39938,1461,54868,5443,22535,65898,6797,36287,51212,238,23169,13191,38149,63139" classId="2" ascendClassId="3">
+      <EditedNodes/>
+    </Spec>
+  </Tree>
+  <Items activeItemSet="1" useSecondWeaponSet="false">
+    <Item id="1">
+      Rarity: RARE
+Venom Fang
+Imperial Claw
+Item Level: 83
+Quality: 20
+Sockets: G-G-G
+LevelReq: 68
+Implicits: 1
++46 Life gained for each Enemy hit by Attacks
+Adds 18 to 42 Chaos Damage
+220% increased Physical Damage
+25% increased Attack Speed
++25% to Global Critical Strike Multiplier
+60% chance to Poison on Hit
+    </Item>
+    <Item id="2">
+      Rarity: RARE
+Blight Spike
+Imperial Claw
+Item Level: 82
+Quality: 20
+Sockets: G-G-G
+LevelReq: 68
+Implicits: 1
++46 Life gained for each Enemy hit by Attacks
+Adds 15 to 38 Chaos Damage
+200% increased Physical Damage
+22% increased Attack Speed
+40% chance to Poison on Hit
++20% to Global Critical Strike Multiplier
+    </Item>
+    <Item id="3">
+      Rarity: RARE
+Doom Shell
+Assassin's Garb
+Item Level: 84
+Quality: 20
+Sockets: G-G-G-G-G-G
+LevelReq: 68
+Implicits: 1
+3% increased Movement Speed
++110 to maximum Life
++45% to Fire Resistance
++38% to Cold Resistance
++90 to maximum Evasion Rating
+    </Item>
+    <Item id="4">
+      Rarity: RARE
+Ghoul Mask
+Lion Pelt
+Item Level: 82
+Quality: 20
+Sockets: G-G-B-B
+LevelReq: 70
+Implicits: 0
++90 to maximum Life
++38% to Fire Resistance
++32% to Lightning Resistance
++180 to Evasion Rating
+    </Item>
+    <Item id="5">
+      Rarity: RARE
+Plague Grasp
+Dragonscale Gauntlets
+Item Level: 80
+Quality: 20
+Sockets: G-G-G-R
+LevelReq: 67
+Implicits: 0
++72 to maximum Life
++32% to Cold Resistance
++28% to Lightning Resistance
+15% increased Attack Speed
++150 to Evasion Rating
+    </Item>
+    <Item id="6">
+      Rarity: RARE
+Blight Track
+Shagreen Boots
+Item Level: 80
+Quality: 20
+Sockets: G-G-R-B
+LevelReq: 62
+Implicits: 0
++82 to maximum Life
++38% to Fire Resistance
++30% to Cold Resistance
+30% increased Movement Speed
++120 to Evasion Rating
+    </Item>
+    <Item id="7">
+      Rarity: RARE
+Pestilence Clasp
+Jade Amulet
+Item Level: 82
+LevelReq: 60
+Implicits: 1
++32 to Dexterity
++45 to Dexterity
++68 to maximum Life
++15% to all Elemental Resistances
++12% to Chaos Damage over Time Multiplier
+    </Item>
+    <Item id="8">
+      Rarity: RARE
+Venom Bind
+Rustic Sash
+Item Level: 78
+LevelReq: 50
+Implicits: 1
+24% increased Global Physical Damage
++82 to maximum Life
++35% to Fire Resistance
++30% to Cold Resistance
++28% to Lightning Resistance
+    </Item>
+    <Item id="9">
+      Rarity: RARE
+Blight Band
+Amethyst Ring
+Item Level: 80
+LevelReq: 60
+Implicits: 1
++17% to Chaos Resistance
++60 to maximum Life
++38% to Fire Resistance
++28% to Lightning Resistance
+Adds 5 to 12 Chaos Damage to Attacks
+    </Item>
+    <Item id="10">
+      Rarity: RARE
+Doom Circle
+Amethyst Ring
+Item Level: 80
+LevelReq: 60
+Implicits: 1
++17% to Chaos Resistance
++55 to maximum Life
++35% to Cold Resistance
++30% to Lightning Resistance
++22% to Chaos Resistance
+    </Item>
+    <Slot name="Weapon 1" itemId="1"/>
+    <Slot name="Weapon 2" itemId="2"/>
+    <Slot name="Body Armour" itemId="3"/>
+    <Slot name="Helmet" itemId="4"/>
+    <Slot name="Gloves" itemId="5"/>
+    <Slot name="Boots" itemId="6"/>
+    <Slot name="Amulet" itemId="7"/>
+    <Slot name="Belt" itemId="8"/>
+    <Slot name="Ring 1" itemId="9"/>
+    <Slot name="Ring 2" itemId="10"/>
+    <ItemSet useSecondWeaponSet="false" id="1">
+    <Slot name="Weapon 1" itemId="1"/>
+    <Slot name="Weapon 2" itemId="2"/>
+    <Slot name="Body Armour" itemId="3"/>
+    <Slot name="Helmet" itemId="4"/>
+    <Slot name="Gloves" itemId="5"/>
+    <Slot name="Boots" itemId="6"/>
+    <Slot name="Amulet" itemId="7"/>
+    <Slot name="Belt" itemId="8"/>
+    <Slot name="Ring 1" itemId="9"/>
+    <Slot name="Ring 2" itemId="10"/>
+    </ItemSet>
+  </Items>
+  <Config>
+    <Input name="enemyLevel" number="84"/>
+    <Input name="enemyIsBoss" string="Shaper"/>
+    <Input name="conditionEnemyPoisoned" boolean="true"/>
+  </Config>
+</PathOfBuilding>

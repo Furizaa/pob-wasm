@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="92" targetVersion="3_0" bandit="None" className="Witch" ascendClassName="Necromancer" mainSocketGroup="1" viewMode="CALCS" pantheonMajorGod="None" pantheonMinorGod="None">
+  </Build>
+  <Import/>
+  <Calcs>
+    <Input name="misc_buffMode" string="EFFECTIVE"/>
+  </Calcs>
+  <Skills activeSkillSet="1" sortGemsByDPS="true" defaultGemQuality="nil" defaultGemLevel="nil">
+    <SkillSet id="1">
+      <Skill mainActiveSkill="1" enabled="true" slot="Body Armour">
+        <Gem skillId="RaiseSpectre" level="21" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Raise Spectre" skillMinion="RaisedSpectre" skillMinionSkill="1"/>
+        <Gem skillId="SupportMinionDamage" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Minion Damage"/>
+        <Gem skillId="SupportSpellEcho" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Spell Echo"/>
+        <Gem skillId="SupportControlledDestruction" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Controlled Destruction"/>
+        <Gem skillId="SupportElementalFocus" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Elemental Focus"/>
+        <Gem skillId="SupportGreaterMultipleProjectiles" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Greater Multiple Projectiles"/>
+      </Skill>
+      <Skill mainActiveSkill="1" enabled="true" slot="Helmet">
+        <Gem skillId="RaiseZombie" level="20" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Raise Zombie" skillMinion="RaisedZombie"/>
+        <Gem skillId="SupportMinionLife" level="20" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Minion Life"/>
+        <Gem skillId="SupportMeatShield" level="20" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Meat Shield"/>
+      </Skill>
+      <Skill mainActiveSkill="1" enabled="true" slot="Gloves">
+        <Gem skillId="Discipline" level="20" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Discipline"/>
+        <Gem skillId="Convocation" level="20" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Convocation"/>
+        <Gem skillId="SummonSkitterbots" level="20" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Summon Skitterbots"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Tree activeSpec="1">
+    <Spec treeVersion="3_13" nodes="7388,4184,40644,2292,46896,44955,48362,61308,32345,30338,49254,39085,15073,36774,8948,47251,61320,21575,61419,41263,4973,8001,1203,15711,21835,35894,58198,46408,18769,37127,17018,55247,38190,5129,48778,17821,32710,38900,6712,33435,1031,41989,3452,47630,4397,13009,11162,25058,15365,21170,24050,21075,42583,19939,18378,33296,60398,37671,17579,42686,8833,27203,41472,13714,61653,27659,1767,46910,19501,11420,12536,33479,61471,54694,53732,31875,22088,9864,19635,18865,26866,36858,36412,1822,36634,42760,38805,53456,21958,33755,62021,36226,44799,15064,43242,10490,56186,3656,4367,14936,22090,44184,65167,5972,65034,4502,63976,36949,63799,27096,27929,31984,57264,38995,21330,53279,54447,55332,21934,39648,21460,17735,40705,10031,22473,32417,51212,16775,40609,9877,31344,55485" classId="3" ascendClassId="3">
+      <EditedNodes/>
+    </Spec>
+  </Tree>
+  <Items activeItemSet="1" useSecondWeaponSet="false">
+    <Item id="1">
+      Rarity: RARE
+Ghoul Wand
+Opal Wand
+Item Level: 84
+Quality: 20
+Sockets: B-B-B
+LevelReq: 62
+Implicits: 1
+38% increased Spell Damage
++1 to Level of all Minion Skill Gems
+Minions deal 70% increased Damage
+Minions have 28% increased Maximum Life
++38 to Intelligence
+    </Item>
+    <Item id="2">
+      Rarity: RARE
+Corpse Aegis
+Titanium Spirit Shield
+Item Level: 82
+LevelReq: 68
+Implicits: 1
++5% Chance to Block Spell Damage
++1 to Level of all Minion Skill Gems
++90 to maximum Life
++42% to Fire Resistance
++100 to maximum Energy Shield
++35% to Cold Resistance
+    </Item>
+    <Item id="3">
+      Rarity: RARE
+Death Robe
+Vaal Regalia
+Item Level: 84
+Quality: 20
+Sockets: B-B-B-B-B-B
+LevelReq: 68
+Implicits: 0
++110 to maximum Life
++42% to Fire Resistance
++38% to Cold Resistance
++150 to maximum Energy Shield
+    </Item>
+    <Item id="4">
+      Rarity: RARE
+Spectre Crown
+Bone Helmet
+Item Level: 84
+Quality: 20
+Sockets: B-B-B-R
+LevelReq: 73
+Implicits: 1
+Minions deal 20% increased Damage
++92 to maximum Life
++38% to Fire Resistance
++105 to maximum Energy Shield
++35% to Lightning Resistance
+    </Item>
+    <Item id="5">
+      Rarity: RARE
+Corpse Grip
+Sorcerer Gloves
+Item Level: 80
+Quality: 20
+Sockets: B-B-B-B
+LevelReq: 69
+Implicits: 0
++72 to maximum Life
++35% to Fire Resistance
++58 to maximum Energy Shield
++30% to Lightning Resistance
+    </Item>
+    <Item id="6">
+      Rarity: RARE
+Death Step
+Sorcerer Boots
+Item Level: 80
+Quality: 20
+Sockets: B-B-R-B
+LevelReq: 67
+Implicits: 0
++80 to maximum Life
++35% to Fire Resistance
+30% increased Movement Speed
++52 to maximum Energy Shield
++28% to Cold Resistance
+    </Item>
+    <Item id="7">
+      Rarity: RARE
+Spectre Locket
+Citrine Amulet
+Item Level: 82
+LevelReq: 60
+Implicits: 1
++16 to Strength and Dexterity
++1 to Level of all Intelligence Skill Gems
++68 to maximum Life
++15% to all Elemental Resistances
+Minions deal 28% increased Damage
+    </Item>
+    <Item id="8">
+      Rarity: RARE
+Corpse Bind
+Crystal Belt
+Item Level: 82
+LevelReq: 79
+Implicits: 1
++75 to maximum Energy Shield
++88 to maximum Life
++38% to Fire Resistance
++32% to Cold Resistance
++28% to Lightning Resistance
+    </Item>
+    <Item id="9">
+      Rarity: RARE
+Death Eye
+Moonstone Ring
+Item Level: 80
+LevelReq: 60
+Implicits: 1
++25 to maximum Energy Shield
++62 to maximum Life
++38% to Fire Resistance
++30% to Lightning Resistance
+Minions deal 18% increased Damage
+    </Item>
+    <Item id="10">
+      Rarity: RARE
+Spectre Loop
+Unset Ring
+Item Level: 80
+LevelReq: 60
+Implicits: 1
+Has 1 Socket
++58 to maximum Life
++35% to Cold Resistance
++30% to Lightning Resistance
++50 to maximum Energy Shield
+    </Item>
+    <Slot name="Weapon 1" itemId="1"/>
+    <Slot name="Weapon 2" itemId="2"/>
+    <Slot name="Body Armour" itemId="3"/>
+    <Slot name="Helmet" itemId="4"/>
+    <Slot name="Gloves" itemId="5"/>
+    <Slot name="Boots" itemId="6"/>
+    <Slot name="Amulet" itemId="7"/>
+    <Slot name="Belt" itemId="8"/>
+    <Slot name="Ring 1" itemId="9"/>
+    <Slot name="Ring 2" itemId="10"/>
+    <ItemSet useSecondWeaponSet="false" id="1">
+    <Slot name="Weapon 1" itemId="1"/>
+    <Slot name="Weapon 2" itemId="2"/>
+    <Slot name="Body Armour" itemId="3"/>
+    <Slot name="Helmet" itemId="4"/>
+    <Slot name="Gloves" itemId="5"/>
+    <Slot name="Boots" itemId="6"/>
+    <Slot name="Amulet" itemId="7"/>
+    <Slot name="Belt" itemId="8"/>
+    <Slot name="Ring 1" itemId="9"/>
+    <Slot name="Ring 2" itemId="10"/>
+    </ItemSet>
+  </Items>
+  <Config>
+    <Input name="enemyLevel" number="84"/>
+    <Input name="enemyIsBoss" string="Shaper"/>
+
+  </Config>
+</PathOfBuilding>

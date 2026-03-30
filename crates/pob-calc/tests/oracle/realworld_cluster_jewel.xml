@@ -1,0 +1,210 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="92" targetVersion="3_0" bandit="None" className="Witch" ascendClassName="Elementalist" mainSocketGroup="1" viewMode="CALCS" pantheonMajorGod="None" pantheonMinorGod="None">
+  </Build>
+  <Import/>
+  <Calcs>
+    <Input name="misc_buffMode" string="EFFECTIVE"/>
+  </Calcs>
+  <Skills activeSkillSet="1" sortGemsByDPS="true" defaultGemQuality="nil" defaultGemLevel="nil">
+    <SkillSet id="1">
+      <Skill mainActiveSkill="1" enabled="true" slot="Body Armour">
+        <Gem skillId="WinterOrb" level="21" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Winter Orb"/>
+        <Gem skillId="SupportGreaterMultipleProjectiles" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Greater Multiple Projectiles"/>
+        <Gem skillId="SupportControlledDestruction" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Controlled Destruction"/>
+        <Gem skillId="SupportAddedColdDamage" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Added Cold Damage"/>
+        <Gem skillId="SupportDamageAgainstChilled" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Hypothermia"/>
+        <Gem skillId="SupportIncreasedCriticalStrikes" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Increased Critical Strikes"/>
+      </Skill>
+      <Skill mainActiveSkill="1" enabled="true" slot="Helmet">
+        <Gem skillId="HatredAura" level="21" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Hatred"/>
+        <Gem skillId="HeraldOfIce" level="20" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Herald of Ice"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Tree activeSpec="1">
+    <Spec treeVersion="3_13" nodes="7388,4184,40644,2292,46896,44955,48362,61308,32345,30338,49254,39085,15073,36774,8948,47251,61320,21575,61419,41263,4973,8001,1203,15711,21835,35894,58198,46408,18769,37127,17018,55247,38190,5129,48778,17821,32710,38900,6712,33435,1031,41989,3452,47630,4397,13009,11162,25058,15365,21170,24050,21075,42583,19939,18378,33296,60398,37671,17579,42686,8833,27203,41472,13714,61653,27659,1767,46910,19501,11420,12536,33479,61471,54694,53732,31875,22088,9864,19635,18865,26866,36858,36412,1822,36634,42760,38805,53456,21958,33755,62021,36226,44799,15064,43242,10490,56186,3656,4367,14936,22090,44184,65167,5972,65034,4502,63976,36949,63799,27096,27929,31984,57264,38995,21330,53279,54447,55332,21934,39648,21460,17735,40705,10031,22473,32417,51212,16775,40609,9877,31344,55485" classId="3" ascendClassId="2">
+      <EditedNodes/>
+    </Spec>
+  </Tree>
+  <Items activeItemSet="1" useSecondWeaponSet="false">
+    <Item id="1">
+      Rarity: RARE
+Frost Needle
+Opal Wand
+Item Level: 84
+Quality: 20
+Sockets: B-B-B
+LevelReq: 62
+Implicits: 1
+38% increased Spell Damage
++1 to Level of all Cold Spell Skill Gems
+72% increased Spell Damage
+Adds 12 to 48 Cold Damage to Spells
+22% increased Cast Speed
+    </Item>
+    <Item id="2">
+      Rarity: RARE
+Rime Guard
+Titanium Spirit Shield
+Item Level: 82
+LevelReq: 68
+Implicits: 1
++5% Chance to Block Spell Damage
++88 to maximum Life
++42% to Fire Resistance
++95 to maximum Energy Shield
++35% to Cold Resistance
+    </Item>
+    <Item id="3">
+      Rarity: RARE
+Winter Coat
+Vaal Regalia
+Item Level: 84
+Quality: 20
+Sockets: B-B-B-B-B-B
+LevelReq: 68
+Implicits: 0
++110 to maximum Life
++42% to Fire Resistance
++35% to Cold Resistance
++140 to maximum Energy Shield
+    </Item>
+    <Item id="4">
+      Rarity: RARE
+Frost Visage
+Hubris Circlet
+Item Level: 82
+Quality: 20
+Sockets: B-B-B-B
+LevelReq: 69
+Implicits: 0
++90 to maximum Life
++38% to Fire Resistance
++32% to Lightning Resistance
++100 to maximum Energy Shield
+    </Item>
+    <Item id="5">
+      Rarity: RARE
+Ice Clutch
+Sorcerer Gloves
+Item Level: 80
+Quality: 20
+Sockets: B-B-B-B
+LevelReq: 69
+Implicits: 0
++70 to maximum Life
++32% to Fire Resistance
++55 to maximum Energy Shield
++28% to Lightning Resistance
+    </Item>
+    <Item id="6">
+      Rarity: RARE
+Rime Walk
+Sorcerer Boots
+Item Level: 80
+Quality: 20
+Sockets: R-B-B-B
+LevelReq: 67
+Implicits: 0
++80 to maximum Life
++35% to Fire Resistance
+30% increased Movement Speed
++48 to maximum Energy Shield
++28% to Cold Resistance
+    </Item>
+    <Item id="7">
+      Rarity: RARE
+Frost Clasp
+Lapis Amulet
+Item Level: 82
+LevelReq: 60
+Implicits: 1
++30 to Intelligence
++1 to Level of all Cold Skill Gems
++68 to maximum Life
++25% to Global Critical Strike Multiplier
++15% to all Elemental Resistances
+    </Item>
+    <Item id="8">
+      Rarity: RARE
+Ice Bind
+Crystal Belt
+Item Level: 82
+LevelReq: 79
+Implicits: 1
++75 to maximum Energy Shield
++85 to maximum Life
++38% to Fire Resistance
++32% to Cold Resistance
++28% to Lightning Resistance
+    </Item>
+    <Item id="9">
+      Rarity: RARE
+Frost Eye
+Diamond Ring
+Item Level: 80
+LevelReq: 60
+Implicits: 1
+26% increased Global Critical Strike Chance
++62 to maximum Life
++38% to Fire Resistance
++28% to Lightning Resistance
+Adds 5 to 12 Cold Damage to Spells
+    </Item>
+    <Item id="10">
+      Rarity: RARE
+Ice Loop
+Diamond Ring
+Item Level: 80
+LevelReq: 60
+Implicits: 1
+26% increased Global Critical Strike Chance
++55 to maximum Life
++35% to Cold Resistance
++30% to Lightning Resistance
++12% to all Elemental Resistances
+    </Item>
+    <Item id="11">
+      Rarity: RARE
+Frost Cluster
+Large Cluster Jewel
+Item Level: 75
+LevelReq: 40
+Implicits: 3
+{crafted}Adds 8 Passive Skills
+{crafted}2 Added Passive Skills are Jewel Sockets
+{crafted}Added Small Passive Skills grant: 12% increased Cold Damage
+1 Added Passive Skill is Blanketed Snow
+1 Added Passive Skill is Prismatic Heart
+1 Added Passive Skill is Widespread Destruction
+    </Item>
+    <Slot name="Weapon 1" itemId="1"/>
+    <Slot name="Weapon 2" itemId="2"/>
+    <Slot name="Body Armour" itemId="3"/>
+    <Slot name="Helmet" itemId="4"/>
+    <Slot name="Gloves" itemId="5"/>
+    <Slot name="Boots" itemId="6"/>
+    <Slot name="Amulet" itemId="7"/>
+    <Slot name="Belt" itemId="8"/>
+    <Slot name="Ring 1" itemId="9"/>
+    <Slot name="Ring 2" itemId="10"/>
+    <ItemSet useSecondWeaponSet="false" id="1">
+    <Slot name="Weapon 1" itemId="1"/>
+    <Slot name="Weapon 2" itemId="2"/>
+    <Slot name="Body Armour" itemId="3"/>
+    <Slot name="Helmet" itemId="4"/>
+    <Slot name="Gloves" itemId="5"/>
+    <Slot name="Boots" itemId="6"/>
+    <Slot name="Amulet" itemId="7"/>
+    <Slot name="Belt" itemId="8"/>
+    <Slot name="Ring 1" itemId="9"/>
+    <Slot name="Ring 2" itemId="10"/>
+    </ItemSet>
+  </Items>
+  <Config>
+    <Input name="enemyLevel" number="84"/>
+    <Input name="enemyIsBoss" string="Shaper"/>
+    <Input name="conditionEnemyChilled" boolean="true"/>
+  </Config>
+</PathOfBuilding>

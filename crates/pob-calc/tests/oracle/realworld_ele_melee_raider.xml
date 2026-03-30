@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="92" targetVersion="3_0" bandit="None" className="Ranger" ascendClassName="Raider" mainSocketGroup="1" viewMode="CALCS" pantheonMajorGod="None" pantheonMinorGod="None">
+  </Build>
+  <Import/>
+  <Calcs>
+    <Input name="misc_buffMode" string="EFFECTIVE"/>
+  </Calcs>
+  <Skills activeSkillSet="1" sortGemsByDPS="true" defaultGemQuality="nil" defaultGemLevel="nil">
+    <SkillSet id="1">
+      <Skill mainActiveSkill="1" enabled="true" slot="Body Armour">
+        <Gem skillId="IceStrike" level="21" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Frost Blades"/>
+        <Gem skillId="SupportMultistrike" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Multistrike"/>
+        <Gem skillId="SupportWeaponElementalDamage" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Elemental Damage with Attacks"/>
+        <Gem skillId="SupportAddedColdDamage" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Added Cold Damage"/>
+        <Gem skillId="SupportHypothermia" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Hypothermia"/>
+        <Gem skillId="SupportIncreasedCriticalStrikes" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Increased Critical Strikes"/>
+      </Skill>
+      <Skill mainActiveSkill="1" enabled="true" slot="Helmet">
+        <Gem skillId="HatredAura" level="20" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Hatred"/>
+        <Gem skillId="AccuracyAndCritsAura" level="20" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Precision"/>
+        <Gem skillId="HeraldOfIce" level="20" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Herald of Ice"/>
+      </Skill>
+      <Skill mainActiveSkill="1" enabled="true" slot="Gloves">
+        <Gem skillId="WhirlingBlades" level="20" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Whirling Blades"/>
+        <Gem skillId="SupportFasterAttack" level="20" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Faster Attacks"/>
+        <Gem skillId="SupportFortify" level="20" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Fortify"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Tree activeSpec="1">
+    <Spec treeVersion="3_13" nodes="65875,10829,64583,16775,46896,21984,46289,63976,11497,65829,53086,24472,30338,24848,1729,29089,15073,41866,22618,7614,1006,56856,22748,65830,4973,8001,3656,20807,46408,9206,60440,930,5129,23912,59606,2094,9786,32710,33753,59837,4573,23334,65808,66832,59585,13170,65824,54142,51881,65894,24050,42583,19939,62021,9535,22266,65817,66841,34483,36221,61306,5823,18436,65895,13714,65167,94,2185,28330,65872,49605,28012,2872,32763,39665,9797,46910,3309,19144,33479,65888,65826,36687,19858,60942,55485,9864,53042,46344,65811,50459,66835,65881,5408,66905,22852,21033,65034,39821,66899,65834,13885,22893,6910,66896,46578,4502,8012,54307,60803,6250,7112,14674,12412,38995,6542,65890,16167,59252,39938,1461,54868,5443,22535,65898,6797,36287,51212,238,23169,13191,38149,63139" classId="2" ascendClassId="1">
+      <EditedNodes/>
+    </Spec>
+  </Tree>
+  <Items activeItemSet="1" useSecondWeaponSet="false">
+    <Item id="1">
+      Rarity: RARE
+Storm Edge
+Jewelled Foil
+Item Level: 83
+Quality: 20
+Sockets: G-G-G
+LevelReq: 68
+Implicits: 1
++25% to Global Critical Strike Multiplier
+Adds 15 to 28 Cold Damage
+Adds 1 to 45 Lightning Damage
+27% increased Attack Speed
++35% to Global Critical Strike Multiplier
+{crafted}Adds 14 to 22 Cold Damage to Attacks
+    </Item>
+    <Item id="2">
+      Rarity: RARE
+Hate Shelter
+Evasion Vest
+Item Level: 84
+Quality: 20
+Sockets: G-G-G-G-G-G
+LevelReq: 70
+Implicits: 0
++105 to maximum Life
++42% to Cold Resistance
++38% to Lightning Resistance
+12% increased maximum Life
+    </Item>
+    <Item id="3">
+      Rarity: RARE
+Storm Clasp
+Two-Stone Ring
+Item Level: 80
+LevelReq: 60
+Implicits: 1
++16% to Cold and Lightning Resistances
++67 to maximum Life
+Adds 5 to 12 Cold Damage to Attacks
++42% to Fire Resistance
++15% to all Elemental Resistances
+    </Item>
+    <Item id="4">
+      Rarity: RARE
+Hate Crown
+Lion Pelt
+Item Level: 82
+Quality: 20
+Sockets: G-G-B-B
+LevelReq: 70
+Implicits: 0
++92 to maximum Life
++40% to Fire Resistance
++35% to Cold Resistance
+Nearby Enemies have -9% to Cold Resistance
+    </Item>
+    <Item id="5">
+      Rarity: RARE
+Soul Talons
+Dragonscale Gauntlets
+Item Level: 80
+Quality: 20
+Sockets: G-G-R
+LevelReq: 67
+Implicits: 0
+Adds 5 to 12 Cold Damage to Attacks
++78 to maximum Life
++30% to Lightning Resistance
+14% increased Attack Speed
+    </Item>
+    <Item id="6">
+      Rarity: RARE
+Storm Road
+Shagreen Boots
+Item Level: 80
+Quality: 20
+Sockets: G-G-R-B
+LevelReq: 62
+Implicits: 0
++85 to maximum Life
++32% to Fire Resistance
++28% to Cold Resistance
+30% increased Movement Speed
+    </Item>
+    <Item id="7">
+      Rarity: RARE
+Loath Noose
+Citrine Amulet
+Item Level: 82
+LevelReq: 60
+Implicits: 1
++16 to Strength and Dexterity
++35 to Dexterity
+Adds 8 to 15 Cold Damage to Attacks
++68 to maximum Life
++28% to Global Critical Strike Multiplier
+    </Item>
+    <Item id="8">
+      Rarity: RARE
+Woe Bind
+Rustic Sash
+Item Level: 78
+LevelReq: 50
+Implicits: 1
+24% increased Global Physical Damage
++85 to maximum Life
++38% to Fire Resistance
++32% to Cold Resistance
++25% to Lightning Resistance
+    </Item>
+    <Item id="9">
+      Rarity: RARE
+Grim Loop
+Diamond Ring
+Item Level: 80
+LevelReq: 60
+Implicits: 1
+26% increased Global Critical Strike Chance
++62 to maximum Life
+Adds 4 to 10 Cold Damage to Attacks
++35% to Lightning Resistance
++8% to all Elemental Resistances
+    </Item>
+    <Slot name="Weapon 1" itemId="1"/>
+    <Slot name="Body Armour" itemId="2"/>
+    <Slot name="Ring 1" itemId="3"/>
+    <Slot name="Helmet" itemId="4"/>
+    <Slot name="Gloves" itemId="5"/>
+    <Slot name="Boots" itemId="6"/>
+    <Slot name="Amulet" itemId="7"/>
+    <Slot name="Belt" itemId="8"/>
+    <Slot name="Ring 2" itemId="9"/>
+    <ItemSet useSecondWeaponSet="false" id="1">
+    <Slot name="Weapon 1" itemId="1"/>
+    <Slot name="Body Armour" itemId="2"/>
+    <Slot name="Ring 1" itemId="3"/>
+    <Slot name="Helmet" itemId="4"/>
+    <Slot name="Gloves" itemId="5"/>
+    <Slot name="Boots" itemId="6"/>
+    <Slot name="Amulet" itemId="7"/>
+    <Slot name="Belt" itemId="8"/>
+    <Slot name="Ring 2" itemId="9"/>
+    </ItemSet>
+  </Items>
+  <Config>
+    <Input name="enemyLevel" number="84"/>
+    <Input name="enemyIsBoss" string="Shaper"/>
+    <Input name="useFrenzyCharges" boolean="true"/>
+    <Input name="conditionFullLife" boolean="true"/>
+  </Config>
+</PathOfBuilding>

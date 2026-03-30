@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="92" targetVersion="3_0" bandit="None" className="Witch" ascendClassName="Elementalist" mainSocketGroup="1" viewMode="CALCS" pantheonMajorGod="None" pantheonMinorGod="None">
+  </Build>
+  <Import/>
+  <Calcs>
+    <Input name="misc_buffMode" string="EFFECTIVE"/>
+  </Calcs>
+  <Skills activeSkillSet="1" sortGemsByDPS="true" defaultGemQuality="nil" defaultGemLevel="nil">
+    <SkillSet id="1">
+      <Skill mainActiveSkill="1" enabled="true" slot="Body Armour">
+        <Gem skillId="Fireball" level="21" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Fireball"/>
+        <Gem skillId="SupportBurningDamage" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Burning Damage"/>
+        <Gem skillId="SupportIgniteChance" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Combustion"/>
+        <Gem skillId="SupportRapidDecay" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Swift Affliction"/>
+        <Gem skillId="SupportGreaterMultipleProjectiles" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Greater Multiple Projectiles"/>
+        <Gem skillId="SupportDeadlyAilments" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Deadly Ailments"/>
+      </Skill>
+      <Skill mainActiveSkill="1" enabled="true" slot="Helmet">
+        <Gem skillId="DamageOverTimeAura" level="21" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Malevolence"/>
+        <Gem skillId="FlammabilityAura" level="20" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Flammability"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Tree activeSpec="1">
+    <Spec treeVersion="3_13" nodes="7388,4184,40644,2292,46896,44955,48362,61308,32345,30338,49254,39085,15073,36774,8948,47251,61320,21575,61419,41263,4973,8001,1203,15711,21835,35894,58198,46408,18769,37127,17018,55247,38190,5129,48778,17821,32710,38900,6712,33435,1031,41989,3452,47630,4397,13009,11162,25058,15365,21170,24050,21075,42583,19939,18378,33296,60398,37671,17579,42686,8833,27203,41472,13714,61653,27659,1767,46910,19501,11420,12536,33479,61471,54694,53732,31875,22088,9864,19635,18865,26866,36858,36412,1822,36634,42760,38805,53456,21958,33755,62021,36226,44799,15064,43242,10490,56186,3656,4367,14936,22090,44184,65167,5972,65034,4502,63976,36949,63799,27096,27929,31984,57264,38995,21330,53279,54447,55332,21934,39648,21460,17735,40705,10031,22473,32417,51212,16775,40609,9877,31344,55485" classId="3" ascendClassId="2">
+      <EditedNodes/>
+    </Spec>
+  </Tree>
+  <Items activeItemSet="1" useSecondWeaponSet="false">
+    <Item id="1">
+      Rarity: RARE
+Armageddon Song
+Opal Sceptre
+Item Level: 83
+Quality: 20
+Sockets: R-B-B
+LevelReq: 62
+Implicits: 1
+40% increased Elemental Damage
++1 to Level of all Fire Spell Skill Gems
+58% increased Spell Damage
+22% increased Cast Speed
++28% to Fire Damage over Time Multiplier
+{crafted}Adds 18 to 32 Fire Damage to Spells
+    </Item>
+    <Item id="2">
+      Rarity: RARE
+Rune Aegis
+Titanium Spirit Shield
+Item Level: 82
+LevelReq: 68
+Implicits: 1
++5% Chance to Block Spell Damage
++1 to Level of all Fire Spell Skill Gems
++85 to maximum Life
++42% to Cold Resistance
++90 to maximum Energy Shield
++32% to Lightning Resistance
+    </Item>
+    <Item id="3">
+      Rarity: RARE
+Inferno Wrap
+Vaal Regalia
+Item Level: 84
+Quality: 20
+Sockets: B-B-R-R-B-B
+LevelReq: 68
+Implicits: 0
++108 to maximum Life
++40% to Fire Resistance
++38% to Cold Resistance
++130 to maximum Energy Shield
+    </Item>
+    <Item id="4">
+      Rarity: RARE
+Pyre Crown
+Hubris Circlet
+Item Level: 82
+Quality: 20
+Sockets: B-R-B-B
+LevelReq: 69
+Implicits: 0
++90 to maximum Life
++35% to Fire Resistance
++40% to Lightning Resistance
++95 to maximum Energy Shield
+    </Item>
+    <Item id="5">
+      Rarity: RARE
+Blaze Touch
+Fingerless Silk Gloves
+Item Level: 80
+Quality: 20
+Sockets: R-B-B-B
+LevelReq: 70
+Implicits: 1
+16% increased Spell Damage
++68 to maximum Life
++32% to Fire Resistance
++55 to maximum Energy Shield
++28% to Cold Resistance
+    </Item>
+    <Item id="6">
+      Rarity: RARE
+Cinder Walk
+Sorcerer Boots
+Item Level: 80
+Quality: 20
+Sockets: R-B-B-B
+LevelReq: 67
+Implicits: 0
++78 to maximum Life
++38% to Fire Resistance
+30% increased Movement Speed
++50 to maximum Energy Shield
++25% to Lightning Resistance
+    </Item>
+    <Item id="7">
+      Rarity: RARE
+Doom Clasp
+Citrine Amulet
+Item Level: 82
+LevelReq: 60
+Implicits: 1
++16 to Strength and Dexterity
++1 to Level of all Fire Skill Gems
++68 to maximum Life
++15% to Fire Damage over Time Multiplier
++15% to all Elemental Resistances
+    </Item>
+    <Item id="8">
+      Rarity: RARE
+Ember Lash
+Crystal Belt
+Item Level: 82
+LevelReq: 79
+Implicits: 1
++75 to maximum Energy Shield
++85 to maximum Life
++38% to Fire Resistance
++35% to Cold Resistance
++30% to Lightning Resistance
+    </Item>
+    <Item id="9">
+      Rarity: RARE
+Flame Eye
+Ruby Ring
+Item Level: 80
+LevelReq: 60
+Implicits: 1
++30% to Fire Resistance
++60 to maximum Life
++35% to Cold Resistance
++28% to Lightning Resistance
+22% increased Fire Damage
+    </Item>
+    <Item id="10">
+      Rarity: RARE
+Pyre Loop
+Ruby Ring
+Item Level: 80
+LevelReq: 60
+Implicits: 1
++30% to Fire Resistance
++55 to maximum Life
++12% to all Elemental Resistances
++45 to maximum Energy Shield
+18% increased Burning Damage
+    </Item>
+    <Slot name="Weapon 1" itemId="1"/>
+    <Slot name="Weapon 2" itemId="2"/>
+    <Slot name="Body Armour" itemId="3"/>
+    <Slot name="Helmet" itemId="4"/>
+    <Slot name="Gloves" itemId="5"/>
+    <Slot name="Boots" itemId="6"/>
+    <Slot name="Amulet" itemId="7"/>
+    <Slot name="Belt" itemId="8"/>
+    <Slot name="Ring 1" itemId="9"/>
+    <Slot name="Ring 2" itemId="10"/>
+    <ItemSet useSecondWeaponSet="false" id="1">
+    <Slot name="Weapon 1" itemId="1"/>
+    <Slot name="Weapon 2" itemId="2"/>
+    <Slot name="Body Armour" itemId="3"/>
+    <Slot name="Helmet" itemId="4"/>
+    <Slot name="Gloves" itemId="5"/>
+    <Slot name="Boots" itemId="6"/>
+    <Slot name="Amulet" itemId="7"/>
+    <Slot name="Belt" itemId="8"/>
+    <Slot name="Ring 1" itemId="9"/>
+    <Slot name="Ring 2" itemId="10"/>
+    </ItemSet>
+  </Items>
+  <Config>
+    <Input name="enemyLevel" number="84"/>
+    <Input name="enemyIsBoss" string="Shaper"/>
+    <Input name="conditionEnemyIgnited" boolean="true"/>
+  </Config>
+</PathOfBuilding>

@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="92" targetVersion="3_0" bandit="None" className="Duelist" ascendClassName="Gladiator" mainSocketGroup="1" viewMode="CALCS" pantheonMajorGod="None" pantheonMinorGod="None">
+  </Build>
+  <Import/>
+  <Calcs>
+    <Input name="misc_buffMode" string="EFFECTIVE"/>
+  </Calcs>
+  <Skills activeSkillSet="1" sortGemsByDPS="true" defaultGemQuality="nil" defaultGemLevel="nil">
+    <SkillSet id="1">
+      <Skill mainActiveSkill="1" enabled="true" slot="Body Armour">
+        <Gem skillId="Lacerate" level="21" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Lacerate"/>
+        <Gem skillId="SupportBrutality" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Brutality"/>
+        <Gem skillId="SupportChanceToBleed" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Chance to Bleed"/>
+        <Gem skillId="SupportDeadlyAilments" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Deadly Ailments"/>
+        <Gem skillId="SupportMeleePhysicalDamage" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Melee Physical Damage"/>
+        <Gem skillId="SupportSwiftAffliction" level="20" quality="20" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Swift Affliction"/>
+      </Skill>
+      <Skill mainActiveSkill="1" enabled="true" slot="Helmet">
+        <Gem skillId="PhysicalDamageAura" level="20" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Pride"/>
+        <Gem skillId="BloodSandStance" level="20" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Blood and Sand"/>
+        <Gem skillId="BloodSandArmour" level="20" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Flesh and Stone"/>
+      </Skill>
+      <Skill mainActiveSkill="1" enabled="true" slot="Gloves">
+        <Gem skillId="Vulnerability" level="20" quality="0" enabled="true" enableGlobal1="true" enableGlobal2="true" nameSpec="Vulnerability"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Tree activeSpec="1">
+    <Spec treeVersion="3_13" nodes="25367,66771,14001,56370,60529,49178,49412,25933,65770,7082,66768,14993,44169,61050,46578,47175,16380,65762,13714,55190,23984,65754,66777,10532,32251,65706,65744,2225,65682,50024,65698,30691,15868,34400,39023,31257,65690,65760,49080,48438,66714,57839,37501,5865,36047,24383,66706,50515,65702,10594,61198,65701,5152,66752,48287,14056,24970,65680,56355,20551,63282,1340,30380,3644,32739,5233,29353,9271,34009,33287,18302,47426,22627,24914,57992,55485" classId="4" ascendClassId="2">
+      <EditedNodes/>
+    </Spec>
+  </Tree>
+  <Items activeItemSet="1" useSecondWeaponSet="false">
+    <Item id="1">
+      Rarity: RARE
+Hate Bane
+Siege Axe
+Item Level: 83
+Quality: 20
+Sockets: R-R-R
+LevelReq: 59
+Implicits: 0
+280% increased Physical Damage
+Adds 18 to 32 Physical Damage
+25% increased Attack Speed
++35% to Global Critical Strike Multiplier
+{crafted}60% chance to cause Bleeding on Hit
+    </Item>
+    <Item id="2">
+      Rarity: RARE
+Bone Bulwark
+Pinnacle Tower Shield
+Item Level: 82
+Quality: 20
+Sockets: R-R-R
+LevelReq: 66
+Implicits: 0
++28 to maximum Life
+120% increased Armour
++95 to maximum Life
++42% to Fire Resistance
++35% to Cold Resistance
+    </Item>
+    <Item id="3">
+      Rarity: RARE
+Gore Shell
+Astral Plate
+Item Level: 84
+Quality: 20
+Sockets: R-R-R-R-R-R
+LevelReq: 62
+Implicits: 1
++12% to all Elemental Resistances
++115 to maximum Life
+12% increased maximum Life
++45% to Cold Resistance
++35% to Lightning Resistance
+    </Item>
+    <Item id="4">
+      Rarity: RARE
+Rune Visor
+Royal Burgonet
+Item Level: 82
+Quality: 20
+Sockets: R-R-R-R
+LevelReq: 65
+Implicits: 0
++98 to maximum Life
++40% to Fire Resistance
++38% to Lightning Resistance
+Nearby Enemies take 9% increased Physical Damage
+    </Item>
+    <Item id="5">
+      Rarity: RARE
+War Mitts
+Titan Gauntlets
+Item Level: 80
+Quality: 20
+Sockets: R-R-R-R
+LevelReq: 69
+Implicits: 0
++75 to maximum Life
++35% to Fire Resistance
++30% to Cold Resistance
++250 to Armour
+    </Item>
+    <Item id="6">
+      Rarity: RARE
+Doom March
+Titan Greaves
+Item Level: 80
+Quality: 20
+Sockets: R-R-G-R
+LevelReq: 68
+Implicits: 0
++88 to maximum Life
++35% to Fire Resistance
++32% to Cold Resistance
+30% increased Movement Speed
++200 to Armour
+    </Item>
+    <Item id="7">
+      Rarity: RARE
+Blood Noose
+Agate Amulet
+Item Level: 82
+LevelReq: 60
+Implicits: 1
++16 to Strength and Intelligence
++48 to Strength
++72 to maximum Life
+Adds 12 to 22 Physical Damage to Attacks
++15% to all Elemental Resistances
+    </Item>
+    <Item id="8">
+      Rarity: UNIQUE
+Ryslatha&apos;s Coil
+Studded Belt
+Item Level: 71
+LevelReq: 32
+Implicits: 1
+27% increased Stun Duration on Enemies
++30 to Strength
+48% more Maximum Physical Attack Damage
+36% less Minimum Physical Attack Damage
+Adds 1 to 20 Physical Damage to Attacks
++83 to maximum Life
+Gain 50 Life when you Stun an Enemy
+    </Item>
+    <Item id="9">
+      Rarity: RARE
+Woe Eye
+Steel Ring
+Item Level: 80
+LevelReq: 80
+Implicits: 1
+Adds 4 to 14 Physical Damage to Attacks
++62 to maximum Life
+Adds 8 to 16 Physical Damage to Attacks
++42% to Fire Resistance
++28% to Lightning Resistance
+    </Item>
+    <Item id="10">
+      Rarity: RARE
+Grim Grip
+Steel Ring
+Item Level: 80
+LevelReq: 80
+Implicits: 1
+Adds 4 to 14 Physical Damage to Attacks
++58 to maximum Life
++35% to Cold Resistance
++32% to Lightning Resistance
+Adds 6 to 12 Physical Damage to Attacks
+    </Item>
+    <Slot name="Weapon 1" itemId="1"/>
+    <Slot name="Weapon 2" itemId="2"/>
+    <Slot name="Body Armour" itemId="3"/>
+    <Slot name="Helmet" itemId="4"/>
+    <Slot name="Gloves" itemId="5"/>
+    <Slot name="Boots" itemId="6"/>
+    <Slot name="Amulet" itemId="7"/>
+    <Slot name="Belt" itemId="8"/>
+    <Slot name="Ring 1" itemId="9"/>
+    <Slot name="Ring 2" itemId="10"/>
+    <ItemSet useSecondWeaponSet="false" id="1">
+    <Slot name="Weapon 1" itemId="1"/>
+    <Slot name="Weapon 2" itemId="2"/>
+    <Slot name="Body Armour" itemId="3"/>
+    <Slot name="Helmet" itemId="4"/>
+    <Slot name="Gloves" itemId="5"/>
+    <Slot name="Boots" itemId="6"/>
+    <Slot name="Amulet" itemId="7"/>
+    <Slot name="Belt" itemId="8"/>
+    <Slot name="Ring 1" itemId="9"/>
+    <Slot name="Ring 2" itemId="10"/>
+    </ItemSet>
+  </Items>
+  <Config>
+    <Input name="enemyLevel" number="84"/>
+    <Input name="enemyIsBoss" string="Shaper"/>
+    <Input name="conditionEnemyBleeding" boolean="true"/>
+  </Config>
+</PathOfBuilding>
