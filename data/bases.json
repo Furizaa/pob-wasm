@@ -5485,7 +5485,7 @@
     "name": "Short Bow",
     "item_class": "Bows",
     "base_str": 0,
-    "base_dex": 0,
+    "base_dex": 14,
     "base_int": 0,
     "drop_level": 4278124286
   },
@@ -5896,7 +5896,7 @@
   },
   {
     "id": "Metadata/Items/Weapons/TwoHandWeapons/Staves/Staff17",
-    "name": "Maelström Staff",
+    "name": "Maelstr\u00f6m Staff",
     "item_class": "Warstaves",
     "base_str": 0,
     "base_dex": 0,
@@ -9507,7 +9507,7 @@
     "id": "Metadata/Items/Armours/BodyArmours/BodyStr1",
     "name": "Plate Vest",
     "item_class": "Body Armours",
-    "base_str": 0,
+    "base_str": 28,
     "base_dex": 0,
     "base_int": 0,
     "drop_level": 4278124286
@@ -9633,7 +9633,7 @@
     "id": "Metadata/Items/Armours/BodyArmours/BodyStr15",
     "name": "Astral Plate",
     "item_class": "Body Armours",
-    "base_str": 0,
+    "base_str": 109,
     "base_dex": 0,
     "base_int": 0,
     "drop_level": 4278124286
@@ -9832,7 +9832,7 @@
     "name": "Zodiac Leather",
     "item_class": "Body Armours",
     "base_str": 0,
-    "base_dex": 0,
+    "base_dex": 170,
     "base_int": 0,
     "drop_level": 4278124286
   },
@@ -10004,7 +10004,7 @@
     "item_class": "Body Armours",
     "base_str": 0,
     "base_dex": 0,
-    "base_int": 0,
+    "base_int": 118,
     "drop_level": 4278124286
   },
   {
@@ -10022,7 +10022,7 @@
     "item_class": "Body Armours",
     "base_str": 0,
     "base_dex": 0,
-    "base_int": 0,
+    "base_int": 194,
     "drop_level": 4278124286
   },
   {

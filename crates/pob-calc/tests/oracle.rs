@@ -176,3 +176,83 @@ fn oracle_poison_dot_dps_matches_pob() {
     assert_output_approx(&actual, expected_output, "TotalDPS");
     assert_output_approx(&actual, expected_output, "PoisonDPS");
 }
+
+#[test]
+fn oracle_trap_saboteur_dps_matches_pob() {
+    let Some(data) = load_game_data() else {
+        eprintln!("DATA_DIR not set");
+        return;
+    };
+    let xml = load_build_xml("trap_saboteur");
+    let build = parse_xml(&xml).expect("parse");
+    let result = calculate(&build, Arc::clone(&data)).expect("calculate");
+    let actual = serde_json::to_value(&result.output).unwrap();
+    let expected = load_expected("trap_saboteur");
+    let expected_output = expected.get("output").unwrap_or(&expected);
+    assert_output_approx(&actual, expected_output, "TotalDPS");
+    assert_output_approx(&actual, expected_output, "TrapCooldown");
+}
+
+#[test]
+fn oracle_totem_hierophant_dps_matches_pob() {
+    let Some(data) = load_game_data() else {
+        eprintln!("DATA_DIR not set");
+        return;
+    };
+    let xml = load_build_xml("totem_hierophant");
+    let build = parse_xml(&xml).expect("parse");
+    let result = calculate(&build, Arc::clone(&data)).expect("calculate");
+    let actual = serde_json::to_value(&result.output).unwrap();
+    let expected = load_expected("totem_hierophant");
+    let expected_output = expected.get("output").unwrap_or(&expected);
+    assert_output_approx(&actual, expected_output, "TotalDPS");
+    assert_output_approx(&actual, expected_output, "TotemLifeTotal");
+}
+
+#[test]
+fn oracle_mine_detonator_dps_matches_pob() {
+    let Some(data) = load_game_data() else {
+        eprintln!("DATA_DIR not set");
+        return;
+    };
+    let xml = load_build_xml("mine_detonator");
+    let build = parse_xml(&xml).expect("parse");
+    let result = calculate(&build, Arc::clone(&data)).expect("calculate");
+    let actual = serde_json::to_value(&result.output).unwrap();
+    let expected = load_expected("mine_detonator");
+    let expected_output = expected.get("output").unwrap_or(&expected);
+    assert_output_approx(&actual, expected_output, "TotalDPS");
+    assert_output_approx(&actual, expected_output, "MineDetonationTime");
+}
+
+#[test]
+fn oracle_minion_summoner_matches_pob() {
+    let Some(data) = load_game_data() else {
+        eprintln!("DATA_DIR not set");
+        return;
+    };
+    let xml = load_build_xml("minion_summoner");
+    let build = parse_xml(&xml).expect("parse");
+    let result = calculate(&build, Arc::clone(&data)).expect("calculate");
+    let actual = serde_json::to_value(&result.output).unwrap();
+    let expected = load_expected("minion_summoner");
+    let expected_output = expected.get("output").unwrap_or(&expected);
+    assert_output_approx(&actual, expected_output, "TotalDPS");
+    assert_output_approx(&actual, expected_output, "MinionCount");
+}
+
+#[test]
+fn oracle_poe2_basic_matches_pob() {
+    let Some(data) = load_game_data() else {
+        eprintln!("DATA_DIR not set");
+        return;
+    };
+    let xml = load_build_xml("poe2_basic");
+    let build = parse_xml(&xml).expect("parse");
+    let result = calculate(&build, Arc::clone(&data)).expect("calculate");
+    let actual = serde_json::to_value(&result.output).unwrap();
+    let expected = load_expected("poe2_basic");
+    let expected_output = expected.get("output").unwrap_or(&expected);
+    assert_output_approx(&actual, expected_output, "Life");
+    assert_output_approx(&actual, expected_output, "TotalDPS");
+}

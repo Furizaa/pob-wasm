@@ -132,7 +132,7 @@ pub fn get_mods(
     handle: u32,
     mod_name: String,
     mod_type: Option<String>,
-    _cfg: Option<String>,
+    cfg: Option<String>,
 ) -> Result<String, JsValue> {
     let envs = build_envs().lock().unwrap();
     let stored = envs
@@ -148,12 +148,32 @@ pub fn get_mods(
         _ => ModType::Base,
     });
 
-    let rows = stored.env.player.mod_db.tabulate(
-        &mod_name,
-        filter_type,
-        ModFlags::NONE,
-        KeywordFlags::NONE,
-    );
+    // Determine ModFlags from cfg scope
+    let (query_flags, query_keyword_flags) = match cfg.as_deref() {
+        Some("skill") => {
+            if let Some(ref skill) = stored.env.player.main_skill {
+                let mut flags = ModFlags::NONE;
+                if skill.is_attack {
+                    flags = ModFlags(flags.0 | ModFlags::ATTACK.0);
+                }
+                if skill.is_spell {
+                    flags = ModFlags(flags.0 | ModFlags::SPELL.0);
+                }
+                (flags, KeywordFlags::NONE)
+            } else {
+                (ModFlags::NONE, KeywordFlags::NONE)
+            }
+        }
+        Some("weapon1") | Some("weapon2") => (ModFlags::ATTACK, KeywordFlags::NONE),
+        _ => (ModFlags::NONE, KeywordFlags::NONE),
+    };
+
+    let rows =
+        stored
+            .env
+            .player
+            .mod_db
+            .tabulate(&mod_name, filter_type, query_flags, query_keyword_flags);
 
     let entries: Vec<WasmModEntry> = rows
         .into_iter()
@@ -309,6 +329,38 @@ mod tests {
         let mods_json = get_mods(handle, "Life".to_string(), None, None).unwrap();
         let mods: serde_json::Value = serde_json::from_str(&mods_json).unwrap();
         assert!(mods.is_array(), "getMods must return an array");
+
+        release_build(handle);
+    }
+
+    #[test]
+    fn get_mods_cfg_none_returns_all_mods() {
+        GAME_DATA
+            .set(Arc::new(GameData::from_json(&stub_game_data()).unwrap()))
+            .ok();
+
+        let result_json = calculate(TEST_XML.to_string()).unwrap();
+        let result: serde_json::Value = serde_json::from_str(&result_json).unwrap();
+        let handle = result["handle"].as_u64().unwrap() as u32;
+
+        // No cfg — returns all Life mods
+        let mods_json = get_mods(handle, "Life".to_string(), None, None).unwrap();
+        let mods: Vec<serde_json::Value> = serde_json::from_str(&mods_json).unwrap();
+        assert!(
+            !mods.is_empty(),
+            "should return Life mods with no cfg filter"
+        );
+
+        // cfg="skill" — Cleave is an attack so ATTACK flag is set; Life mods have no flag
+        // restriction (flags==NONE), and ATTACK.contains(NONE) is true, so same count expected
+        let skill_mods_json =
+            get_mods(handle, "Life".to_string(), None, Some("skill".to_string())).unwrap();
+        let skill_mods: Vec<serde_json::Value> = serde_json::from_str(&skill_mods_json).unwrap();
+        assert_eq!(
+            mods.len(),
+            skill_mods.len(),
+            "cfg=skill should return same count as no cfg for flag-unrestricted mods"
+        );
 
         release_build(handle);
     }

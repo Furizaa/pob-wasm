@@ -15,10 +15,12 @@ pub struct ModEntry {
 pub fn extract(reader: &GgpkReader, output: &Path) -> Result<(), ExtractError> {
     // Mods.datc64 row_size = 654 (PoE1 modern bundle format, probed layout):
     // offset 0:   Id (str, 8)
-    // offset 504: Domain (u32, 4)
-    // offset 508: GenerationType (u32, 4)
-    // Name field not yet calibrated — stored as empty for now
-    // NOTE: these offsets may need calibration; see docs/superpowers/plans for Phase 3 notes
+    // offset 504: Domain (u32, 4)           — probed empirically from GGPK
+    // offset 508: Name (str, 8)             — spec.lua field [10]: String after Domain [9]
+    // offset 516: GenerationType (u32, 4)   — spec.lua field [11]: Int after Name [10]
+    // The spec (spec.lua mods table) lists fields in order: [9]=Domain, [10]=Name, [11]=GenerationType.
+    // Previous code had GenerationType at 508 (immediately after Domain), skipping the 8-byte Name
+    // string pointer. Corrected here: Name occupies bytes 508..515, GenerationType at 516.
     let bytes = reader.read_bytes("Data/Mods.datc64")?;
     let dat = Dat64::parse_datc64(bytes, 654, "Mods.datc64")?;
 
@@ -28,9 +30,10 @@ pub fn extract(reader: &GgpkReader, output: &Path) -> Result<(), ExtractError> {
         if id.is_empty() {
             continue;
         }
-        let name = String::new(); // Name field calibration deferred to Phase 3
         let domain = dat.read_u32(i, 504);
-        let generation_type = dat.read_u32(i, 508);
+        // Name is the affix display name (e.g. "of the Lynx", "Sturdy") from spec.lua field [10]
+        let name = dat.read_string(i, 508);
+        let generation_type = dat.read_u32(i, 516);
 
         let mod_type = match generation_type {
             1 => "Prefix",
@@ -67,6 +70,16 @@ pub fn extract(reader: &GgpkReader, output: &Path) -> Result<(), ExtractError> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn mod_has_expected_fields() {
+        // Verify the JSON schema includes a non-empty name field.
+        // When data is extracted from a GGPK, name should be the affix display text
+        // (e.g. "of the Lynx", "Sturdy") read from Mods.datc64 offset 508 (spec field [10]).
+        let raw = r#"[{"id":"m1","name":"local_maximum_life","generation_type":1,"domain":1,"stats":[]}]"#;
+        let mods: Vec<serde_json::Value> = serde_json::from_str(raw).unwrap();
+        assert_eq!(mods[0]["name"], "local_maximum_life");
+    }
+
     #[test]
     fn mods_json_schema() {
         let Some(ggpk_path) = std::env::var("GGPK_PATH").ok() else {

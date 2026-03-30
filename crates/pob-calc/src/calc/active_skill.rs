@@ -58,6 +58,27 @@ static KNOWN_RANGED_ATTACKS: LazyLock<std::collections::HashSet<&'static str>> =
         .collect()
     });
 
+static KNOWN_SUMMONER_SKILLS: LazyLock<std::collections::HashSet<&'static str>> =
+    LazyLock::new(|| {
+        [
+            "Raise Zombie",
+            "Raise Spectre",
+            "Summon Skeleton",
+            "Summon Raging Spirit",
+            "Animate Weapon",
+            "Animate Guardian",
+            "Summon Golem",
+            "Summon Chaos Golem",
+            "Summon Flame Golem",
+            "Summon Ice Golem",
+            "Summon Lightning Golem",
+            "Summon Stone Golem",
+        ]
+        .iter()
+        .copied()
+        .collect()
+    });
+
 pub fn run(env: &mut CalcEnv, build: &crate::build::Build) {
     use crate::build::types::ActiveSkill;
     use crate::mod_db::ModDb;
@@ -93,6 +114,19 @@ pub fn run(env: &mut CalcEnv, build: &crate::build::Build) {
     let is_spell = KNOWN_SPELLS.contains(skill_id.as_str());
     let is_attack = !is_spell;
     let is_melee = is_attack && !KNOWN_RANGED_ATTACKS.contains(skill_id.as_str());
+
+    let is_summoner = KNOWN_SUMMONER_SKILLS.contains(skill_id.as_str());
+    if is_summoner {
+        env.player.mod_db.set_condition("Summoner", true);
+        // Set MinionCount based on gem ID
+        let count = match skill_id.as_str() {
+            "Raise Zombie" => 6.0,
+            "Raise Spectre" => 1.0,
+            "Summon Skeleton" | "Summon Raging Spirit" => 5.0,
+            _ => 1.0,
+        };
+        env.player.set_output("MinionCount", count);
+    }
 
     // Set conditions on the player mod db
     env.player.mod_db.set_condition("IsMainSkill", true);
