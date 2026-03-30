@@ -3,7 +3,9 @@ pub mod types;
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use types::{KeywordFlags, Mod, ModFlags, ModTag, ModType, ModValue};
+use types::{KeywordFlags, Mod, ModFlags, ModType, ModValue, SkillCfg};
+
+use crate::calc::env::OutputTable;
 
 /// Per-mod display row returned by tabulate().
 /// Mirrors the rows POB's Tabulate() method returns.
@@ -60,59 +62,154 @@ impl ModDb {
         self.multipliers.insert(var.to_string(), value);
     }
 
-    /// Temporary bridge: evaluate tags that are pure gates (Condition, MultiplierThreshold).
-    /// This will be replaced by eval_mod() in Task 5 when we refactor query methods.
-    fn eval_tags_as_gates(&self, tags: &[ModTag]) -> bool {
-        for tag in tags {
-            match tag {
-                ModTag::Condition { var, neg } => {
-                    let set = self.conditions.get(var).copied().unwrap_or(false);
-                    if *neg && set {
-                        return false;
-                    }
-                    if !*neg && !set {
-                        return false;
-                    }
-                }
-                ModTag::MultiplierThreshold {
-                    var,
-                    threshold,
-                    upper,
-                } => {
-                    let val = self.multipliers.get(var).copied().unwrap_or(0.0);
-                    if *upper {
-                        // upper=true means "less than threshold" gates the mod
-                        if val >= *threshold {
-                            return false;
-                        }
-                    } else {
-                        if val < *threshold {
-                            return false;
-                        }
-                    }
-                }
-                // Other tag types are handled by eval_mod() — for now, skip them
-                _ => {}
-            }
+    /// Check if a mod matches the query's mod type, flags, and keyword flags.
+    /// Uses cfg if provided, otherwise uses NONE defaults.
+    fn mod_matches_cfg(&self, m: &Mod, mod_type: &ModType, cfg: Option<&SkillCfg>) -> bool {
+        if &m.mod_type != mod_type {
+            return false;
+        }
+        let cfg_flags = cfg.map_or(ModFlags::NONE, |c| c.flags);
+        let cfg_kw = cfg.map_or(KeywordFlags::NONE, |c| c.keyword_flags);
+        // ModFlags: AND matching — all mod bits must be present in cfg
+        if !cfg_flags.contains(m.flags) {
+            return false;
+        }
+        // KeywordFlags: use match_keyword_flags (OR or AND depending on MatchAll)
+        if !cfg_kw.match_keyword_flags(m.keyword_flags) {
+            return false;
         }
         true
     }
 
-    fn mod_matches_query(
+    // ── Primary query methods (accept SkillCfg + OutputTable) ────────────
+
+    /// Sum all mods of `mod_type` for `name`, filtered by SkillCfg and evaluated by eval_mod.
+    /// This is the primary query method. Mirrors PoB's modDB:Sum(modType, cfg, statName).
+    pub fn sum_cfg(
         &self,
-        m: &Mod,
-        mod_type: &ModType,
-        flags: ModFlags,
-        keyword_flags: KeywordFlags,
-    ) -> bool {
-        &m.mod_type == mod_type
-            && flags.contains(m.flags)
-            && keyword_flags.contains(m.keyword_flags)
-            && self.eval_tags_as_gates(&m.tags)
+        mod_type: ModType,
+        name: &str,
+        cfg: Option<&SkillCfg>,
+        output: &OutputTable,
+    ) -> f64 {
+        let mut total = 0.0;
+        if let Some(list) = self.mods.get(name) {
+            for m in list {
+                if self.mod_matches_cfg(m, &mod_type, cfg) {
+                    if m.tags.is_empty() {
+                        total += m.value.as_f64();
+                    } else if let Some(val) = eval_mod::eval_mod(m, cfg, self, output) {
+                        total += val;
+                    }
+                }
+            }
+        }
+        if let Some(parent) = &self.parent {
+            total += parent.sum_cfg(mod_type, name, cfg, output);
+        }
+        total
     }
 
-    /// Sum all BASE or INC mods for `name` that pass the flag/keyword/condition filters.
-    /// Mirrors POB's modDB:Sum(modType, cfg, statName).
+    /// Multiply all MORE mods for `name`, filtered by SkillCfg and evaluated by eval_mod.
+    /// Each MORE mod value N means ×(1 + N/100).
+    /// Mirrors PoB's modDB:More(cfg, statName).
+    pub fn more_cfg(&self, name: &str, cfg: Option<&SkillCfg>, output: &OutputTable) -> f64 {
+        let mut result = 1.0_f64;
+        if let Some(list) = self.mods.get(name) {
+            for m in list {
+                if self.mod_matches_cfg(m, &ModType::More, cfg) {
+                    let val = if m.tags.is_empty() {
+                        m.value.as_f64()
+                    } else {
+                        match eval_mod::eval_mod(m, cfg, self, output) {
+                            Some(v) => v,
+                            None => continue,
+                        }
+                    };
+                    result *= 1.0 + val / 100.0;
+                }
+            }
+        }
+        result = (result * 100.0).round() / 100.0;
+        if let Some(parent) = &self.parent {
+            result *= parent.more_cfg(name, cfg, output);
+        }
+        result
+    }
+
+    /// Return true if any FLAG mod with `name` passes filters and eval_mod.
+    /// Mirrors PoB's modDB:Flag(cfg, statName).
+    pub fn flag_cfg(&self, name: &str, cfg: Option<&SkillCfg>, output: &OutputTable) -> bool {
+        if let Some(list) = self.mods.get(name) {
+            for m in list {
+                if self.mod_matches_cfg(m, &ModType::Flag, cfg) {
+                    if m.tags.is_empty() {
+                        if m.value.as_bool() {
+                            return true;
+                        }
+                    } else if let Some(val) = eval_mod::eval_mod(m, cfg, self, output) {
+                        if val != 0.0 {
+                            return true;
+                        }
+                    }
+                }
+            }
+        }
+        if let Some(parent) = &self.parent {
+            return parent.flag_cfg(name, cfg, output);
+        }
+        false
+    }
+
+    /// Return all mods matching `name` for source-attribution UI, filtered by SkillCfg.
+    /// Mirrors PoB's modDB:Tabulate(modType, cfg, statName).
+    pub fn tabulate_cfg(
+        &self,
+        name: &str,
+        mod_type: Option<ModType>,
+        cfg: Option<&SkillCfg>,
+        output: &OutputTable,
+    ) -> Vec<TabulatedMod> {
+        let mut rows = Vec::new();
+        if let Some(list) = self.mods.get(name) {
+            for m in list {
+                let type_matches = mod_type.as_ref().map_or(true, |t| t == &m.mod_type);
+                if !type_matches {
+                    continue;
+                }
+                let cfg_flags = cfg.map_or(ModFlags::NONE, |c| c.flags);
+                let cfg_kw = cfg.map_or(KeywordFlags::NONE, |c| c.keyword_flags);
+                if !cfg_flags.contains(m.flags) {
+                    continue;
+                }
+                if !cfg_kw.match_keyword_flags(m.keyword_flags) {
+                    continue;
+                }
+                // For tabulate, we still check tags but don't scale the value
+                if !m.tags.is_empty() {
+                    if eval_mod::eval_mod(m, cfg, self, output).is_none() {
+                        continue;
+                    }
+                }
+                rows.push(TabulatedMod {
+                    value: m.value.clone(),
+                    mod_type: m.mod_type.clone(),
+                    source_category: m.source.category.clone(),
+                    source_name: m.source.name.clone(),
+                    flags: m.flags,
+                });
+            }
+        }
+        if let Some(parent) = &self.parent {
+            rows.extend(parent.tabulate_cfg(name, mod_type, cfg, output));
+        }
+        rows
+    }
+
+    // ── Legacy methods (backward-compatible wrappers) ────────────────────
+
+    /// Legacy sum: delegates to sum_cfg with a minimal SkillCfg built from raw flags.
+    /// Kept for backward compatibility with existing calc modules.
     pub fn sum(
         &self,
         mod_type: ModType,
@@ -120,60 +217,38 @@ impl ModDb {
         flags: ModFlags,
         keyword_flags: KeywordFlags,
     ) -> f64 {
-        let mut total = 0.0;
-        if let Some(list) = self.mods.get(name) {
-            for m in list {
-                if self.mod_matches_query(m, &mod_type, flags, keyword_flags) {
-                    total += m.value.as_f64();
-                }
-            }
-        }
-        if let Some(parent) = &self.parent {
-            total += parent.sum(mod_type, name, flags, keyword_flags);
-        }
-        total
+        let cfg = SkillCfg {
+            flags,
+            keyword_flags,
+            ..Default::default()
+        };
+        let empty: OutputTable = HashMap::new();
+        self.sum_cfg(mod_type, name, Some(&cfg), &empty)
     }
 
-    /// Multiply all MORE mods for `name`.
-    /// Mirrors POB's modDB:More(cfg, statName).
-    /// Each MORE mod value N means ×(1 + N/100).
+    /// Legacy more: delegates to more_cfg.
     pub fn more(&self, name: &str, flags: ModFlags, keyword_flags: KeywordFlags) -> f64 {
-        let mut result = 1.0_f64;
-        if let Some(list) = self.mods.get(name) {
-            for m in list {
-                if self.mod_matches_query(m, &ModType::More, flags, keyword_flags) {
-                    result *= 1.0 + m.value.as_f64() / 100.0;
-                }
-            }
-        }
-        // Round to 2 decimal places per POB's precision rules
-        result = (result * 100.0).round() / 100.0;
-        if let Some(parent) = &self.parent {
-            result *= parent.more(name, flags, keyword_flags);
-        }
-        result
+        let cfg = SkillCfg {
+            flags,
+            keyword_flags,
+            ..Default::default()
+        };
+        let empty: OutputTable = HashMap::new();
+        self.more_cfg(name, Some(&cfg), &empty)
     }
 
-    /// Return true if any FLAG mod with `name` is set and passes filters.
-    /// Mirrors POB's modDB:Flag(cfg, statName).
+    /// Legacy flag: delegates to flag_cfg.
     pub fn flag(&self, name: &str, flags: ModFlags, keyword_flags: KeywordFlags) -> bool {
-        if let Some(list) = self.mods.get(name) {
-            for m in list {
-                if self.mod_matches_query(m, &ModType::Flag, flags, keyword_flags)
-                    && m.value.as_bool()
-                {
-                    return true;
-                }
-            }
-        }
-        if let Some(parent) = &self.parent {
-            return parent.flag(name, flags, keyword_flags);
-        }
-        false
+        let cfg = SkillCfg {
+            flags,
+            keyword_flags,
+            ..Default::default()
+        };
+        let empty: OutputTable = HashMap::new();
+        self.flag_cfg(name, Some(&cfg), &empty)
     }
 
-    /// Return all mods matching `name` (and optionally `mod_type`) for source-attribution UI.
-    /// Mirrors POB's modDB:Tabulate(modType, cfg, statName).
+    /// Legacy tabulate: delegates to tabulate_cfg.
     pub fn tabulate(
         &self,
         name: &str,
@@ -181,28 +256,13 @@ impl ModDb {
         flags: ModFlags,
         keyword_flags: KeywordFlags,
     ) -> Vec<TabulatedMod> {
-        let mut rows = Vec::new();
-        if let Some(list) = self.mods.get(name) {
-            for m in list {
-                let type_matches = mod_type.as_ref().map_or(true, |t| t == &m.mod_type);
-                if type_matches
-                    && flags.contains(m.flags)
-                    && keyword_flags.contains(m.keyword_flags)
-                {
-                    rows.push(TabulatedMod {
-                        value: m.value.clone(),
-                        mod_type: m.mod_type.clone(),
-                        source_category: m.source.category.clone(),
-                        source_name: m.source.name.clone(),
-                        flags: m.flags,
-                    });
-                }
-            }
-        }
-        if let Some(parent) = &self.parent {
-            rows.extend(parent.tabulate(name, mod_type, flags, keyword_flags));
-        }
-        rows
+        let cfg = SkillCfg {
+            flags,
+            keyword_flags,
+            ..Default::default()
+        };
+        let empty: OutputTable = HashMap::new();
+        self.tabulate_cfg(name, mod_type, Some(&cfg), &empty)
     }
 }
 
@@ -215,11 +275,19 @@ impl Default for ModDb {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use types::{KeywordFlags, Mod, ModFlags, ModSource, ModTag, ModType, ModValue};
+    use crate::calc::env::OutputTable;
+    use std::collections::HashMap;
+    use types::{KeywordFlags, Mod, ModFlags, ModSource, ModTag, ModType, ModValue, SkillCfg};
 
     fn src() -> ModSource {
         ModSource::new("Test", "test")
     }
+
+    fn empty_output() -> OutputTable {
+        HashMap::new()
+    }
+
+    // ── Legacy API tests ─────────────────────────────────────────────────
 
     #[test]
     fn sum_base_mods() {
@@ -328,5 +396,209 @@ mod tests {
             db.sum(ModType::Base, "Life", ModFlags::NONE, KeywordFlags::NONE),
             500.0
         );
+    }
+
+    // ── New _cfg API tests ───────────────────────────────────────────────
+
+    #[test]
+    fn sum_cfg_filters_by_mod_flags() {
+        let mut db = ModDb::new();
+        // Mod with ATTACK|HIT flags
+        db.add(Mod {
+            name: "Damage".into(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(50.0),
+            flags: ModFlags(ModFlags::ATTACK.0 | ModFlags::HIT.0),
+            keyword_flags: KeywordFlags::NONE,
+            tags: vec![],
+            source: src(),
+        });
+        let cfg = SkillCfg {
+            flags: ModFlags(ModFlags::ATTACK.0 | ModFlags::HIT.0 | ModFlags::MELEE.0),
+            ..Default::default()
+        };
+        // cfg has ATTACK|HIT|MELEE which contains ATTACK|HIT → matches
+        assert_eq!(
+            db.sum_cfg(ModType::Inc, "Damage", Some(&cfg), &empty_output()),
+            50.0
+        );
+        // cfg with only SPELL → doesn't contain ATTACK|HIT
+        let cfg2 = SkillCfg {
+            flags: ModFlags::SPELL,
+            ..Default::default()
+        };
+        assert_eq!(
+            db.sum_cfg(ModType::Inc, "Damage", Some(&cfg2), &empty_output()),
+            0.0
+        );
+    }
+
+    #[test]
+    fn sum_cfg_filters_by_keyword_flags_or() {
+        let mut db = ModDb::new();
+        db.add(Mod {
+            name: "Damage".into(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(30.0),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::FIRE,
+            tags: vec![],
+            source: src(),
+        });
+        let cfg = SkillCfg {
+            keyword_flags: KeywordFlags(KeywordFlags::FIRE.0 | KeywordFlags::COLD.0),
+            ..Default::default()
+        };
+        // OR matching: FIRE overlaps with FIRE|COLD → matches
+        assert_eq!(
+            db.sum_cfg(ModType::Inc, "Damage", Some(&cfg), &empty_output()),
+            30.0
+        );
+        let cfg2 = SkillCfg {
+            keyword_flags: KeywordFlags::COLD,
+            ..Default::default()
+        };
+        // FIRE vs COLD → no overlap → excluded
+        assert_eq!(
+            db.sum_cfg(ModType::Inc, "Damage", Some(&cfg2), &empty_output()),
+            0.0
+        );
+    }
+
+    #[test]
+    fn sum_cfg_keyword_flags_match_all() {
+        let mut db = ModDb::new();
+        db.add(Mod {
+            name: "Damage".into(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(40.0),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags(
+                KeywordFlags::FIRE.0 | KeywordFlags::SPELL.0 | KeywordFlags::MATCH_ALL.0,
+            ),
+            tags: vec![],
+            source: src(),
+        });
+        let cfg = SkillCfg {
+            keyword_flags: KeywordFlags(KeywordFlags::FIRE.0 | KeywordFlags::SPELL.0),
+            ..Default::default()
+        };
+        // MatchAll AND: cfg has both FIRE and SPELL → matches
+        assert_eq!(
+            db.sum_cfg(ModType::Inc, "Damage", Some(&cfg), &empty_output()),
+            40.0
+        );
+        let cfg2 = SkillCfg {
+            keyword_flags: KeywordFlags::FIRE,
+            ..Default::default()
+        };
+        // MatchAll AND: cfg missing SPELL → excluded
+        assert_eq!(
+            db.sum_cfg(ModType::Inc, "Damage", Some(&cfg2), &empty_output()),
+            0.0
+        );
+    }
+
+    #[test]
+    fn sum_cfg_calls_eval_mod_for_tags() {
+        let mut db = ModDb::new();
+        db.set_condition("FullLife", true);
+        db.add(Mod {
+            name: "Life".into(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(20.0),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            tags: vec![ModTag::Condition {
+                var: "FullLife".into(),
+                neg: false,
+            }],
+            source: src(),
+        });
+        // FullLife is true → condition passes → includes 20
+        assert_eq!(
+            db.sum_cfg(ModType::Inc, "Life", None, &empty_output()),
+            20.0
+        );
+    }
+
+    #[test]
+    fn sum_cfg_eval_mod_scales_value() {
+        let mut db = ModDb::new();
+        db.set_multiplier("PowerCharge", 3.0);
+        db.add(Mod {
+            name: "CritChance".into(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(10.0),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            tags: vec![ModTag::Multiplier {
+                var: "PowerCharge".into(),
+                div: 1.0,
+                limit: None,
+                base: 0.0,
+            }],
+            source: src(),
+        });
+        // 10 * 3 charges = 30
+        assert_eq!(
+            db.sum_cfg(ModType::Inc, "CritChance", None, &empty_output()),
+            30.0
+        );
+    }
+
+    #[test]
+    fn sum_cfg_none_is_backward_compatible() {
+        // When cfg=None, behaves like the old sum() method
+        let mut db = ModDb::new();
+        db.add(Mod::new_base("Life", 100.0, src()));
+        db.add(Mod::new_base("Life", 50.0, src()));
+        assert_eq!(
+            db.sum_cfg(ModType::Base, "Life", None, &empty_output()),
+            150.0
+        );
+    }
+
+    #[test]
+    fn more_cfg_with_eval_mod() {
+        let mut db = ModDb::new();
+        db.set_condition("FullLife", true);
+        db.add(Mod {
+            name: "Damage".into(),
+            mod_type: ModType::More,
+            value: ModValue::Number(20.0),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            tags: vec![ModTag::Condition {
+                var: "FullLife".into(),
+                neg: false,
+            }],
+            source: src(),
+        });
+        // FullLife true → mod applies → 1.0 * (1 + 20/100) = 1.20
+        assert_eq!(db.more_cfg("Damage", None, &empty_output()), 1.20);
+    }
+
+    #[test]
+    fn flag_cfg_with_eval_mod() {
+        let mut db = ModDb::new();
+        // Flag without condition → always applies
+        db.add(Mod::new_flag("ChaosInoculation", src()));
+        assert!(db.flag_cfg("ChaosInoculation", None, &empty_output()));
+
+        // Flag with failing condition → excluded
+        db.add(Mod {
+            name: "SomeFlag".into(),
+            mod_type: ModType::Flag,
+            value: ModValue::Bool(true),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            tags: vec![ModTag::Condition {
+                var: "NeverTrue".into(),
+                neg: false,
+            }],
+            source: src(),
+        });
+        assert!(!db.flag_cfg("SomeFlag", None, &empty_output()));
     }
 }
