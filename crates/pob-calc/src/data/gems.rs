@@ -66,6 +66,7 @@ pub struct GemLevelData {
 pub struct GemData {
     pub id: String,
     pub display_name: String,
+    #[serde(default)]
     pub is_support: bool,
     /// Skill types — may be numeric IDs (old format) or string names (new format).
     /// Use `#[serde(deserialize_with)]` would be complex; instead we keep both
