@@ -19,16 +19,49 @@ pub struct ModFlags(pub u32);
 
 impl ModFlags {
     pub const NONE: Self = ModFlags(0);
-    pub const ATTACK: Self = ModFlags(0x1);
-    pub const SPELL: Self = ModFlags(0x2);
-    pub const HIT: Self = ModFlags(0x4);
-    pub const AILMENT: Self = ModFlags(0x8);
-    pub const DOT: Self = ModFlags(0x10);
-    pub const BOW: Self = ModFlags(0x80);
+    pub const ATTACK: Self = ModFlags(0x01);
+    pub const SPELL: Self = ModFlags(0x02);
+    pub const HIT: Self = ModFlags(0x04);
+    pub const DOT: Self = ModFlags(0x08);
+    pub const CAST: Self = ModFlags(0x10);
     pub const MELEE: Self = ModFlags(0x100);
+    pub const AREA: Self = ModFlags(0x200);
+    pub const PROJECTILE: Self = ModFlags(0x400);
+    pub const AILMENT: Self = ModFlags(0x800);
+    pub const MELEE_HIT: Self = ModFlags(0x1000);
+    pub const WEAPON: Self = ModFlags(0x2000);
+    pub const AXE: Self = ModFlags(0x10000);
+    pub const BOW: Self = ModFlags(0x20000);
+    pub const CLAW: Self = ModFlags(0x40000);
+    pub const DAGGER: Self = ModFlags(0x80000);
+    pub const MACE: Self = ModFlags(0x100000);
+    pub const STAFF: Self = ModFlags(0x200000);
+    pub const SWORD: Self = ModFlags(0x400000);
+    pub const WAND: Self = ModFlags(0x800000);
+    pub const UNARMED: Self = ModFlags(0x1000000);
+    pub const WEAPON_MELEE: Self = ModFlags(0x4000000);
+    pub const WEAPON_RANGED: Self = ModFlags(0x8000000);
+    pub const WEAPON_1H: Self = ModFlags(0x10000000);
+    pub const WEAPON_2H: Self = ModFlags(0x20000000);
 
+    /// AND matching: all bits in `other` must be present in `self`.
+    /// This is PoB's `(cfg_flags & mod_flags) == mod_flags`.
     pub fn contains(self, other: Self) -> bool {
         (self.0 & other.0) == other.0
+    }
+}
+
+impl std::ops::BitOr for ModFlags {
+    type Output = Self;
+    fn bitor(self, rhs: Self) -> Self {
+        ModFlags(self.0 | rhs.0)
+    }
+}
+
+impl std::ops::BitAnd for ModFlags {
+    type Output = Self;
+    fn bitand(self, rhs: Self) -> Self {
+        ModFlags(self.0 & rhs.0)
     }
 }
 
@@ -176,5 +209,65 @@ mod tests {
         assert_eq!(ModValue::Bool(true).as_f64(), 1.0);
         assert!(ModValue::Bool(true).as_bool());
         assert!(!ModValue::Number(0.0).as_bool());
+    }
+
+    #[test]
+    fn mod_flags_all_constants_defined() {
+        // Verify every flag constant has the correct bit value from PoB's Global.lua
+        assert_eq!(ModFlags::ATTACK.0, 0x01);
+        assert_eq!(ModFlags::SPELL.0, 0x02);
+        assert_eq!(ModFlags::HIT.0, 0x04);
+        assert_eq!(ModFlags::DOT.0, 0x08);
+        assert_eq!(ModFlags::CAST.0, 0x10);
+        assert_eq!(ModFlags::MELEE.0, 0x100);
+        assert_eq!(ModFlags::AREA.0, 0x200);
+        assert_eq!(ModFlags::PROJECTILE.0, 0x400);
+        assert_eq!(ModFlags::AILMENT.0, 0x800);
+        assert_eq!(ModFlags::MELEE_HIT.0, 0x1000);
+        assert_eq!(ModFlags::WEAPON.0, 0x2000);
+        assert_eq!(ModFlags::AXE.0, 0x10000);
+        assert_eq!(ModFlags::BOW.0, 0x20000);
+        assert_eq!(ModFlags::CLAW.0, 0x40000);
+        assert_eq!(ModFlags::DAGGER.0, 0x80000);
+        assert_eq!(ModFlags::MACE.0, 0x100000);
+        assert_eq!(ModFlags::STAFF.0, 0x200000);
+        assert_eq!(ModFlags::SWORD.0, 0x400000);
+        assert_eq!(ModFlags::WAND.0, 0x800000);
+        assert_eq!(ModFlags::UNARMED.0, 0x1000000);
+        assert_eq!(ModFlags::WEAPON_MELEE.0, 0x4000000);
+        assert_eq!(ModFlags::WEAPON_RANGED.0, 0x8000000);
+        assert_eq!(ModFlags::WEAPON_1H.0, 0x10000000);
+        assert_eq!(ModFlags::WEAPON_2H.0, 0x20000000);
+    }
+
+    #[test]
+    fn mod_flags_and_matching_multi_bit() {
+        // AND matching: (cfg_flags & mod_flags) == mod_flags
+        // A mod with ATTACK|HIT should match a cfg with ATTACK|HIT|MELEE
+        let cfg = ModFlags(ModFlags::ATTACK.0 | ModFlags::HIT.0 | ModFlags::MELEE.0);
+        let mod_flags = ModFlags(ModFlags::ATTACK.0 | ModFlags::HIT.0);
+        assert!(cfg.contains(mod_flags));
+
+        // A mod with ATTACK|SPELL should NOT match cfg with only ATTACK
+        let cfg2 = ModFlags(ModFlags::ATTACK.0);
+        let mod_flags2 = ModFlags(ModFlags::ATTACK.0 | ModFlags::SPELL.0);
+        assert!(!cfg2.contains(mod_flags2));
+    }
+
+    #[test]
+    fn mod_flags_none_always_matches() {
+        // A mod with NONE flags matches any cfg
+        let cfg = ModFlags(ModFlags::ATTACK.0 | ModFlags::MELEE.0);
+        assert!(cfg.contains(ModFlags::NONE));
+        assert!(ModFlags::NONE.contains(ModFlags::NONE));
+    }
+
+    #[test]
+    fn mod_flags_bitwise_or() {
+        let combined = ModFlags::ATTACK | ModFlags::SPELL;
+        assert_eq!(combined.0, 0x03);
+        assert!(combined.contains(ModFlags::ATTACK));
+        assert!(combined.contains(ModFlags::SPELL));
+        assert!(!combined.contains(ModFlags::HIT));
     }
 }
