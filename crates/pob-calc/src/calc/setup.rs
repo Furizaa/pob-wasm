@@ -87,7 +87,7 @@ fn add_passive_mods(build: &Build, db: &mut ModDb, data: &GameData) {
         };
         let source = ModSource::new("Passive", &node.name);
         for stat_text in &node.stats {
-            let mods = crate::build::item_parser::parse_stat_text(stat_text, source.clone());
+            let mods = crate::build::mod_parser::parse_mod(stat_text, source.clone());
             for m in mods {
                 db.add(m);
             }
