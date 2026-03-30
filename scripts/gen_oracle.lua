@@ -38,6 +38,20 @@ package.preload['lua-utf8'] = function()
     return utf8
 end
 
+-- lcurl: used for update checking, not needed for calc
+package.preload['lcurl'] = function()
+    return { easy = function() return {} end }
+end
+package.preload['lcurl.safe'] = package.preload['lcurl']
+
+-- lzip: used for build import compression
+package.preload['lzip'] = function()
+    return {
+        inflate = function(data) return data end,
+        deflate = function(data) return data end,
+    }
+end
+
 -- Pre-define GetVirtualScreenSize before HeadlessWrapper loads Launch.lua
 -- HeadlessWrapper defines GetScreenSize() but not GetVirtualScreenSize()
 -- and Launch.lua:394 calls GetVirtualScreenSize() in DrawPopup (called during OnFrame).
@@ -47,8 +61,34 @@ function GetVirtualScreenSize()
     return 1920, 1080
 end
 
--- Bootstrap POB's headless wrapper
+-- Redirect ConPrintf to stderr so stdout remains clean JSON.
+-- We define this before loading HeadlessWrapper because HeadlessWrapper defines
+-- ConPrintf as print() (stdout), and the startup sequence (Launch.lua, OnInit,
+-- OnFrame) emits messages like "Loading main script...", "Uniques loaded", etc.
+-- HeadlessWrapper.lua will overwrite this with its own version (also print-based),
+-- so we override it again after dofile.
+function ConPrintf(fmt, ...)
+    io.stderr:write(string.format(fmt, ...) .. "\n")
+end
+
+-- Also redirect Lua's print() to stderr for any other stray output
+local _print = print
+print = function(...)
+    local args = {...}
+    local parts = {}
+    for i = 1, select("#", ...) do
+        parts[i] = tostring(args[i])
+    end
+    io.stderr:write(table.concat(parts, "\t") .. "\n")
+end
+
+-- Bootstrap POB's headless wrapper (defines globals: loadBuildFromXML, build, etc.)
 dofile(pob_dir .. "/HeadlessWrapper.lua")
+
+-- Re-override ConPrintf since HeadlessWrapper redefines it as print()
+function ConPrintf(fmt, ...)
+    io.stderr:write(string.format(fmt, ...) .. "\n")
+end
 
 -- Simple JSON serializer (no external deps needed for basic types)
 local function to_json(val)
@@ -83,7 +123,7 @@ local function to_json(val)
     return "null"
 end
 
--- Read and parse the build XML
+-- Read the build XML
 local f = io.open(xml_path, "r")
 if not f then
     io.stderr:write("Cannot open: " .. xml_path .. "\n")
@@ -92,25 +132,23 @@ end
 local xml_content = f:read("*a")
 f:close()
 
--- Load the Build class module explicitly so it's available
-LoadModule("Classes/Build.lua")
+-- Use HeadlessWrapper's loadBuildFromXML to properly initialize the build.
+-- This calls mainObject.main:SetMode("BUILD", ...) + runCallback("OnFrame"),
+-- which triggers full build initialization including CalcsTab:BuildOutput().
+-- After this, the global `build` is set (HeadlessWrapper.lua:201).
+loadBuildFromXML(xml_content, "oracle_build")
 
--- Load the build module
-local build = new("Build", nil, "oracle_build", xml_content)
+-- build is now the global set by HeadlessWrapper (line 201):
+--   build = mainObject.main.modes["BUILD"]
+-- build.calcsTab.mainEnv has the full calculation environment
+-- build.calcsTab.mainOutput is env.player.output
 
--- Run calculations with breakdown enabled
-local calcs = LoadModule("Modules/Calcs.lua")
-local env, _, _, _ = calcs.initEnv(build, "NORMAL")
-
--- Enable breakdown on the player actor
-env.player.breakdown = {}
-if env.minion then env.minion.breakdown = {} end
-
-calcs.perform(env)
+local mainEnv = build.calcsTab.mainEnv
+local mainOutput = build.calcsTab.mainOutput
 
 -- Collect output (filter out non-serializable values)
 local output = {}
-for k, v in pairs(env.player.output) do
+for k, v in pairs(mainOutput) do
     local t = type(v)
     if t == "number" or t == "boolean" or t == "string" then
         output[k] = v
@@ -119,17 +157,19 @@ end
 
 -- Collect breakdown (only text lines for now)
 local breakdown = {}
-for k, v in pairs(env.player.breakdown) do
-    if type(v) == "table" then
-        local bd = {}
-        local lines = {}
-        for _, line in ipairs(v) do
-            if type(line) == "string" then
-                table.insert(lines, line)
+if mainEnv.player.breakdown then
+    for k, v in pairs(mainEnv.player.breakdown) do
+        if type(v) == "table" then
+            local bd = {}
+            local lines = {}
+            for _, line in ipairs(v) do
+                if type(line) == "string" then
+                    table.insert(lines, line)
+                end
             end
+            if #lines > 0 then bd.lines = lines end
+            if next(bd) then breakdown[k] = bd end
         end
-        if #lines > 0 then bd.lines = lines end
-        if next(bd) then breakdown[k] = bd end
     end
 end
 
