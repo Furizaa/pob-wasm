@@ -1,4 +1,4 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 fn is_false(v: &bool) -> bool {
     !*v
@@ -20,7 +20,8 @@ fn is_zero_u32(v: &u32) -> bool {
 // Skill Gems
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct SkillGemData {
     pub id: String,
     pub display_name: String,
@@ -55,13 +56,14 @@ pub struct SkillGemData {
     pub stats: Vec<String>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StatEntry {
     pub stat_id: String,
     pub value: f64,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct SkillLevelData {
     pub level: u32,
     #[serde(skip_serializing_if = "is_zero_u32")]
