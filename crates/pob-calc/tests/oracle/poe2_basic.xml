@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <PathOfBuilding>
-  <Build level="90" targetVersion="3_29" bandit="None" mainSocketGroup="1"
+  <Build level="90" targetVersion="3_0" bandit="None" mainSocketGroup="1"
          className="Marauder" ascendClassName="None"/>
   <Skills activeSkillSet="1">
     <SkillSet id="1">
@@ -9,7 +9,7 @@
       </Skill>
     </SkillSet>
   </Skills>
-  <Tree activeSpec="1"><Spec treeVersion="3_29" nodes="" classId="1" ascendClassId="0"/></Tree>
+  <Tree activeSpec="1"><Spec treeVersion="3_28" nodes="" classId="1" ascendClassId="0"/></Tree>
   <Items activeItemSet="1"><ItemSet id="1"/></Items>
   <Config><Input name="enemyLevel" number="84"/></Config>
 </PathOfBuilding>

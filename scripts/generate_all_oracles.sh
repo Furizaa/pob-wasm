@@ -1,7 +1,7 @@
 #!/bin/bash
 # generate_all_oracles.sh: Generate .expected.json for ALL oracle builds.
 # Usage: ./scripts/generate_all_oracles.sh
-# Requires: luajit, PathOfBuilding submodule initialized
+# Requires: luajit, python3, PathOfBuilding submodule initialized
 
 set -e
 
@@ -14,10 +14,19 @@ if ! command -v luajit &> /dev/null; then
     exit 1
 fi
 
+if ! command -v python3 &> /dev/null; then
+    echo "ERROR: python3 not found. Required for JSON validation." >&2
+    echo "Install with: brew install python3 (macOS) or apt install python3 (Linux)" >&2
+    exit 1
+fi
+
 if [ ! -f "$REPO_ROOT/third-party/PathOfBuilding/src/HeadlessWrapper.lua" ]; then
     echo "ERROR: PathOfBuilding submodule not initialized. Run: git submodule update --init --recursive" >&2
     exit 1
 fi
+
+STDERR_FILE="$(mktemp)"
+trap 'rm -f "$STDERR_FILE"' EXIT
 
 PASS=0
 FAIL=0
@@ -30,7 +39,7 @@ for xml in "$ORACLE_DIR"/*.xml; do
 
     echo -n "Generating: ${name} ... "
 
-    if output=$("$SCRIPT_DIR/run_oracle.sh" "$xml" 2>/tmp/gen_oracle_stderr.txt); then
+    if output=$("$SCRIPT_DIR/run_oracle.sh" "$xml" 2>"$STDERR_FILE"); then
         if echo "$output" | python3 -m json.tool > /dev/null 2>&1; then
             echo "$output" > "$expected"
             echo "OK"
@@ -41,7 +50,7 @@ for xml in "$ORACLE_DIR"/*.xml; do
         fi
     else
         echo "FAIL"
-        cat /tmp/gen_oracle_stderr.txt >&2
+        cat "$STDERR_FILE" >&2
         FAIL=$((FAIL + 1))
     fi
 done
