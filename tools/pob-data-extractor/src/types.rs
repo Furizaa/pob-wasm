@@ -206,7 +206,8 @@ pub struct UniqueItemData {
 // Item Mods
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct ItemModData {
     pub id: String,
     pub mod_type: String,
@@ -219,7 +220,8 @@ pub struct ItemModData {
     pub level_requirement: u32,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct ItemModStat {
     pub stat_id: String,
     #[serde(skip_serializing_if = "is_zero_i64")]
