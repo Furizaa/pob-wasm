@@ -210,7 +210,10 @@ pub enum ModTag {
     },
 
     /// Gates mod on a condition flag being true (or false if neg=true).
-    Condition { var: String, neg: bool },
+    Condition {
+        var: String,
+        neg: bool,
+    },
 
     /// Gates mod on another actor's condition flag.
     ActorCondition {
@@ -220,26 +223,55 @@ pub enum ModTag {
     },
 
     /// Caps the cumulative value of this mod (applied after scaling).
-    Limit { limit: f64 },
+    Limit {
+        limit: f64,
+    },
 
     /// Gates mod on the active skill having a specific skill type flag.
-    SkillType { skill_type: u32 },
+    SkillType {
+        skill_type: u32,
+    },
 
     /// Gates mod on the active skill's equipment slot.
-    SlotName { slot_name: String, neg: bool },
+    SlotName {
+        slot_name: String,
+        neg: bool,
+    },
 
     /// OR-based flag check (instead of the default AND matching).
     /// Passes if (cfg_flags & mod_flags) != 0.
-    ModFlagOr { mod_flags: ModFlags },
+    ModFlagOr {
+        mod_flags: ModFlags,
+    },
 
     /// AND-based keyword check (instead of the default OR matching).
     /// Passes if (cfg_keywords & keyword_flags) == keyword_flags.
-    KeywordFlagAnd { keyword_flags: KeywordFlags },
+    KeywordFlagAnd {
+        keyword_flags: KeywordFlags,
+    },
 
     /// Marks this mod as a buff/debuff for the GlobalEffect system.
     GlobalEffect {
         effect_type: String,
         unscalable: bool,
+    },
+
+    // --- Phase 3: needed by generated mod parser ---
+    SkillName {
+        name: String,
+    },
+    SkillId {
+        id: String,
+    },
+    SkillPart {
+        part: u32,
+    },
+    SocketedIn {
+        slot_name: String,
+    },
+    ItemCondition {
+        var: String,
+        neg: bool,
     },
 }
 

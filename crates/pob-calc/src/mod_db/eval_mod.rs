@@ -139,6 +139,22 @@ pub fn eval_mod(
             ModTag::GlobalEffect { .. } => {
                 // Metadata only — no gating or scaling
             }
+            // Phase 3 stubs — tags stored correctly, evaluation deferred to Phase 4+
+            ModTag::SkillName { .. } => {
+                // TODO(phase4): check against cfg.skill_name
+            }
+            ModTag::SkillId { .. } => {
+                // TODO(phase4): check against cfg.skill_id
+            }
+            ModTag::SkillPart { .. } => {
+                // TODO(phase4): check against cfg.skill_part
+            }
+            ModTag::SocketedIn { .. } => {
+                // TODO(phase4): check against item socket context
+            }
+            ModTag::ItemCondition { .. } => {
+                // TODO(phase4): check against item condition context
+            }
         }
     }
 
@@ -531,5 +547,94 @@ mod tests {
             source: None,
         };
         assert_eq!(eval_mod(&m, Some(&cfg), &empty_db(), &empty_output()), None);
+    }
+
+    #[test]
+    fn eval_skill_name_tag_stubbed_passes() {
+        let m = Mod {
+            name: "Damage".into(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(10.0),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            tags: vec![ModTag::SkillName {
+                name: "Fireball".into(),
+            }],
+            source: ModSource::new("Test", "test"),
+        };
+        let db = ModDb::new();
+        let output = OutputTable::new();
+        assert_eq!(eval_mod(&m, None, &db, &output), Some(10.0));
+    }
+
+    #[test]
+    fn eval_skill_id_tag_stubbed_passes() {
+        let m = Mod {
+            name: "Damage".into(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(5.0),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            tags: vec![ModTag::SkillId {
+                id: "Fireball".into(),
+            }],
+            source: ModSource::new("Test", "test"),
+        };
+        let db = ModDb::new();
+        let output = OutputTable::new();
+        assert_eq!(eval_mod(&m, None, &db, &output), Some(5.0));
+    }
+
+    #[test]
+    fn eval_socketed_in_tag_stubbed_passes() {
+        let m = Mod {
+            name: "Level".into(),
+            mod_type: ModType::Base,
+            value: ModValue::Number(1.0),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            tags: vec![ModTag::SocketedIn {
+                slot_name: "Body Armour".into(),
+            }],
+            source: ModSource::new("Test", "test"),
+        };
+        let db = ModDb::new();
+        let output = OutputTable::new();
+        assert_eq!(eval_mod(&m, None, &db, &output), Some(1.0));
+    }
+
+    #[test]
+    fn eval_item_condition_tag_stubbed_passes() {
+        let m = Mod {
+            name: "Armour".into(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(20.0),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            tags: vec![ModTag::ItemCondition {
+                var: "UsingShield".into(),
+                neg: false,
+            }],
+            source: ModSource::new("Test", "test"),
+        };
+        let db = ModDb::new();
+        let output = OutputTable::new();
+        assert_eq!(eval_mod(&m, None, &db, &output), Some(20.0));
+    }
+
+    #[test]
+    fn eval_skill_part_tag_stubbed_passes() {
+        let m = Mod {
+            name: "Damage".into(),
+            mod_type: ModType::More,
+            value: ModValue::Number(30.0),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            tags: vec![ModTag::SkillPart { part: 1 }],
+            source: ModSource::new("Test", "test"),
+        };
+        let db = ModDb::new();
+        let output = OutputTable::new();
+        assert_eq!(eval_mod(&m, None, &db, &output), Some(30.0));
     }
 }
