@@ -94,7 +94,8 @@ pub struct SkillLevelData {
 // Base Items
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct BaseItemData {
     pub name: String,
     pub item_type: String,
@@ -116,7 +117,8 @@ pub struct BaseItemData {
     pub req: Option<BaseRequirements>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct WeaponData {
     #[serde(skip_serializing_if = "is_zero_f64")]
     pub physical_min: f64,
@@ -130,7 +132,8 @@ pub struct WeaponData {
     pub range: u32,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct ArmourData {
     #[serde(skip_serializing_if = "is_zero_f64")]
     pub armour_min: f64,
@@ -154,7 +157,8 @@ pub struct ArmourData {
     pub movement_penalty: u32,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct FlaskData {
     #[serde(skip_serializing_if = "is_zero_f64")]
     pub life: f64,
@@ -168,7 +172,8 @@ pub struct FlaskData {
     pub charges_max: u32,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct BaseRequirements {
     #[serde(skip_serializing_if = "is_zero_u32")]
     pub level: u32,
