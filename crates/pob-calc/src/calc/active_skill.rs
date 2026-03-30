@@ -255,8 +255,6 @@ mod tests {
         // This test requires that data/gems.json contains a "fireball" entry with level 20 data.
         // It verifies the gem level lookup actually works (not just the struct parsing).
         // Uses the real data directory if available.
-        use std::path::PathBuf;
-
         let data_dir = std::env::var("DATA_DIR").unwrap_or_default();
         if data_dir.is_empty() {
             // With stub data, no gem levels exist — just verify no panic
