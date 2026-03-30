@@ -1,4 +1,4 @@
-use super::env::{get_output_f64, CalcEnv, OutputValue};
+use super::env::{get_output_f64, CalcEnv};
 use crate::build::Build;
 use crate::mod_db::types::{KeywordFlags, ModFlags, ModType};
 
