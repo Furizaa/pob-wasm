@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_29" bandit="None" mainSocketGroup="1"
+         className="Shadow" ascendClassName="None"/>
+  <Skills activeSkillSet="1">
+    <SkillSet id="1">
+      <Skill mainActiveSkill="1" enabled="true" slot="Weapon 1">
+        <Gem skillId="Blastchain Mine" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Tree activeSpec="1"><Spec treeVersion="3_29" nodes="" classId="2" ascendClassId="0"/></Tree>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config><Input name="enemyLevel" number="84"/></Config>
+</PathOfBuilding>
