@@ -625,7 +625,9 @@ name = "pob-calc"
 version = "0.1.0"
 dependencies = [
  "base64",
+ "once_cell",
  "quick-xml",
+ "regex",
  "serde",
  "serde_json",
  "thiserror",

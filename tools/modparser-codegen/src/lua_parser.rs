@@ -679,12 +679,14 @@ fn parse_special_mod_list(lines: &[&str]) -> Result<Vec<SpecialModEntry>, String
             if let Some(value_part) = strip_equals(rest) {
                 let line_number = i + 1; // 1-based
                 let (value, next_i) = collect_value(lines, i, value_part, end);
+                let trimmed_value = value.trim_start();
+                let is_function = trimmed_value.starts_with("function(")
+                    || trimmed_value.starts_with("function (");
+                let template =
+                    crate::templates::classify_special_mod(&value, is_function, line_number);
                 entries.push(SpecialModEntry {
                     pattern: LuaPattern(key.to_string()),
-                    template: SpecialModTemplate::ManualRequired {
-                        lua_body: value,
-                        line_number,
-                    },
+                    template,
                     line_number,
                 });
                 i = next_i;
