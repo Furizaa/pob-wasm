@@ -21,10 +21,22 @@ fn build_real_game_data_json(data_dir: &str) -> Result<String, Box<dyn std::erro
     let misc: serde_json::Value = serde_json::from_str(&misc_str)?;
     let tree: serde_json::Value = serde_json::from_str(&tree_str)?;
 
+    let bases: serde_json::Value = std::fs::read_to_string(format!("{data_dir}/bases.json"))
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or(serde_json::Value::Array(vec![]));
+
+    let uniques: serde_json::Value = std::fs::read_to_string(format!("{data_dir}/uniques.json"))
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or(serde_json::Value::Array(vec![]));
+
     let combined = serde_json::json!({
         "gems": gems,
         "misc": misc,
         "tree": tree,
+        "bases": bases,
+        "uniques": uniques,
     });
     Ok(serde_json::to_string(&combined)?)
 }
