@@ -18,9 +18,15 @@
 mod generated;
 
 #[path = "mod_parser_manual.rs"]
-mod mod_parser_manual;
+pub(crate) mod mod_parser_manual;
 
 use crate::mod_db::types::{Mod, ModSource};
+
+// Verify all manual handlers are implemented
+const _: () = assert!(
+    mod_parser_manual::IMPLEMENTED_MANUAL_COUNT == 25,
+    "Not all manual handlers implemented"
+);
 
 /// Parse a stat text line into zero or more Mod values.
 ///
