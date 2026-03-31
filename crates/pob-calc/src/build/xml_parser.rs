@@ -21,6 +21,9 @@ pub fn parse_xml(xml: &str) -> Result<Build, ParseError> {
     let mut current_skill_set: Option<SkillSet> = None;
     let mut current_skill: Option<Skill> = None;
     let mut current_item_set: Option<ItemSet> = None;
+    let mut current_item_id: Option<u32> = None;
+    let mut current_item_text = String::new();
+    let mut items: HashMap<u32, Item> = HashMap::new();
 
     let mut buf = Vec::new();
     loop {
@@ -155,6 +158,12 @@ pub fn parse_xml(xml: &str) -> Result<Build, ParseError> {
                             .map(|v| v.saturating_sub(1))
                             .unwrap_or(0);
                     }
+                    "Item" => {
+                        if let Some(id) = attrs.get("id").and_then(|v| v.parse::<u32>().ok()) {
+                            current_item_id = Some(id);
+                            current_item_text.clear();
+                        }
+                    }
                     "ItemSet" => {
                         let id = attrs.get("id").and_then(|v| v.parse().ok()).unwrap_or(1);
                         current_item_set = Some(ItemSet {
@@ -190,6 +199,20 @@ pub fn parse_xml(xml: &str) -> Result<Build, ParseError> {
                     _ => {}
                 }
             }
+            Ok(Event::Text(ref e)) => {
+                if current_item_id.is_some() {
+                    if let Ok(text) = e.unescape() {
+                        current_item_text.push_str(&text);
+                    }
+                }
+            }
+            Ok(Event::CData(ref e)) => {
+                if current_item_id.is_some() {
+                    if let Ok(text) = std::str::from_utf8(e.as_ref()) {
+                        current_item_text.push_str(text);
+                    }
+                }
+            }
             Ok(Event::End(ref e)) => {
                 let end_name_bytes = e.name();
                 let name = std::str::from_utf8(end_name_bytes.as_ref()).unwrap_or("");
@@ -204,6 +227,13 @@ pub fn parse_xml(xml: &str) -> Result<Build, ParseError> {
                     "SkillSet" => {
                         if let Some(ss) = current_skill_set.take() {
                             skill_sets.push(ss);
+                        }
+                    }
+                    "Item" => {
+                        if let Some(id) = current_item_id.take() {
+                            let item = parse_item_text(id, &current_item_text);
+                            items.insert(id, item);
+                            current_item_text.clear();
                         }
                     }
                     "ItemSet" => {
@@ -231,7 +261,261 @@ pub fn parse_xml(xml: &str) -> Result<Build, ParseError> {
     b.item_sets = item_sets;
     b.active_item_set = active_item_set;
     b.config = config;
+    b.items = items;
     Ok(b)
+}
+
+/// Strip curly-brace prefixes like `{variant:1,2}`, `{range:0.5}`, `{tags:...}`,
+/// `{crafted}`, `{fractured}`, `{enchant}` from a mod line.
+/// Returns (stripped_text, is_crafted, is_enchant, is_fractured).
+fn strip_mod_prefixes(line: &str) -> (String, bool, bool, bool) {
+    let mut remaining = line;
+    let mut is_crafted = false;
+    let mut is_enchant = false;
+    let mut is_fractured = false;
+
+    // Strip all {prefix} tags from the start
+    while remaining.starts_with('{') {
+        if let Some(end) = remaining.find('}') {
+            let tag = &remaining[1..end];
+            match tag {
+                "crafted" => is_crafted = true,
+                "enchant" => is_enchant = true,
+                "fractured" => is_fractured = true,
+                _ => {} // variant:..., range:..., tags:... — just strip
+            }
+            remaining = &remaining[end + 1..];
+        } else {
+            break;
+        }
+    }
+
+    (remaining.to_string(), is_crafted, is_enchant, is_fractured)
+}
+
+/// Parse socket string like "R-R-G B" into SocketGroups.
+/// Dash means linked, space means new group.
+fn parse_sockets(s: &str) -> Vec<SocketGroup> {
+    s.split_whitespace()
+        .map(|group_str| {
+            let colors: Vec<char> = group_str
+                .split('-')
+                .filter_map(|c| c.chars().next())
+                .collect();
+            let linked = colors.len() > 1;
+            SocketGroup { colors, linked }
+        })
+        .collect()
+}
+
+/// Lines to skip in the item header section.
+fn is_skip_header(line: &str) -> bool {
+    line.starts_with("Variant:")
+        || line.starts_with("Selected Variant:")
+        || line.starts_with("LevelReq:")
+        || line.starts_with("League:")
+        || line.starts_with("Source:")
+        || line.starts_with("Requires")
+        || line.starts_with("Limited")
+        || line.starts_with("Radius:")
+        || line.starts_with("Unreleased")
+        || line.starts_with("Upgrade:")
+        || line.starts_with("Tincture")
+        || line.starts_with("Has Alt Variant")
+}
+
+/// Parse the text content of an `<Item>` element into an Item struct.
+fn parse_item_text(id: u32, text: &str) -> Item {
+    let mut rarity = ItemRarity::Normal;
+    let mut name = String::new();
+    let mut base_type = String::new();
+    let mut quality: u32 = 0;
+    let mut sockets: Vec<SocketGroup> = Vec::new();
+    let mut corrupted = false;
+    let mut influence = ItemInfluence::default();
+    let mut implicits: Vec<String> = Vec::new();
+    let mut explicits: Vec<String> = Vec::new();
+    let mut crafted_mods: Vec<String> = Vec::new();
+    let mut enchant_mods: Vec<String> = Vec::new();
+
+    let mut implicits_remaining: Option<usize> = None;
+    let mut in_mods = false; // true once we've passed the Implicits: line and consumed all implicits
+    let mut name_lines: Vec<String> = Vec::new(); // collect name/base_type candidates
+
+    for line in text.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+
+        // If we're counting implicit lines
+        if let Some(ref mut remaining) = implicits_remaining {
+            if *remaining > 0 {
+                let (stripped, _crafted, _enchant, _fractured) = strip_mod_prefixes(line);
+                implicits.push(stripped);
+                *remaining -= 1;
+                if *remaining == 0 {
+                    in_mods = true;
+                    implicits_remaining = None;
+                }
+                continue;
+            }
+        }
+
+        // Once past implicits, everything is a mod line
+        if in_mods {
+            // Check influence/corrupted markers that can appear after mods
+            match line {
+                "Corrupted" => {
+                    corrupted = true;
+                    continue;
+                }
+                "Shaper Item" => {
+                    influence.shaper = true;
+                    continue;
+                }
+                "Elder Item" => {
+                    influence.elder = true;
+                    continue;
+                }
+                "Crusader Item" => {
+                    influence.crusader = true;
+                    continue;
+                }
+                "Redeemer Item" => {
+                    influence.redeemer = true;
+                    continue;
+                }
+                "Hunter Item" => {
+                    influence.hunter = true;
+                    continue;
+                }
+                "Warlord Item" => {
+                    influence.warlord = true;
+                    continue;
+                }
+                "Fractured Item" => {
+                    influence.fractured = true;
+                    continue;
+                }
+                "Synthesised Item" => {
+                    influence.synthesised = true;
+                    continue;
+                }
+                _ => {}
+            }
+
+            let (stripped, is_crafted, is_enchant, _is_fractured) = strip_mod_prefixes(line);
+            if is_crafted {
+                crafted_mods.push(stripped);
+            } else if is_enchant {
+                enchant_mods.push(stripped);
+            } else {
+                explicits.push(stripped);
+            }
+            continue;
+        }
+
+        // Header section (before Implicits:)
+        if let Some(rest) = line.strip_prefix("Rarity: ") {
+            rarity = ItemRarity::from_str(rest).unwrap_or(ItemRarity::Normal);
+            continue;
+        }
+        if let Some(rest) = line.strip_prefix("Quality: ") {
+            quality = rest.parse().unwrap_or(0);
+            continue;
+        }
+        if let Some(rest) = line.strip_prefix("Sockets: ") {
+            sockets = parse_sockets(rest);
+            continue;
+        }
+        if let Some(rest) = line.strip_prefix("Implicits: ") {
+            let count: usize = rest.parse().unwrap_or(0);
+            if count == 0 {
+                in_mods = true;
+            } else {
+                implicits_remaining = Some(count);
+            }
+            continue;
+        }
+        if line == "Corrupted" {
+            corrupted = true;
+            continue;
+        }
+
+        // Influence markers in header
+        match line {
+            "Shaper Item" => {
+                influence.shaper = true;
+                continue;
+            }
+            "Elder Item" => {
+                influence.elder = true;
+                continue;
+            }
+            "Crusader Item" => {
+                influence.crusader = true;
+                continue;
+            }
+            "Redeemer Item" => {
+                influence.redeemer = true;
+                continue;
+            }
+            "Hunter Item" => {
+                influence.hunter = true;
+                continue;
+            }
+            "Warlord Item" => {
+                influence.warlord = true;
+                continue;
+            }
+            "Fractured Item" => {
+                influence.fractured = true;
+                continue;
+            }
+            "Synthesised Item" => {
+                influence.synthesised = true;
+                continue;
+            }
+            _ => {}
+        }
+
+        // Skip known header lines
+        if is_skip_header(line) {
+            continue;
+        }
+
+        // Otherwise it's a name or base_type line
+        name_lines.push(line.to_string());
+    }
+
+    // First non-header line is name, second is base_type
+    if let Some(n) = name_lines.first() {
+        name = n.clone();
+    }
+    if let Some(bt) = name_lines.get(1) {
+        base_type = bt.clone();
+    }
+
+    Item {
+        id,
+        rarity,
+        name,
+        base_type,
+        item_type: String::new(), // resolved later from base data
+        quality,
+        sockets,
+        implicits,
+        explicits,
+        crafted_mods,
+        enchant_mods,
+        corrupted,
+        influence,
+        weapon_data: None,
+        armour_data: None,
+        flask_data: None,
+        requirements: ItemRequirements::default(),
+    }
 }
 
 #[cfg(test)]
@@ -300,5 +584,105 @@ mod tests {
     #[test]
     fn rejects_missing_build_element() {
         assert!(parse_xml("<PathOfBuilding/>").is_err());
+    }
+
+    #[test]
+    fn parses_item_elements() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_29" bandit="None" mainSocketGroup="1"
+         className="Marauder" ascendClassName="None"/>
+  <Skills activeSkillSet="1"><SkillSet id="1"/></Skills>
+  <Tree activeSpec="1"><Spec treeVersion="3_29" nodes="" classId="1" ascendClassId="0"/></Tree>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Test Sword
+Rusted Sword
+Quality: 20
+Sockets: R-R-G
+Implicits: 1
+40% increased Global Accuracy Rating
+Adds 10 to 20 Physical Damage
+15% increased Attack Speed
++30 to maximum Life
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config/>
+</PathOfBuilding>"#;
+        let build = parse_xml(xml).unwrap();
+        assert_eq!(build.items.len(), 1);
+        let item = build.items.get(&1).unwrap();
+        assert_eq!(item.rarity, ItemRarity::Rare);
+        assert_eq!(item.base_type, "Rusted Sword");
+        assert_eq!(item.quality, 20);
+        assert_eq!(item.implicits.len(), 1);
+        assert!(item.explicits.len() >= 3);
+        assert_eq!(item.name, "Test Sword");
+    }
+
+    #[test]
+    fn parses_item_with_crafted_and_enchant() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_29" bandit="None" mainSocketGroup="1"
+         className="Marauder" ascendClassName="None"/>
+  <Skills activeSkillSet="1"><SkillSet id="1"/></Skills>
+  <Tree activeSpec="1"><Spec treeVersion="3_29" nodes="" classId="1" ascendClassId="0"/></Tree>
+  <Items activeItemSet="1">
+    <Item id="2">
+Rarity: RARE
+Test Helmet
+Eternal Burgonet
+Quality: 20
+Implicits: 0
++80 to maximum Life
+{crafted}+25% to Fire Resistance
+{enchant}40% increased Fireball Damage
+    </Item>
+    <ItemSet id="1"/>
+  </Items>
+  <Config/>
+</PathOfBuilding>"#;
+        let build = parse_xml(xml).unwrap();
+        let item = build.items.get(&2).unwrap();
+        assert_eq!(item.explicits.len(), 1, "should have 1 regular explicit");
+        assert_eq!(item.crafted_mods.len(), 1, "should have 1 crafted mod");
+        assert_eq!(item.enchant_mods.len(), 1, "should have 1 enchant mod");
+        // Crafted/enchant prefix should be stripped
+        assert_eq!(item.crafted_mods[0], "+25% to Fire Resistance");
+        assert_eq!(item.enchant_mods[0], "40% increased Fireball Damage");
+    }
+
+    #[test]
+    fn parses_unique_item() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_29" bandit="None" mainSocketGroup="1"
+         className="Marauder" ascendClassName="None"/>
+  <Skills activeSkillSet="1"><SkillSet id="1"/></Skills>
+  <Tree activeSpec="1"><Spec treeVersion="3_29" nodes="" classId="1" ascendClassId="0"/></Tree>
+  <Items activeItemSet="1">
+    <Item id="3">
+Rarity: UNIQUE
+Goldrim
+Leather Cap
+Implicits: 0
++(30-50) to Evasion Rating
+10% increased Rarity of Items found
++(30-40)% to all Elemental Resistances
+    </Item>
+    <ItemSet id="1"/>
+  </Items>
+  <Config/>
+</PathOfBuilding>"#;
+        let build = parse_xml(xml).unwrap();
+        let item = build.items.get(&3).unwrap();
+        assert_eq!(item.rarity, ItemRarity::Unique);
+        assert_eq!(item.name, "Goldrim");
+        assert_eq!(item.base_type, "Leather Cap");
     }
 }
