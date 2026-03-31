@@ -4,6 +4,7 @@ pub mod defence_ehp;
 pub mod env;
 pub mod mirages;
 pub mod offence;
+pub mod offence_utils;
 pub mod perform;
 pub mod setup;
 pub mod triggers;
