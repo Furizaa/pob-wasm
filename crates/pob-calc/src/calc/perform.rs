@@ -1,11 +1,1356 @@
-use super::env::{get_output_f64, CalcEnv, OutputValue};
-use crate::mod_db::types::{KeywordFlags, ModFlags, ModType};
+use super::env::{get_output_f64, CalcEnv};
+use crate::mod_db::types::{KeywordFlags, Mod, ModFlags, ModSource, ModType, ModValue};
 
+/// Run all CalcPerform passes in order.
+/// Mirrors CalcPerform.lua's main execution flow.
 pub fn run(env: &mut CalcEnv) {
+    do_actor_attribs_conditions(env);
     do_actor_life_mana(env);
-    do_actor_attribs(env);
+    do_actor_life_mana_reservation(env);
+    do_actor_charges(env);
+    do_actor_misc(env);
+    apply_buffs(env);
+    apply_curses(env);
+    do_non_damaging_ailments(env);
+    apply_exposure(env);
+    do_regen_recharge_leech(env);
+
+    let asm = action_speed_mod(env);
+    env.player.set_output("ActionSpeedMod", asm);
+    env.player.action_speed_mod = asm;
+
     do_actor_attack_cast_speed(env);
+    do_mom_eb(env);
+    set_final_conditions(env);
 }
+
+// ---------------------------------------------------------------------------
+// Attributes & conditions
+// ---------------------------------------------------------------------------
+
+/// Mirrors doActorAttribsConditions() in CalcPerform.lua.
+/// Computes Str/Dex/Int, Omniscience, attribute-derived bonuses, and conditions.
+fn do_actor_attribs_conditions(env: &mut CalcEnv) {
+    let o = &env.player.output;
+
+    // Compute raw Str/Dex/Int
+    let str_base = env.player.mod_db.sum_cfg(ModType::Base, "Str", None, o);
+    let str_inc = env.player.mod_db.sum_cfg(ModType::Inc, "Str", None, o);
+    let str_more = env.player.mod_db.more_cfg("Str", None, o);
+    let str_val = (str_base * (1.0 + str_inc / 100.0) * str_more).floor();
+
+    let dex_base = env.player.mod_db.sum_cfg(ModType::Base, "Dex", None, o);
+    let dex_inc = env.player.mod_db.sum_cfg(ModType::Inc, "Dex", None, o);
+    let dex_more = env.player.mod_db.more_cfg("Dex", None, o);
+    let dex_val = (dex_base * (1.0 + dex_inc / 100.0) * dex_more).floor();
+
+    let int_base = env.player.mod_db.sum_cfg(ModType::Base, "Int", None, o);
+    let int_inc = env.player.mod_db.sum_cfg(ModType::Inc, "Int", None, o);
+    let int_more = env.player.mod_db.more_cfg("Int", None, o);
+    let int_val = (int_base * (1.0 + int_inc / 100.0) * int_more).floor();
+
+    // Omniscience: converts Str+Dex+Int to Omni
+    let omniscience = env
+        .player
+        .mod_db
+        .flag_cfg("Omniscience", None, &env.player.output);
+
+    if omniscience {
+        let omni = str_val + dex_val + int_val;
+        env.player.set_output("Omni", omni);
+        env.player.set_output("Str", 0.0);
+        env.player.set_output("Dex", 0.0);
+        env.player.set_output("Int", 0.0);
+        env.player.mod_db.set_condition("Omniscience", true);
+    } else {
+        env.player.set_output("Str", str_val);
+        env.player.set_output("Dex", dex_val);
+        env.player.set_output("Int", int_val);
+    }
+
+    let str_out = get_output_f64(&env.player.output, "Str");
+    let dex_out = get_output_f64(&env.player.output, "Dex");
+    let int_out = get_output_f64(&env.player.output, "Int");
+
+    // Check global "no attribute bonuses" flags
+    let no_attr_bonuses =
+        env.player
+            .mod_db
+            .flag_cfg("NoAttributeBonuses", None, &env.player.output);
+    let no_str_bonuses = no_attr_bonuses
+        || env
+            .player
+            .mod_db
+            .flag_cfg("NoStrengthAttributeBonuses", None, &env.player.output);
+    let no_dex_bonuses = no_attr_bonuses
+        || env
+            .player
+            .mod_db
+            .flag_cfg("NoDexterityAttributeBonuses", None, &env.player.output);
+    let no_int_bonuses = no_attr_bonuses
+        || env
+            .player
+            .mod_db
+            .flag_cfg("NoIntelligenceAttributeBonuses", None, &env.player.output);
+
+    let attr_src = ModSource::new("Attribute", "Strength");
+    let attr_src_dex = ModSource::new("Attribute", "Dexterity");
+    let attr_src_int = ModSource::new("Attribute", "Intelligence");
+
+    // Strength derived bonuses
+    if !no_str_bonuses {
+        // +1 life per 2 Str
+        let no_str_life = env
+            .player
+            .mod_db
+            .flag_cfg("NoStrBonusToLife", None, &env.player.output);
+        if !no_str_life {
+            let life_from_str = (str_out * 0.5).floor();
+            if life_from_str > 0.0 {
+                env.player
+                    .mod_db
+                    .add(Mod::new_base("Life", life_from_str, attr_src.clone()));
+            }
+        }
+
+        // +1% Inc melee phys dmg per 5 Str (with MELEE flag)
+        let melee_phys_from_str = (str_out / 5.0).floor();
+        if melee_phys_from_str > 0.0 {
+            env.player.mod_db.add(Mod {
+                name: "PhysicalDamage".into(),
+                mod_type: ModType::Inc,
+                value: ModValue::Number(melee_phys_from_str),
+                flags: ModFlags::MELEE,
+                keyword_flags: KeywordFlags::NONE,
+                tags: Vec::new(),
+                source: attr_src.clone(),
+            });
+        }
+    }
+
+    // Dexterity derived bonuses
+    if !no_dex_bonuses {
+        // +2 accuracy per Dex
+        let acc_from_dex = (dex_out * 2.0).floor();
+        if acc_from_dex > 0.0 {
+            env.player.mod_db.add(Mod::new_base(
+                "Accuracy",
+                acc_from_dex,
+                attr_src_dex.clone(),
+            ));
+        }
+
+        // +1% Inc evasion per 5 Dex
+        let no_dex_evasion =
+            env.player
+                .mod_db
+                .flag_cfg("NoDexBonusToEvasion", None, &env.player.output);
+        if !no_dex_evasion {
+            let evasion_inc_from_dex = (dex_out / 5.0).floor();
+            if evasion_inc_from_dex > 0.0 {
+                env.player.mod_db.add(Mod {
+                    name: "Evasion".into(),
+                    mod_type: ModType::Inc,
+                    value: ModValue::Number(evasion_inc_from_dex),
+                    flags: ModFlags::NONE,
+                    keyword_flags: KeywordFlags::NONE,
+                    tags: Vec::new(),
+                    source: attr_src_dex.clone(),
+                });
+            }
+        }
+    }
+
+    // Intelligence derived bonuses
+    if !no_int_bonuses {
+        // +1% Inc mana per 5 Int
+        let no_int_mana = env
+            .player
+            .mod_db
+            .flag_cfg("NoIntBonusToMana", None, &env.player.output);
+        if !no_int_mana {
+            let mana_inc_from_int = (int_out / 5.0).floor();
+            if mana_inc_from_int > 0.0 {
+                env.player.mod_db.add(Mod {
+                    name: "Mana".into(),
+                    mod_type: ModType::Inc,
+                    value: ModValue::Number(mana_inc_from_int),
+                    flags: ModFlags::NONE,
+                    keyword_flags: KeywordFlags::NONE,
+                    tags: Vec::new(),
+                    source: attr_src_int.clone(),
+                });
+            }
+        }
+
+        // +1% Inc ES per 5 Int
+        let no_int_es = env
+            .player
+            .mod_db
+            .flag_cfg("NoIntBonusToES", None, &env.player.output);
+        if !no_int_es {
+            let es_inc_from_int = (int_out / 5.0).floor();
+            if es_inc_from_int > 0.0 {
+                env.player.mod_db.add(Mod {
+                    name: "EnergyShield".into(),
+                    mod_type: ModType::Inc,
+                    value: ModValue::Number(es_inc_from_int),
+                    flags: ModFlags::NONE,
+                    keyword_flags: KeywordFlags::NONE,
+                    tags: Vec::new(),
+                    source: attr_src_int.clone(),
+                });
+            }
+        }
+    }
+
+    // Attribute comparison conditions
+    env.player
+        .mod_db
+        .set_condition("StrHigherThanDex", str_out > dex_out);
+    env.player
+        .mod_db
+        .set_condition("DexHigherThanStr", dex_out > str_out);
+    env.player
+        .mod_db
+        .set_condition("StrHigherThanInt", str_out > int_out);
+    env.player
+        .mod_db
+        .set_condition("IntHigherThanStr", int_out > str_out);
+    env.player
+        .mod_db
+        .set_condition("DexHigherThanInt", dex_out > int_out);
+    env.player
+        .mod_db
+        .set_condition("IntHigherThanDex", int_out > dex_out);
+
+    // TotalAttr and LowestAttribute
+    let total_attr = str_out + dex_out + int_out;
+    env.player.set_output("TotalAttr", total_attr);
+    let lowest = str_out.min(dex_out).min(int_out);
+    env.player.set_output("LowestAttribute", lowest);
+
+    // Exposure tracking conditions
+    let fire_exposure = env.player.mod_db.sum_cfg(
+        ModType::Base,
+        "FireExposureChance",
+        None,
+        &env.player.output,
+    );
+    env.player
+        .mod_db
+        .set_condition("CanApplyFireExposure", fire_exposure > 0.0);
+
+    let cold_exposure = env.player.mod_db.sum_cfg(
+        ModType::Base,
+        "ColdExposureChance",
+        None,
+        &env.player.output,
+    );
+    env.player
+        .mod_db
+        .set_condition("CanApplyColdExposure", cold_exposure > 0.0);
+
+    let lightning_exposure = env.player.mod_db.sum_cfg(
+        ModType::Base,
+        "LightningExposureChance",
+        None,
+        &env.player.output,
+    );
+    env.player
+        .mod_db
+        .set_condition("CanApplyLightningExposure", lightning_exposure > 0.0);
+
+    // Non-damaging ailment tracking
+    let scorch_chance =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "ScorchChance", None, &env.player.output);
+    env.player
+        .mod_db
+        .set_condition("CanInflictScorch", scorch_chance > 0.0);
+
+    let brittle_chance =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "BrittleChance", None, &env.player.output);
+    env.player
+        .mod_db
+        .set_condition("CanInflictBrittle", brittle_chance > 0.0);
+
+    let sap_chance =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "SapChance", None, &env.player.output);
+    env.player
+        .mod_db
+        .set_condition("CanInflictSap", sap_chance > 0.0);
+}
+
+// ---------------------------------------------------------------------------
+// Life / Mana / ES calculation
+// ---------------------------------------------------------------------------
+
+/// Mirrors doActorLifeMana() in CalcPerform.lua.
+fn do_actor_life_mana(env: &mut CalcEnv) {
+    let o = &env.player.output;
+
+    // Chaos Inoculation: life is fixed at 1
+    let chaos_inoc = env.player.mod_db.flag_cfg("ChaosInoculation", None, o);
+    if chaos_inoc {
+        env.player.set_output("Life", 1.0);
+        env.player.mod_db.set_condition("FullLife", true);
+        env.player.mod_db.set_condition("ChaosInoculation", true);
+    } else {
+        // Life-to-ES conversion reduces life
+        let life_convert_to_es = env.player.mod_db.sum_cfg(
+            ModType::Base,
+            "LifeConvertToEnergyShield",
+            None,
+            &env.player.output,
+        );
+        let life_conversion_factor = 1.0 - (life_convert_to_es / 100.0).clamp(0.0, 1.0);
+
+        let base = env
+            .player
+            .mod_db
+            .sum_cfg(ModType::Base, "Life", None, &env.player.output);
+        let inc = env
+            .player
+            .mod_db
+            .sum_cfg(ModType::Inc, "Life", None, &env.player.output);
+        let more = env.player.mod_db.more_cfg("Life", None, &env.player.output);
+        let life = (base * (1.0 + inc / 100.0) * more * life_conversion_factor)
+            .max(1.0)
+            .round();
+        env.player.set_output("Life", life);
+
+        // Breakdown
+        if inc != 0.0 || more != 1.0 || life_conversion_factor < 1.0 {
+            let mut lines = vec![format!("{base:.0} (base)")];
+            if inc != 0.0 {
+                lines.push(format!("x {:.2} (increased/reduced)", 1.0 + inc / 100.0));
+            }
+            if more != 1.0 {
+                lines.push(format!("x {more:.2} (more/less)"));
+            }
+            if life_conversion_factor < 1.0 {
+                lines.push(format!("x {life_conversion_factor:.2} (converted to ES)"));
+            }
+            lines.push(format!("= {life:.0}"));
+            env.player.set_breakdown_lines("Life", lines);
+        }
+
+        // LowLife / FullLife conditions
+        let low_life_pct = {
+            let v = env.player.mod_db.sum_cfg(
+                ModType::Base,
+                "LowLifePercentage",
+                None,
+                &env.player.output,
+            );
+            if v > 0.0 {
+                v
+            } else {
+                50.0
+            }
+        };
+        let full_life_pct = {
+            let v = env.player.mod_db.sum_cfg(
+                ModType::Base,
+                "FullLifePercentage",
+                None,
+                &env.player.output,
+            );
+            if v > 0.0 {
+                v
+            } else {
+                100.0
+            }
+        };
+
+        // Unreserved life percentage
+        let reserved_pct = env.player.reserved_life_percent;
+        let reserved_flat = env.player.reserved_life;
+        let reserved_flat_pct = if life > 0.0 {
+            reserved_flat / life * 100.0
+        } else {
+            0.0
+        };
+        let unreserved_pct = (100.0 - reserved_pct - reserved_flat_pct).max(0.0);
+
+        env.player
+            .mod_db
+            .set_condition("LowLife", unreserved_pct <= low_life_pct);
+        env.player
+            .mod_db
+            .set_condition("FullLife", unreserved_pct >= full_life_pct);
+    }
+
+    // Mana
+    {
+        let base = env
+            .player
+            .mod_db
+            .sum_cfg(ModType::Base, "Mana", None, &env.player.output);
+        let inc = env
+            .player
+            .mod_db
+            .sum_cfg(ModType::Inc, "Mana", None, &env.player.output);
+        let more = env.player.mod_db.more_cfg("Mana", None, &env.player.output);
+        let mana = (base * (1.0 + inc / 100.0) * more).max(0.0).round();
+        env.player.set_output("Mana", mana);
+
+        if inc != 0.0 || more != 1.0 {
+            let mut lines = vec![format!("{base:.0} (base)")];
+            if inc != 0.0 {
+                lines.push(format!("x {:.2} (increased/reduced)", 1.0 + inc / 100.0));
+            }
+            if more != 1.0 {
+                lines.push(format!("x {more:.2} (more/less)"));
+            }
+            lines.push(format!("= {mana:.0}"));
+            env.player.set_breakdown_lines("Mana", lines);
+        }
+    }
+
+    // Energy Shield
+    {
+        let base =
+            env.player
+                .mod_db
+                .sum_cfg(ModType::Base, "EnergyShield", None, &env.player.output);
+        let inc = env
+            .player
+            .mod_db
+            .sum_cfg(ModType::Inc, "EnergyShield", None, &env.player.output);
+        let more = env
+            .player
+            .mod_db
+            .more_cfg("EnergyShield", None, &env.player.output);
+        let es = (base * (1.0 + inc / 100.0) * more).max(0.0).round();
+        env.player.set_output("EnergyShield", es);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Reservation
+// ---------------------------------------------------------------------------
+
+/// Compute life/mana reserved and unreserved amounts and percentages.
+fn do_actor_life_mana_reservation(env: &mut CalcEnv) {
+    let life = get_output_f64(&env.player.output, "Life");
+    let mana = get_output_f64(&env.player.output, "Mana");
+
+    // Life reservation
+    let reserved_life_from_pct = (env.player.reserved_life_percent / 100.0 * life).floor();
+    let total_reserved_life = (reserved_life_from_pct + env.player.reserved_life).min(life);
+    let life_unreserved = (life - total_reserved_life).max(0.0);
+
+    env.player.set_output("LifeReserved", total_reserved_life);
+    env.player.set_output("LifeUnreserved", life_unreserved);
+    if life > 0.0 {
+        env.player
+            .set_output("LifeReservedPercent", total_reserved_life / life * 100.0);
+        env.player
+            .set_output("LifeUnreservedPercent", life_unreserved / life * 100.0);
+    } else {
+        env.player.set_output("LifeReservedPercent", 0.0);
+        env.player.set_output("LifeUnreservedPercent", 0.0);
+    }
+
+    // Mana reservation
+    let reserved_mana_from_pct = (env.player.reserved_mana_percent / 100.0 * mana).floor();
+    let total_reserved_mana = (reserved_mana_from_pct + env.player.reserved_mana).min(mana);
+    let mana_unreserved = (mana - total_reserved_mana).max(0.0);
+
+    env.player.set_output("ManaReserved", total_reserved_mana);
+    env.player.set_output("ManaUnreserved", mana_unreserved);
+    if mana > 0.0 {
+        env.player
+            .set_output("ManaReservedPercent", total_reserved_mana / mana * 100.0);
+        env.player
+            .set_output("ManaUnreservedPercent", mana_unreserved / mana * 100.0);
+    } else {
+        env.player.set_output("ManaReservedPercent", 0.0);
+        env.player.set_output("ManaUnreservedPercent", 0.0);
+    }
+
+    // LowMana condition: unreserved <= 50%
+    let mana_unreserved_pct = if mana > 0.0 {
+        mana_unreserved / mana * 100.0
+    } else {
+        0.0
+    };
+    env.player
+        .mod_db
+        .set_condition("LowMana", mana_unreserved_pct <= 50.0);
+}
+
+// ---------------------------------------------------------------------------
+// Charges
+// ---------------------------------------------------------------------------
+
+/// Mirrors doActorCharges() in CalcPerform.lua.
+fn do_actor_charges(env: &mut CalcEnv) {
+    // Helper: get game constant with fallback
+    let gc_power = env
+        .data
+        .misc
+        .game_constants
+        .get("max_power_charges")
+        .copied()
+        .unwrap_or(3.0);
+    let gc_frenzy = env
+        .data
+        .misc
+        .game_constants
+        .get("max_frenzy_charges")
+        .copied()
+        .unwrap_or(3.0);
+    let gc_endurance = env
+        .data
+        .misc
+        .game_constants
+        .get("max_endurance_charges")
+        .copied()
+        .unwrap_or(3.0);
+
+    // Compute all charge values upfront to avoid borrow conflicts
+    let pc_min = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "PowerChargesMin", None, &env.player.output)
+        .max(0.0);
+    let pc_max_added =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "PowerChargesMax", None, &env.player.output);
+    let pc_max = (gc_power + pc_max_added).max(0.0);
+    let use_pc = env
+        .player
+        .mod_db
+        .flag_cfg("UsePowerCharges", None, &env.player.output)
+        || env
+            .player
+            .mod_db
+            .conditions
+            .get("UsePowerCharges")
+            .copied()
+            .unwrap_or(false);
+    let pc = if use_pc { pc_max } else { pc_min };
+
+    let fc_min = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "FrenzyChargesMin", None, &env.player.output)
+        .max(0.0);
+    let fc_max_added =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "FrenzyChargesMax", None, &env.player.output);
+    let fc_max = (gc_frenzy + fc_max_added).max(0.0);
+    let use_fc = env
+        .player
+        .mod_db
+        .flag_cfg("UseFrenzyCharges", None, &env.player.output)
+        || env
+            .player
+            .mod_db
+            .conditions
+            .get("UseFrenzyCharges")
+            .copied()
+            .unwrap_or(false);
+    let fc = if use_fc { fc_max } else { fc_min };
+
+    let ec_min = env
+        .player
+        .mod_db
+        .sum_cfg(
+            ModType::Base,
+            "EnduranceChargesMin",
+            None,
+            &env.player.output,
+        )
+        .max(0.0);
+    let ec_max_added = env.player.mod_db.sum_cfg(
+        ModType::Base,
+        "EnduranceChargesMax",
+        None,
+        &env.player.output,
+    );
+    let ec_max = (gc_endurance + ec_max_added).max(0.0);
+    let use_ec = env
+        .player
+        .mod_db
+        .flag_cfg("UseEnduranceCharges", None, &env.player.output)
+        || env
+            .player
+            .mod_db
+            .conditions
+            .get("UseEnduranceCharges")
+            .copied()
+            .unwrap_or(false);
+    let ec = if use_ec { ec_max } else { ec_min };
+
+    // Now set all outputs (no more borrows on output)
+    env.player.set_output("PowerChargesMin", pc_min);
+    env.player.set_output("PowerChargesMax", pc_max);
+    env.player.set_output("PowerCharges", pc);
+    env.player.mod_db.set_multiplier("PowerCharge", pc);
+
+    env.player.set_output("FrenzyChargesMin", fc_min);
+    env.player.set_output("FrenzyChargesMax", fc_max);
+    env.player.set_output("FrenzyCharges", fc);
+    env.player.mod_db.set_multiplier("FrenzyCharge", fc);
+
+    env.player.set_output("EnduranceChargesMin", ec_min);
+    env.player.set_output("EnduranceChargesMax", ec_max);
+    env.player.set_output("EnduranceCharges", ec);
+    env.player.mod_db.set_multiplier("EnduranceCharge", ec);
+
+    // Total charges
+    let total = pc + fc + ec;
+    env.player.mod_db.set_multiplier("TotalCharges", total);
+
+    // Charge conditions
+    env.player
+        .mod_db
+        .set_condition("HaveMaximumPowerCharges", pc >= pc_max && pc_max > 0.0);
+    env.player
+        .mod_db
+        .set_condition("HaveMaximumFrenzyCharges", fc >= fc_max && fc_max > 0.0);
+    env.player
+        .mod_db
+        .set_condition("HaveMaximumEnduranceCharges", ec >= ec_max && ec_max > 0.0);
+
+    // Charge duration
+    let charge_dur_base =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "ChargeDuration", None, &env.player.output);
+    let charge_dur_base = if charge_dur_base > 0.0 {
+        charge_dur_base
+    } else {
+        0.0
+    };
+    let charge_dur_inc =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Inc, "ChargeDuration", None, &env.player.output);
+    let charge_dur = charge_dur_base * (1.0 + charge_dur_inc / 100.0);
+    if charge_dur > 0.0 {
+        env.player.set_output("ChargeDuration", charge_dur);
+    }
+
+    // Alternative charges (simple: max val when flag set, else 0)
+    // Collect values first to avoid borrow conflicts in the loop
+    let alt_charges: Vec<(&str, &str, f64)> = [
+        ("SiphoningCharges", "UseSiphoningCharges", "SiphoningCharge"),
+        (
+            "ChallengerCharges",
+            "UseChallengerCharges",
+            "ChallengerCharge",
+        ),
+        ("BlitzCharges", "UseBlitzCharges", "BlitzCharge"),
+        (
+            "InspirationCharges",
+            "UseInspirationCharges",
+            "InspirationCharge",
+        ),
+        ("GhostShrouds", "UseGhostShrouds", "GhostShroud"),
+    ]
+    .iter()
+    .map(|(charge_name, flag_name, multiplier_name)| {
+        let max_key = format!("{charge_name}Max");
+        let max_val = env
+            .player
+            .mod_db
+            .sum_cfg(ModType::Base, &max_key, None, &env.player.output);
+        let use_flag = env
+            .player
+            .mod_db
+            .flag_cfg(flag_name, None, &env.player.output)
+            || env
+                .player
+                .mod_db
+                .conditions
+                .get(*flag_name)
+                .copied()
+                .unwrap_or(false);
+        let val = if use_flag { max_val } else { 0.0 };
+        (*charge_name, *multiplier_name, val)
+    })
+    .collect();
+
+    for (charge_name, multiplier_name, val) in alt_charges {
+        env.player.set_output(charge_name, val);
+        env.player.mod_db.set_multiplier(multiplier_name, val);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Misc (Fortify, Onslaught, Rage, Tailwind, Elusive, Leech conditions)
+// ---------------------------------------------------------------------------
+
+/// Mirrors doActorMisc() in CalcPerform.lua.
+fn do_actor_misc(env: &mut CalcEnv) {
+    let o = &env.player.output;
+
+    // Fortify
+    let fortified_flag = env.player.mod_db.flag_cfg("Fortified", None, o)
+        || env
+            .player
+            .mod_db
+            .conditions
+            .get("Fortified")
+            .copied()
+            .unwrap_or(false);
+    if fortified_flag {
+        let max_fort_base = env.player.mod_db.sum_cfg(
+            ModType::Base,
+            "MaximumFortification",
+            None,
+            &env.player.output,
+        );
+        let max_fort = if max_fort_base > 0.0 {
+            max_fort_base
+        } else {
+            20.0
+        };
+        env.player.set_output("FortifyStacks", max_fort);
+        env.player.mod_db.set_multiplier("FortifyStack", max_fort);
+        env.player.mod_db.set_condition("Fortified", true);
+    }
+
+    // Onslaught
+    let onslaught = env
+        .player
+        .mod_db
+        .flag_cfg("Onslaught", None, &env.player.output)
+        || env
+            .player
+            .mod_db
+            .conditions
+            .get("Onslaught")
+            .copied()
+            .unwrap_or(false);
+    if onslaught {
+        let effect_inc =
+            env.player
+                .mod_db
+                .sum_cfg(ModType::Inc, "OnslaughtEffect", None, &env.player.output);
+        let onslaught_speed = 20.0 * (1.0 + effect_inc / 100.0);
+        let onslaught_src = ModSource::new("Buff", "Onslaught");
+        env.player.mod_db.add(Mod {
+            name: "Speed".into(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(onslaught_speed),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            tags: Vec::new(),
+            source: onslaught_src.clone(),
+        });
+        env.player.mod_db.add(Mod {
+            name: "MovementSpeed".into(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(onslaught_speed),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            tags: Vec::new(),
+            source: onslaught_src,
+        });
+        env.player.mod_db.set_condition("Onslaught", true);
+    }
+
+    // Rage
+    let can_gain_rage = env
+        .player
+        .mod_db
+        .flag_cfg("CanGainRage", None, &env.player.output)
+        || env
+            .player
+            .mod_db
+            .conditions
+            .get("CanGainRage")
+            .copied()
+            .unwrap_or(false);
+    if can_gain_rage {
+        let max_rage_base =
+            env.player
+                .mod_db
+                .sum_cfg(ModType::Base, "MaximumRage", None, &env.player.output);
+        let max_rage = if max_rage_base > 0.0 {
+            max_rage_base
+        } else {
+            50.0
+        };
+        env.player.set_output("MaximumRage", max_rage);
+        env.player.mod_db.set_multiplier("Rage", max_rage);
+    }
+
+    // Tailwind
+    let tailwind = env
+        .player
+        .mod_db
+        .flag_cfg("Tailwind", None, &env.player.output)
+        || env
+            .player
+            .mod_db
+            .conditions
+            .get("Tailwind")
+            .copied()
+            .unwrap_or(false);
+    if tailwind {
+        let tw_effect = env.player.mod_db.sum_cfg(
+            ModType::Inc,
+            "TailwindEffectOnSelf",
+            None,
+            &env.player.output,
+        );
+        let tw_speed = 8.0 * (1.0 + tw_effect / 100.0);
+        let tw_src = ModSource::new("Buff", "Tailwind");
+        env.player.mod_db.add(Mod {
+            name: "ActionSpeed".into(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(tw_speed),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            tags: Vec::new(),
+            source: tw_src,
+        });
+        env.player.mod_db.set_condition("Tailwind", true);
+    }
+
+    // Elusive
+    let elusive_effect =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Inc, "ElusiveEffect", None, &env.player.output);
+    if elusive_effect != 0.0 {
+        env.player
+            .set_output("ElusiveEffectMod", 1.0 + elusive_effect / 100.0);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Buff / Guard processing
+// ---------------------------------------------------------------------------
+
+/// Apply player buffs and guards to the player's mod database.
+/// Mirrors the buff processing in CalcPerform.lua.
+fn apply_buffs(env: &mut CalcEnv) {
+    // Clone buff list to avoid borrow conflict (we need to read buffs and mutate mod_db)
+    let buffs = env.player.buffs.clone();
+    let mut buff_count = 0.0;
+
+    for buff in &buffs {
+        if !buff.active {
+            continue;
+        }
+
+        // Get buff effect scaling: 1 + BuffEffectOnSelf inc / 100
+        let buff_effect_inc =
+            env.player
+                .mod_db
+                .sum_cfg(ModType::Inc, "BuffEffectOnSelf", None, &env.player.output);
+        let buff_scale = 1.0 + buff_effect_inc / 100.0;
+
+        let buff_src = ModSource::new(
+            "Buff",
+            buff.skill_name.as_deref().unwrap_or(&buff.name).to_string(),
+        );
+
+        // Scale and add each mod from the buff
+        for m in &buff.mods {
+            let scaled_value = m.value.as_f64() * buff_scale;
+            env.player.mod_db.add(Mod {
+                name: m.name.clone(),
+                mod_type: m.mod_type.clone(),
+                value: ModValue::Number(scaled_value),
+                flags: m.flags,
+                keyword_flags: m.keyword_flags,
+                tags: m.tags.clone(),
+                source: buff_src.clone(),
+            });
+        }
+
+        // Set condition: AffectedBy{BuffNameNoSpaces}
+        let condition_name = format!("AffectedBy{}", buff.name.replace(' ', ""));
+        env.player.mod_db.set_condition(&condition_name, true);
+
+        buff_count += 1.0;
+    }
+
+    // Guards: same logic but with "AffectedByGuardSkill" condition
+    let guards = env.player.guards.clone();
+    for guard in &guards {
+        if !guard.active {
+            continue;
+        }
+
+        let buff_effect_inc =
+            env.player
+                .mod_db
+                .sum_cfg(ModType::Inc, "BuffEffectOnSelf", None, &env.player.output);
+        let buff_scale = 1.0 + buff_effect_inc / 100.0;
+
+        let guard_src = ModSource::new(
+            "Buff",
+            guard
+                .skill_name
+                .as_deref()
+                .unwrap_or(&guard.name)
+                .to_string(),
+        );
+
+        for m in &guard.mods {
+            let scaled_value = m.value.as_f64() * buff_scale;
+            env.player.mod_db.add(Mod {
+                name: m.name.clone(),
+                mod_type: m.mod_type.clone(),
+                value: ModValue::Number(scaled_value),
+                flags: m.flags,
+                keyword_flags: m.keyword_flags,
+                tags: m.tags.clone(),
+                source: guard_src.clone(),
+            });
+        }
+
+        // Guard-specific condition
+        env.player
+            .mod_db
+            .set_condition("AffectedByGuardSkill", true);
+        let condition_name = format!("AffectedBy{}", guard.name.replace(' ', ""));
+        env.player.mod_db.set_condition(&condition_name, true);
+
+        buff_count += 1.0;
+    }
+
+    if buff_count > 0.0 {
+        env.player.mod_db.set_multiplier("BuffOnSelf", buff_count);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Curse processing
+// ---------------------------------------------------------------------------
+
+/// Apply curses to the enemy's mod database, respecting the curse limit.
+/// Mirrors the curse processing in CalcPerform.lua.
+fn apply_curses(env: &mut CalcEnv) {
+    let mut curses = env.player.curses.clone();
+    if curses.is_empty() {
+        return;
+    }
+
+    // Get curse limit (default 1)
+    let curse_limit_base =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "EnemyCurseLimit", None, &env.player.output);
+    let curse_limit = if curse_limit_base > 0.0 {
+        curse_limit_base as i32
+    } else {
+        1
+    };
+
+    // Sort curses by priority descending (highest priority first)
+    curses.sort_by(|a, b| {
+        b.priority
+            .partial_cmp(&a.priority)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    // Get curse effect scaling
+    let curse_effect_inc =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Inc, "CurseEffect", None, &env.player.output);
+    let curse_scale = 1.0 + curse_effect_inc / 100.0;
+
+    let mut hex_count = 0;
+    let mut applied_count = 0.0;
+
+    for curse in &curses {
+        if !curse.active {
+            continue;
+        }
+
+        // Marks don't count against hex limit
+        if !curse.is_mark {
+            if hex_count >= curse_limit {
+                continue;
+            }
+            hex_count += 1;
+        }
+
+        let curse_src = ModSource::new(
+            "Curse",
+            curse
+                .skill_name
+                .as_deref()
+                .unwrap_or(&curse.name)
+                .to_string(),
+        );
+
+        // Scale and add each mod to the enemy's mod_db
+        for m in &curse.mods {
+            let scaled_value = m.value.as_f64() * curse_scale;
+            env.enemy.mod_db.add(Mod {
+                name: m.name.clone(),
+                mod_type: m.mod_type.clone(),
+                value: ModValue::Number(scaled_value),
+                flags: m.flags,
+                keyword_flags: m.keyword_flags,
+                tags: m.tags.clone(),
+                source: curse_src.clone(),
+            });
+        }
+
+        // Set conditions on enemy
+        env.enemy.mod_db.set_condition("Cursed", true);
+        let condition_name = format!("AffectedBy{}", curse.name.replace(' ', ""));
+        env.enemy.mod_db.set_condition(&condition_name, true);
+
+        applied_count += 1.0;
+    }
+
+    if applied_count > 0.0 {
+        env.enemy
+            .mod_db
+            .set_multiplier("CurseOnEnemy", applied_count);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Non-damaging ailments
+// ---------------------------------------------------------------------------
+
+/// Compute non-damaging ailment maximums and current values.
+/// Mirrors the ailment calculation in CalcPerform.lua.
+fn do_non_damaging_ailments(env: &mut CalcEnv) {
+    // MaximumChill: base 30, scaled by EnemyChillEffect, capped at 30
+    let chill_effect_inc =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Inc, "EnemyChillEffect", None, &env.player.output);
+    let max_chill = (30.0 * (1.0 + chill_effect_inc / 100.0)).min(30.0);
+    env.player.set_output("MaximumChill", max_chill);
+
+    // MaximumShock: base 50, scaled by EnemyShockEffect, capped at 50
+    let shock_effect_inc =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Inc, "EnemyShockEffect", None, &env.player.output);
+    let max_shock = (50.0 * (1.0 + shock_effect_inc / 100.0)).min(50.0);
+    env.player.set_output("MaximumShock", max_shock);
+
+    // MaximumScorch: base 30, scaled by EnemyScorchEffect, capped at 30
+    let scorch_effect_inc =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Inc, "EnemyScorchEffect", None, &env.player.output);
+    let max_scorch = (30.0 * (1.0 + scorch_effect_inc / 100.0)).min(30.0);
+    env.player.set_output("MaximumScorch", max_scorch);
+
+    // MaximumBrittle: fixed at 15
+    env.player.set_output("MaximumBrittle", 15.0);
+
+    // MaximumSap: fixed at 20
+    env.player.set_output("MaximumSap", 20.0);
+
+    // Current ailment values from Self*Override base mods
+    let current_chill =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "SelfChillOverride", None, &env.player.output);
+    if current_chill > 0.0 {
+        env.player
+            .set_output("CurrentChill", current_chill.min(max_chill));
+    }
+
+    let current_shock =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "SelfShockOverride", None, &env.player.output);
+    if current_shock > 0.0 {
+        env.player
+            .set_output("CurrentShock", current_shock.min(max_shock));
+    }
+
+    let current_scorch = env.player.mod_db.sum_cfg(
+        ModType::Base,
+        "SelfScorchOverride",
+        None,
+        &env.player.output,
+    );
+    if current_scorch > 0.0 {
+        env.player
+            .set_output("CurrentScorch", current_scorch.min(max_scorch));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Elemental exposure
+// ---------------------------------------------------------------------------
+
+/// Apply elemental exposure to the enemy.
+/// Mirrors the exposure processing in CalcPerform.lua.
+fn apply_exposure(env: &mut CalcEnv) {
+    let exposure_src = ModSource::new("Exposure", "player");
+
+    for (element, resist_name) in &[
+        ("Fire", "FireResist"),
+        ("Cold", "ColdResist"),
+        ("Lightning", "LightningResist"),
+    ] {
+        let exposure_key = format!("{element}Exposure");
+        let exposure_val =
+            env.player
+                .mod_db
+                .sum_cfg(ModType::Base, &exposure_key, None, &env.player.output);
+        if exposure_val != 0.0 {
+            env.enemy.mod_db.add(Mod::new_base(
+                *resist_name,
+                exposure_val,
+                exposure_src.clone(),
+            ));
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Regen, Recharge, Leech
+// ---------------------------------------------------------------------------
+
+/// Mirrors doRegenRechargeLeech() sections in CalcPerform.lua.
+fn do_regen_recharge_leech(env: &mut CalcEnv) {
+    let life = get_output_f64(&env.player.output, "Life");
+    let mana = get_output_f64(&env.player.output, "Mana");
+    let es = get_output_f64(&env.player.output, "EnergyShield");
+
+    // -- Life regen --
+    let life_regen_pct =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "LifeRegenPercent", None, &env.player.output);
+    let life_regen_flat =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "LifeRegen", None, &env.player.output);
+    let life_recovery_inc =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Inc, "LifeRecoveryRate", None, &env.player.output);
+    let life_recovery_more =
+        env.player
+            .mod_db
+            .more_cfg("LifeRecoveryRate", None, &env.player.output);
+
+    let life_regen_from_pct = life_regen_pct / 100.0 * life;
+    let total_life_regen = (life_regen_from_pct + life_regen_flat)
+        * (1.0 + life_recovery_inc / 100.0)
+        * life_recovery_more;
+    env.player.set_output("LifeRegen", total_life_regen);
+
+    // -- Life degen --
+    let life_degen_flat =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "LifeDegen", None, &env.player.output);
+    let life_degen_pct =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "LifeDegenPercent", None, &env.player.output);
+    let total_life_degen = life_degen_flat + life_degen_pct / 100.0 * life;
+    env.player.set_output("LifeDegen", total_life_degen);
+
+    // Net life regen
+    let net_life_regen = total_life_regen - total_life_degen;
+    env.player.set_output("LifeRegenNet", net_life_regen);
+
+    // -- Mana regen --
+    // Base mana regen is 1.75% of max mana per second
+    let mana_regen_base =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "ManaRegen", None, &env.player.output);
+    let mana_regen_pct_base = 1.75; // PoE base mana regen rate
+    let mana_recovery_inc =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Inc, "ManaRecoveryRate", None, &env.player.output);
+    let mana_recovery_more =
+        env.player
+            .mod_db
+            .more_cfg("ManaRecoveryRate", None, &env.player.output);
+    let mana_regen_inc =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Inc, "ManaRegen", None, &env.player.output);
+    let mana_regen_more = env
+        .player
+        .mod_db
+        .more_cfg("ManaRegen", None, &env.player.output);
+
+    let mana_regen_from_pct = mana_regen_pct_base / 100.0 * mana;
+    let total_mana_regen = (mana_regen_from_pct + mana_regen_base)
+        * (1.0 + mana_regen_inc / 100.0)
+        * mana_regen_more
+        * (1.0 + mana_recovery_inc / 100.0)
+        * mana_recovery_more;
+    env.player.set_output("ManaRegen", total_mana_regen);
+
+    // -- ES recharge --
+    // 20% of ES per second, scaled by recharge rate
+    let es_recharge_inc = env.player.mod_db.sum_cfg(
+        ModType::Inc,
+        "EnergyShieldRecharge",
+        None,
+        &env.player.output,
+    );
+    let es_recharge_more =
+        env.player
+            .mod_db
+            .more_cfg("EnergyShieldRecharge", None, &env.player.output);
+    let es_recharge = es * 0.20 * (1.0 + es_recharge_inc / 100.0) * es_recharge_more;
+    env.player.set_output("EnergyShieldRecharge", es_recharge);
+
+    // ES recharge delay: 2s / (1 + faster/100)
+    let es_recharge_faster = env.player.mod_db.sum_cfg(
+        ModType::Inc,
+        "EnergyShieldRechargeFaster",
+        None,
+        &env.player.output,
+    );
+    let es_recharge_delay = 2.0 / (1.0 + es_recharge_faster / 100.0);
+    env.player
+        .set_output("EnergyShieldRechargeDelay", es_recharge_delay);
+
+    // -- Life leech --
+    let max_life_leech_rate_base =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "MaxLifeLeechRate", None, &env.player.output);
+    // Default from game constants: 20% per minute → converted to per second by POB
+    let max_life_leech_rate = if max_life_leech_rate_base > 0.0 {
+        max_life_leech_rate_base
+    } else {
+        env.data
+            .misc
+            .game_constants
+            .get("maximum_life_leech_rate_%_per_minute")
+            .copied()
+            .unwrap_or(20.0)
+    };
+    let life_leech_per_sec = max_life_leech_rate / 100.0 * life;
+    env.player
+        .set_output("MaxLifeLeechRate", max_life_leech_rate);
+    env.player
+        .set_output("LifeLeechGainPerSecond", life_leech_per_sec);
+
+    // Vaal Pact: doubles leech, sets regen to 0
+    let vaal_pact = env
+        .player
+        .mod_db
+        .flag_cfg("VaalPact", None, &env.player.output);
+    if vaal_pact {
+        env.player
+            .set_output("LifeLeechGainPerSecond", life_leech_per_sec * 2.0);
+        env.player.set_output("LifeRegen", 0.0);
+        env.player.set_output("LifeRegenNet", -total_life_degen);
+        env.player.mod_db.set_condition("VaalPact", true);
+    }
+
+    // Ghost Reaver: ES leech
+    let ghost_reaver = env
+        .player
+        .mod_db
+        .flag_cfg("GhostReaver", None, &env.player.output);
+    if ghost_reaver {
+        let max_es_leech_rate = env.player.mod_db.sum_cfg(
+            ModType::Base,
+            "MaxEnergyShieldLeechRate",
+            None,
+            &env.player.output,
+        );
+        let max_es_leech = if max_es_leech_rate > 0.0 {
+            max_es_leech_rate
+        } else {
+            env.data
+                .misc
+                .game_constants
+                .get("maximum_life_leech_rate_%_per_minute")
+                .copied()
+                .unwrap_or(20.0)
+        };
+        let es_leech_per_sec = max_es_leech / 100.0 * es;
+        env.player
+            .set_output("EnergyShieldLeechGainPerSecond", es_leech_per_sec);
+        env.player.mod_db.set_condition("GhostReaver", true);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Action speed
+// ---------------------------------------------------------------------------
+
+/// Compute action speed modifier: (1 + ActionSpeed inc/100) * ActionSpeed more, min 0.
+fn action_speed_mod(env: &mut CalcEnv) -> f64 {
+    let inc = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Inc, "ActionSpeed", None, &env.player.output);
+    let more = env
+        .player
+        .mod_db
+        .more_cfg("ActionSpeed", None, &env.player.output);
+    ((1.0 + inc / 100.0) * more).max(0.0)
+}
+
+// ---------------------------------------------------------------------------
+// MoM / EB
+// ---------------------------------------------------------------------------
+
+/// Mind over Matter, Eldritch Battery, Petrified Blood checks.
+fn do_mom_eb(env: &mut CalcEnv) {
+    // MoM: DamageTakenFromManaBeforeLife
+    let mom_pct = env.player.mod_db.sum_cfg(
+        ModType::Base,
+        "DamageTakenFromManaBeforeLife",
+        None,
+        &env.player.output,
+    );
+    let mom_clamped = mom_pct.clamp(0.0, 100.0);
+    if mom_clamped > 0.0 {
+        env.player
+            .set_output("DamageTakenFromManaBeforeLife", mom_clamped);
+        env.player.mod_db.set_condition("MindOverMatter", true);
+    }
+
+    // Eldritch Battery
+    let eb = env
+        .player
+        .mod_db
+        .flag_cfg("EldritchBattery", None, &env.player.output);
+    if eb {
+        env.player.mod_db.set_condition("EldritchBattery", true);
+    }
+
+    // Petrified Blood
+    let pb = env
+        .player
+        .mod_db
+        .flag_cfg("PetrifiedBlood", None, &env.player.output);
+    if pb {
+        env.player.mod_db.set_condition("PetrifiedBlood", true);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Attack / cast speed (kept from original)
+// ---------------------------------------------------------------------------
 
 fn do_actor_attack_cast_speed(env: &mut CalcEnv) {
     let inc_attack =
@@ -33,126 +1378,1242 @@ fn do_actor_attack_cast_speed(env: &mut CalcEnv) {
         .set_output("CastSpeedMod", 1.0 * (1.0 + inc_cast / 100.0) * more_cast);
 }
 
-/// Mirrors doActorLifeMana() in CalcPerform.lua lines 68–130.
-fn do_actor_life_mana(env: &mut CalcEnv) {
-    // Chaos Inoculation: life is fixed at 1
-    let chaos_inoc = env
-        .player
+// ---------------------------------------------------------------------------
+// Final conditions
+// ---------------------------------------------------------------------------
+
+/// Set final conditions that depend on multiple computed stats.
+fn set_final_conditions(env: &mut CalcEnv) {
+    let life = get_output_f64(&env.player.output, "Life");
+    let mana = get_output_f64(&env.player.output, "Mana");
+    let es = get_output_f64(&env.player.output, "EnergyShield");
+
+    let lowest_life_mana = life.min(mana);
+    env.player
+        .set_output("LowestOfMaximumLifeAndMaximumMana", lowest_life_mana);
+
+    // ES conditions
+    env.player
         .mod_db
-        .flag("ChaosInoculation", ModFlags::NONE, KeywordFlags::NONE);
-    if chaos_inoc {
-        env.player.set_output("Life", 1.0);
-        env.player.mod_db.set_condition("FullLife", true);
-        env.player.mod_db.set_condition("ChaosInoculation", true);
-    } else {
-        let base = env
-            .player
-            .mod_db
-            .sum(ModType::Base, "Life", ModFlags::NONE, KeywordFlags::NONE);
-        let inc = env
-            .player
-            .mod_db
-            .sum(ModType::Inc, "Life", ModFlags::NONE, KeywordFlags::NONE);
-        let more = env
-            .player
-            .mod_db
-            .more("Life", ModFlags::NONE, KeywordFlags::NONE);
-        let life = (base * (1.0 + inc / 100.0) * more).max(1.0).round();
-        env.player.set_output("Life", life);
+        .set_condition("HaveEnergyShield", es > 0.0);
+    env.player
+        .mod_db
+        .set_condition("FullEnergyShield", es > 0.0); // Simplified: assume full if have any
+}
 
-        // Breakdown
-        if inc != 0.0 || more != 1.0 {
-            let mut lines = vec![format!("{base:.0} (base)")];
-            if inc != 0.0 {
-                lines.push(format!("x {:.2} (increased/reduced)", 1.0 + inc / 100.0));
-            }
-            if more != 1.0 {
-                lines.push(format!("x {more:.2} (more/less)"));
-            }
-            lines.push(format!("= {life:.0}"));
-            env.player.set_breakdown_lines("Life", lines);
-        }
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::calc::env::{Actor, CalcEnv, CalcMode};
+    use crate::data::GameData;
+    use crate::mod_db::types::{KeywordFlags, Mod, ModFlags, ModSource, ModType};
+    use crate::mod_db::ModDb;
+    use std::sync::Arc;
+
+    fn src() -> ModSource {
+        ModSource::new("Test", "test")
     }
 
-    // Mana
-    {
-        let base = env
-            .player
-            .mod_db
-            .sum(ModType::Base, "Mana", ModFlags::NONE, KeywordFlags::NONE);
-        let inc = env
-            .player
-            .mod_db
-            .sum(ModType::Inc, "Mana", ModFlags::NONE, KeywordFlags::NONE);
-        let more = env
-            .player
-            .mod_db
-            .more("Mana", ModFlags::NONE, KeywordFlags::NONE);
-        let mana = (base * (1.0 + inc / 100.0) * more).max(0.0).round();
-        env.player.set_output("Mana", mana);
-
-        if inc != 0.0 || more != 1.0 {
-            let mut lines = vec![format!("{base:.0} (base)")];
-            if inc != 0.0 {
-                lines.push(format!("x {:.2} (increased/reduced)", 1.0 + inc / 100.0));
-            }
-            if more != 1.0 {
-                lines.push(format!("x {more:.2} (more/less)"));
-            }
-            lines.push(format!("= {mana:.0}"));
-            env.player.set_breakdown_lines("Mana", lines);
-        }
+    /// Create a test CalcEnv with optional setup closure.
+    fn make_env(setup: impl FnOnce(&mut CalcEnv)) -> CalcEnv {
+        let data = Arc::new(GameData::default_for_test());
+        let mut env = CalcEnv {
+            player: Actor::new(ModDb::new()),
+            enemy: Actor::new(ModDb::new()),
+            mode: CalcMode::Normal,
+            data,
+        };
+        setup(&mut env);
+        env
     }
 
-    // Energy Shield
-    {
-        let base = env.player.mod_db.sum(
+    // ------------------------------------------------------------------
+    // 1. Str bonus to melee phys damage
+    // ------------------------------------------------------------------
+    #[test]
+    fn str_bonus_to_melee_phys_damage() {
+        let mut env = make_env(|env| {
+            // 100 Str → floor(100/5) = 20% Inc melee phys
+            env.player.mod_db.add(Mod::new_base("Str", 100.0, src()));
+            // Need base life so life calc doesn't fail
+            env.player.mod_db.add(Mod::new_base("Life", 50.0, src()));
+        });
+        run(&mut env);
+
+        assert_eq!(get_output_f64(&env.player.output, "Str"), 100.0);
+        // After attribs, a +20% Inc PhysicalDamage with MELEE flag should exist
+        // We can verify indirectly: query the moddb for Inc PhysicalDamage with MELEE
+        let melee_phys_inc = env.player.mod_db.sum(
+            ModType::Inc,
+            "PhysicalDamage",
+            ModFlags::MELEE,
+            KeywordFlags::NONE,
+        );
+        assert_eq!(melee_phys_inc, 20.0);
+    }
+
+    // ------------------------------------------------------------------
+    // 2. Dex bonus to accuracy and evasion
+    // ------------------------------------------------------------------
+    #[test]
+    fn dex_bonus_to_accuracy_and_evasion() {
+        let mut env = make_env(|env| {
+            // 150 Dex → accuracy = floor(150*2) = 300, evasion inc = floor(150/5) = 30%
+            env.player.mod_db.add(Mod::new_base("Dex", 150.0, src()));
+            env.player.mod_db.add(Mod::new_base("Life", 50.0, src()));
+        });
+        run(&mut env);
+
+        assert_eq!(get_output_f64(&env.player.output, "Dex"), 150.0);
+
+        let acc_base = env.player.mod_db.sum(
             ModType::Base,
-            "EnergyShield",
+            "Accuracy",
             ModFlags::NONE,
             KeywordFlags::NONE,
         );
-        let inc = env.player.mod_db.sum(
+        assert_eq!(acc_base, 300.0);
+
+        let evasion_inc =
+            env.player
+                .mod_db
+                .sum(ModType::Inc, "Evasion", ModFlags::NONE, KeywordFlags::NONE);
+        assert_eq!(evasion_inc, 30.0);
+    }
+
+    // ------------------------------------------------------------------
+    // 3. Int bonus to mana and ES
+    // ------------------------------------------------------------------
+    #[test]
+    fn int_bonus_to_mana_and_es() {
+        let mut env = make_env(|env| {
+            // 200 Int → mana inc = floor(200/5) = 40%, es inc = 40%
+            env.player.mod_db.add(Mod::new_base("Int", 200.0, src()));
+            env.player.mod_db.add(Mod::new_base("Life", 50.0, src()));
+            env.player.mod_db.add(Mod::new_base("Mana", 100.0, src()));
+            env.player
+                .mod_db
+                .add(Mod::new_base("EnergyShield", 50.0, src()));
+        });
+        run(&mut env);
+
+        assert_eq!(get_output_f64(&env.player.output, "Int"), 200.0);
+
+        let mana_inc =
+            env.player
+                .mod_db
+                .sum(ModType::Inc, "Mana", ModFlags::NONE, KeywordFlags::NONE);
+        assert_eq!(mana_inc, 40.0);
+
+        let es_inc = env.player.mod_db.sum(
             ModType::Inc,
             "EnergyShield",
             ModFlags::NONE,
             KeywordFlags::NONE,
         );
-        let more = env
-            .player
-            .mod_db
-            .more("EnergyShield", ModFlags::NONE, KeywordFlags::NONE);
-        let es = (base * (1.0 + inc / 100.0) * more).max(0.0).round();
-        env.player.set_output("EnergyShield", es);
-    }
-}
+        assert_eq!(es_inc, 40.0);
 
-/// Mirrors doActorAttribsConditions() in CalcPerform.lua lines 132–300.
-/// Computes Str/Dex/Int and derived bonuses.
-fn do_actor_attribs(env: &mut CalcEnv) {
-    for stat in &["Str", "Dex", "Int"] {
-        let base = env
-            .player
-            .mod_db
-            .sum(ModType::Base, stat, ModFlags::NONE, KeywordFlags::NONE);
-        let inc = env
-            .player
-            .mod_db
-            .sum(ModType::Inc, stat, ModFlags::NONE, KeywordFlags::NONE);
-        let more = env
-            .player
-            .mod_db
-            .more(stat, ModFlags::NONE, KeywordFlags::NONE);
-        let val = (base * (1.0 + inc / 100.0) * more).floor();
-        env.player.set_output(stat, val);
+        // Mana should be: 100 * (1 + 40/100) = 140
+        assert_eq!(get_output_f64(&env.player.output, "Mana"), 140.0);
+
+        // ES should be: 50 * (1 + 40/100) = 70
+        assert_eq!(get_output_f64(&env.player.output, "EnergyShield"), 70.0);
     }
 
-    // Strength bonus life: +1 max life per 2 Str (POB: life_per_str = 0.5)
-    let str_val = get_output_f64(&env.player.output, "Str");
-    let life_from_str = (str_val * 0.5).floor();
-    // Add to the existing Life base — re-run life calc with updated base
-    // (Simplified: add life_from_str directly to the output. Full impl re-runs the pass.)
-    if let Some(OutputValue::Number(life)) = env.player.output.get_mut("Life") {
-        *life += life_from_str;
+    // ------------------------------------------------------------------
+    // 4. LowLife condition when reserved
+    // ------------------------------------------------------------------
+    #[test]
+    fn low_life_when_reserved() {
+        let mut env = make_env(|env| {
+            env.player.mod_db.add(Mod::new_base("Life", 1000.0, src()));
+            // Reserve 60% of life → 40% unreserved → LowLife (<=50%)
+            env.player.reserved_life_percent = 60.0;
+        });
+        run(&mut env);
+
+        assert!(
+            env.player
+                .mod_db
+                .conditions
+                .get("LowLife")
+                .copied()
+                .unwrap_or(false),
+            "Expected LowLife to be true with 60% reserved"
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // 5. FullLife condition when no reservation
+    // ------------------------------------------------------------------
+    #[test]
+    fn full_life_when_no_reservation() {
+        let mut env = make_env(|env| {
+            env.player.mod_db.add(Mod::new_base("Life", 1000.0, src()));
+            // No reservation → 100% unreserved → FullLife
+        });
+        run(&mut env);
+
+        assert!(
+            env.player
+                .mod_db
+                .conditions
+                .get("FullLife")
+                .copied()
+                .unwrap_or(false),
+            "Expected FullLife to be true with no reservation"
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // 6. CI sets life to 1
+    // ------------------------------------------------------------------
+    #[test]
+    fn ci_sets_life_to_1() {
+        let mut env = make_env(|env| {
+            env.player.mod_db.add(Mod::new_base("Life", 5000.0, src()));
+            env.player
+                .mod_db
+                .add(Mod::new_flag("ChaosInoculation", src()));
+        });
+        run(&mut env);
+
+        assert_eq!(get_output_f64(&env.player.output, "Life"), 1.0);
+        assert!(env
+            .player
+            .mod_db
+            .conditions
+            .get("ChaosInoculation")
+            .copied()
+            .unwrap_or(false));
+        assert!(env
+            .player
+            .mod_db
+            .conditions
+            .get("FullLife")
+            .copied()
+            .unwrap_or(false));
+    }
+
+    // ------------------------------------------------------------------
+    // 7. Power charges computed when UsePowerCharges
+    // ------------------------------------------------------------------
+    #[test]
+    fn power_charges_when_using() {
+        let mut env = make_env(|env| {
+            env.player.mod_db.add(Mod::new_base("Life", 100.0, src()));
+            env.player
+                .mod_db
+                .add(Mod::new_flag("UsePowerCharges", src()));
+            // Add 2 extra max power charges (default 3 from game_constants)
+            env.player
+                .mod_db
+                .add(Mod::new_base("PowerChargesMax", 2.0, src()));
+        });
+        run(&mut env);
+
+        // Max = 3 + 2 = 5
+        assert_eq!(get_output_f64(&env.player.output, "PowerChargesMax"), 5.0);
+        // Current should be max because UsePowerCharges is set
+        assert_eq!(get_output_f64(&env.player.output, "PowerCharges"), 5.0);
+        assert_eq!(
+            env.player
+                .mod_db
+                .multipliers
+                .get("PowerCharge")
+                .copied()
+                .unwrap_or(0.0),
+            5.0
+        );
+        assert!(env
+            .player
+            .mod_db
+            .conditions
+            .get("HaveMaximumPowerCharges")
+            .copied()
+            .unwrap_or(false));
+    }
+
+    // ------------------------------------------------------------------
+    // 8. Frenzy charges not set when not using
+    // ------------------------------------------------------------------
+    #[test]
+    fn frenzy_charges_zero_when_not_using() {
+        let mut env = make_env(|env| {
+            env.player.mod_db.add(Mod::new_base("Life", 100.0, src()));
+            // Don't set UseFrenzyCharges
+        });
+        run(&mut env);
+
+        assert_eq!(get_output_f64(&env.player.output, "FrenzyCharges"), 0.0);
+        assert_eq!(
+            env.player
+                .mod_db
+                .multipliers
+                .get("FrenzyCharge")
+                .copied()
+                .unwrap_or(0.0),
+            0.0
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // 9. Fortify stacks computed
+    // ------------------------------------------------------------------
+    #[test]
+    fn fortify_stacks_computed() {
+        let mut env = make_env(|env| {
+            env.player.mod_db.add(Mod::new_base("Life", 100.0, src()));
+            env.player.mod_db.add(Mod::new_flag("Fortified", src()));
+        });
+        run(&mut env);
+
+        // Default MaximumFortification is 20
+        assert_eq!(get_output_f64(&env.player.output, "FortifyStacks"), 20.0);
+        assert_eq!(
+            env.player
+                .mod_db
+                .multipliers
+                .get("FortifyStack")
+                .copied()
+                .unwrap_or(0.0),
+            20.0
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // 10. Mana regen computed (1.75% base)
+    // ------------------------------------------------------------------
+    #[test]
+    fn mana_regen_computed() {
+        let mut env = make_env(|env| {
+            env.player.mod_db.add(Mod::new_base("Life", 100.0, src()));
+            env.player.mod_db.add(Mod::new_base("Mana", 200.0, src()));
+        });
+        run(&mut env);
+
+        let mana = get_output_f64(&env.player.output, "Mana");
+        assert_eq!(mana, 200.0);
+
+        // Base mana regen = 1.75% of 200 = 3.5 per sec
+        let mana_regen = get_output_f64(&env.player.output, "ManaRegen");
+        assert!(
+            (mana_regen - 3.5).abs() < 0.01,
+            "Expected mana regen ~3.5, got {mana_regen}"
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // 11. Life regen from LifeRegenPercent
+    // ------------------------------------------------------------------
+    #[test]
+    fn life_regen_from_percent() {
+        let mut env = make_env(|env| {
+            env.player.mod_db.add(Mod::new_base("Life", 1000.0, src()));
+            // 5% life regen per second
+            env.player
+                .mod_db
+                .add(Mod::new_base("LifeRegenPercent", 5.0, src()));
+        });
+        run(&mut env);
+
+        let life = get_output_f64(&env.player.output, "Life");
+        assert_eq!(life, 1000.0);
+
+        // 5% of 1000 = 50 per sec
+        let regen = get_output_f64(&env.player.output, "LifeRegen");
+        assert!(
+            (regen - 50.0).abs() < 0.01,
+            "Expected life regen 50.0, got {regen}"
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // 12. Action speed with Tailwind
+    // ------------------------------------------------------------------
+    #[test]
+    fn action_speed_with_tailwind() {
+        let mut env = make_env(|env| {
+            env.player.mod_db.add(Mod::new_base("Life", 100.0, src()));
+            env.player.mod_db.add(Mod::new_flag("Tailwind", src()));
+        });
+        run(&mut env);
+
+        // Tailwind adds 8% Inc ActionSpeed
+        // ActionSpeedMod = (1 + 8/100) * 1.0 = 1.08
+        let asm = get_output_f64(&env.player.output, "ActionSpeedMod");
+        assert!(
+            (asm - 1.08).abs() < 0.01,
+            "Expected action speed ~1.08, got {asm}"
+        );
+        assert!(
+            (env.player.action_speed_mod - 1.08).abs() < 0.01,
+            "Expected actor action_speed_mod ~1.08"
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // 13. MoM output set
+    // ------------------------------------------------------------------
+    #[test]
+    fn mom_output_set() {
+        let mut env = make_env(|env| {
+            env.player.mod_db.add(Mod::new_base("Life", 100.0, src()));
+            env.player
+                .mod_db
+                .add(Mod::new_base("DamageTakenFromManaBeforeLife", 30.0, src()));
+        });
+        run(&mut env);
+
+        let mom = get_output_f64(&env.player.output, "DamageTakenFromManaBeforeLife");
+        assert_eq!(mom, 30.0);
+        assert!(env
+            .player
+            .mod_db
+            .conditions
+            .get("MindOverMatter")
+            .copied()
+            .unwrap_or(false));
+    }
+
+    // ------------------------------------------------------------------
+    // Additional integration tests
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn reservation_outputs_computed() {
+        let mut env = make_env(|env| {
+            env.player.mod_db.add(Mod::new_base("Life", 1000.0, src()));
+            env.player.mod_db.add(Mod::new_base("Mana", 500.0, src()));
+            env.player.reserved_life_percent = 30.0;
+            env.player.reserved_mana = 100.0;
+            env.player.reserved_mana_percent = 20.0;
+        });
+        run(&mut env);
+
+        // Life: 30% of 1000 = 300 reserved → 700 unreserved
+        assert_eq!(get_output_f64(&env.player.output, "LifeReserved"), 300.0);
+        assert_eq!(get_output_f64(&env.player.output, "LifeUnreserved"), 700.0);
+
+        // Mana: 20% of 500 = 100 from pct, + 100 flat = 200 reserved → 300 unreserved
+        assert_eq!(get_output_f64(&env.player.output, "ManaReserved"), 200.0);
+        assert_eq!(get_output_f64(&env.player.output, "ManaUnreserved"), 300.0);
+    }
+
+    #[test]
+    fn attribute_comparison_conditions_set() {
+        let mut env = make_env(|env| {
+            env.player.mod_db.add(Mod::new_base("Str", 100.0, src()));
+            env.player.mod_db.add(Mod::new_base("Dex", 50.0, src()));
+            env.player.mod_db.add(Mod::new_base("Int", 75.0, src()));
+            env.player.mod_db.add(Mod::new_base("Life", 50.0, src()));
+        });
+        run(&mut env);
+
+        assert!(env.player.mod_db.conditions["StrHigherThanDex"]);
+        assert!(!env.player.mod_db.conditions["DexHigherThanStr"]);
+        assert!(env.player.mod_db.conditions["StrHigherThanInt"]);
+        assert!(!env.player.mod_db.conditions["IntHigherThanStr"]);
+        assert!(!env.player.mod_db.conditions["DexHigherThanInt"]);
+        assert!(env.player.mod_db.conditions["IntHigherThanDex"]);
+    }
+
+    #[test]
+    fn onslaught_adds_speed_mods() {
+        let mut env = make_env(|env| {
+            env.player.mod_db.add(Mod::new_base("Life", 100.0, src()));
+            env.player.mod_db.add(Mod::new_flag("Onslaught", src()));
+        });
+        run(&mut env);
+
+        let speed_inc =
+            env.player
+                .mod_db
+                .sum(ModType::Inc, "Speed", ModFlags::NONE, KeywordFlags::NONE);
+        // Onslaught adds 20% Inc Speed
+        assert!(
+            (speed_inc - 20.0).abs() < 0.01,
+            "Expected 20% speed from onslaught, got {speed_inc}"
+        );
+
+        let move_inc = env.player.mod_db.sum(
+            ModType::Inc,
+            "MovementSpeed",
+            ModFlags::NONE,
+            KeywordFlags::NONE,
+        );
+        assert!(
+            (move_inc - 20.0).abs() < 0.01,
+            "Expected 20% movement speed from onslaught, got {move_inc}"
+        );
+    }
+
+    #[test]
+    fn es_recharge_computed() {
+        let mut env = make_env(|env| {
+            env.player.mod_db.add(Mod::new_base("Life", 100.0, src()));
+            env.player
+                .mod_db
+                .add(Mod::new_base("EnergyShield", 500.0, src()));
+        });
+        run(&mut env);
+
+        // ES recharge = 500 * 0.20 = 100 per sec (base)
+        let es_recharge = get_output_f64(&env.player.output, "EnergyShieldRecharge");
+        assert!(
+            (es_recharge - 100.0).abs() < 0.01,
+            "Expected ES recharge 100.0, got {es_recharge}"
+        );
+
+        // Delay = 2.0 sec with no faster mods
+        let delay = get_output_f64(&env.player.output, "EnergyShieldRechargeDelay");
+        assert!(
+            (delay - 2.0).abs() < 0.01,
+            "Expected ES recharge delay 2.0, got {delay}"
+        );
+    }
+
+    #[test]
+    fn lowest_of_life_and_mana_set() {
+        let mut env = make_env(|env| {
+            env.player.mod_db.add(Mod::new_base("Life", 3000.0, src()));
+            env.player.mod_db.add(Mod::new_base("Mana", 1000.0, src()));
+        });
+        run(&mut env);
+
+        let lowest = get_output_f64(&env.player.output, "LowestOfMaximumLifeAndMaximumMana");
+        assert_eq!(lowest, 1000.0);
+    }
+
+    #[test]
+    fn run_orchestrator_sets_all_expected_outputs() {
+        let mut env = make_env(|env| {
+            env.player.mod_db.add(Mod::new_base("Str", 50.0, src()));
+            env.player.mod_db.add(Mod::new_base("Dex", 50.0, src()));
+            env.player.mod_db.add(Mod::new_base("Int", 50.0, src()));
+            env.player.mod_db.add(Mod::new_base("Life", 500.0, src()));
+            env.player.mod_db.add(Mod::new_base("Mana", 200.0, src()));
+            env.player
+                .mod_db
+                .add(Mod::new_base("EnergyShield", 100.0, src()));
+        });
+        run(&mut env);
+
+        // Verify key outputs exist
+        assert!(env.player.output.contains_key("Str"));
+        assert!(env.player.output.contains_key("Dex"));
+        assert!(env.player.output.contains_key("Int"));
+        assert!(env.player.output.contains_key("Life"));
+        assert!(env.player.output.contains_key("Mana"));
+        assert!(env.player.output.contains_key("EnergyShield"));
+        assert!(env.player.output.contains_key("TotalAttr"));
+        assert!(env.player.output.contains_key("LowestAttribute"));
+        assert!(env.player.output.contains_key("ActionSpeedMod"));
+        assert!(env.player.output.contains_key("AttackSpeedMod"));
+        assert!(env.player.output.contains_key("CastSpeedMod"));
+        assert!(env.player.output.contains_key("LifeReserved"));
+        assert!(env.player.output.contains_key("ManaReserved"));
+        assert!(env.player.output.contains_key("PowerCharges"));
+        assert!(env.player.output.contains_key("FrenzyCharges"));
+        assert!(env.player.output.contains_key("EnduranceCharges"));
+        assert!(env.player.output.contains_key("LifeRegen"));
+        assert!(env.player.output.contains_key("ManaRegen"));
+        assert!(env
+            .player
+            .output
+            .contains_key("LowestOfMaximumLifeAndMaximumMana"));
+    }
+
+    #[test]
+    fn no_attribute_bonuses_flag_blocks_all() {
+        let mut env = make_env(|env| {
+            env.player.mod_db.add(Mod::new_base("Str", 100.0, src()));
+            env.player.mod_db.add(Mod::new_base("Dex", 100.0, src()));
+            env.player.mod_db.add(Mod::new_base("Int", 100.0, src()));
+            env.player.mod_db.add(Mod::new_base("Life", 50.0, src()));
+            env.player.mod_db.add(Mod::new_base("Mana", 50.0, src()));
+            env.player
+                .mod_db
+                .add(Mod::new_flag("NoAttributeBonuses", src()));
+        });
+        run(&mut env);
+
+        // No derived mods should be added
+        let acc = env.player.mod_db.sum(
+            ModType::Base,
+            "Accuracy",
+            ModFlags::NONE,
+            KeywordFlags::NONE,
+        );
+        assert_eq!(
+            acc, 0.0,
+            "Expected no accuracy bonus with NoAttributeBonuses"
+        );
+
+        let melee_phys = env.player.mod_db.sum(
+            ModType::Inc,
+            "PhysicalDamage",
+            ModFlags::MELEE,
+            KeywordFlags::NONE,
+        );
+        assert_eq!(melee_phys, 0.0, "Expected no melee phys bonus");
+    }
+
+    #[test]
+    fn vaal_pact_doubles_leech_and_zeroes_regen() {
+        let mut env = make_env(|env| {
+            env.player.mod_db.add(Mod::new_base("Life", 1000.0, src()));
+            env.player
+                .mod_db
+                .add(Mod::new_base("LifeRegenPercent", 5.0, src()));
+            env.player.mod_db.add(Mod::new_flag("VaalPact", src()));
+        });
+        run(&mut env);
+
+        // Life regen should be 0 with Vaal Pact
+        let regen = get_output_f64(&env.player.output, "LifeRegen");
+        assert_eq!(regen, 0.0, "Expected 0 life regen with Vaal Pact");
+
+        // Leech should be doubled: default 20% rate → 20/100 * 1000 * 2 = 400
+        let leech = get_output_f64(&env.player.output, "LifeLeechGainPerSecond");
+        assert!(
+            (leech - 400.0).abs() < 0.01,
+            "Expected doubled leech 400.0, got {leech}"
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // Task 13: Buff processing tests
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn buff_mods_applied_to_player() {
+        use crate::calc::env::BuffEntry;
+
+        let mut env = make_env(|env| {
+            env.player.mod_db.add(Mod::new_base("Life", 100.0, src()));
+            // Add a buff that grants +50% Inc Fire Damage
+            env.player.buffs.push(BuffEntry {
+                name: "Anger".into(),
+                skill_name: Some("Anger".into()),
+                mods: vec![Mod {
+                    name: "FireDamage".into(),
+                    mod_type: ModType::Inc,
+                    value: ModValue::Number(40.0),
+                    flags: ModFlags::NONE,
+                    keyword_flags: KeywordFlags::NONE,
+                    tags: Vec::new(),
+                    source: src(),
+                }],
+                active: true,
+            });
+        });
+        run(&mut env);
+
+        // The buff mod should now be in the player moddb
+        let fire_inc = env.player.mod_db.sum(
+            ModType::Inc,
+            "FireDamage",
+            ModFlags::NONE,
+            KeywordFlags::NONE,
+        );
+        assert!(
+            (fire_inc - 40.0).abs() < 0.01,
+            "Expected FireDamage inc 40 from buff, got {fire_inc}"
+        );
+
+        // AffectedByAnger condition should be set
+        assert!(
+            env.player
+                .mod_db
+                .conditions
+                .get("AffectedByAnger")
+                .copied()
+                .unwrap_or(false),
+            "Expected AffectedByAnger condition"
+        );
+
+        // BuffOnSelf multiplier should be 1
+        assert_eq!(
+            env.player
+                .mod_db
+                .multipliers
+                .get("BuffOnSelf")
+                .copied()
+                .unwrap_or(0.0),
+            1.0,
+            "Expected BuffOnSelf multiplier to be 1"
+        );
+    }
+
+    #[test]
+    fn inactive_buff_not_applied() {
+        use crate::calc::env::BuffEntry;
+
+        let mut env = make_env(|env| {
+            env.player.mod_db.add(Mod::new_base("Life", 100.0, src()));
+            env.player.buffs.push(BuffEntry {
+                name: "Vitality".into(),
+                skill_name: None,
+                mods: vec![Mod::new_base("Life", 50.0, src())],
+                active: false,
+            });
+        });
+        run(&mut env);
+
+        // Life should NOT include the buff's +50
+        let life = get_output_f64(&env.player.output, "Life");
+        assert_eq!(
+            life, 100.0,
+            "Expected life 100 with inactive buff, got {life}"
+        );
+    }
+
+    #[test]
+    fn buff_effect_scales_mod_values() {
+        use crate::calc::env::BuffEntry;
+
+        let mut env = make_env(|env| {
+            env.player.mod_db.add(Mod::new_base("Life", 100.0, src()));
+            // 50% increased buff effect on self
+            env.player.mod_db.add(Mod {
+                name: "BuffEffectOnSelf".into(),
+                mod_type: ModType::Inc,
+                value: ModValue::Number(50.0),
+                flags: ModFlags::NONE,
+                keyword_flags: KeywordFlags::NONE,
+                tags: Vec::new(),
+                source: src(),
+            });
+            env.player.buffs.push(BuffEntry {
+                name: "Anger".into(),
+                skill_name: None,
+                mods: vec![Mod {
+                    name: "FireDamage".into(),
+                    mod_type: ModType::Inc,
+                    value: ModValue::Number(40.0),
+                    flags: ModFlags::NONE,
+                    keyword_flags: KeywordFlags::NONE,
+                    tags: Vec::new(),
+                    source: src(),
+                }],
+                active: true,
+            });
+        });
+        run(&mut env);
+
+        // Buff mod scaled: 40 * 1.5 = 60
+        let fire_inc = env.player.mod_db.sum(
+            ModType::Inc,
+            "FireDamage",
+            ModFlags::NONE,
+            KeywordFlags::NONE,
+        );
+        assert!(
+            (fire_inc - 60.0).abs() < 0.01,
+            "Expected FireDamage inc 60 with 50% buff effect, got {fire_inc}"
+        );
+    }
+
+    #[test]
+    fn guard_sets_affected_condition() {
+        use crate::calc::env::BuffEntry;
+
+        let mut env = make_env(|env| {
+            env.player.mod_db.add(Mod::new_base("Life", 100.0, src()));
+            env.player.guards.push(BuffEntry {
+                name: "Steelskin".into(),
+                skill_name: Some("Steelskin".into()),
+                mods: vec![],
+                active: true,
+            });
+        });
+        run(&mut env);
+
+        assert!(
+            env.player
+                .mod_db
+                .conditions
+                .get("AffectedByGuardSkill")
+                .copied()
+                .unwrap_or(false),
+            "Expected AffectedByGuardSkill condition"
+        );
+        assert!(
+            env.player
+                .mod_db
+                .conditions
+                .get("AffectedBySteelskin")
+                .copied()
+                .unwrap_or(false),
+            "Expected AffectedBySteelskin condition"
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // Task 14: Curse processing tests
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn curse_mods_applied_to_enemy() {
+        use crate::calc::env::CurseEntry;
+
+        let mut env = make_env(|env| {
+            env.player.mod_db.add(Mod::new_base("Life", 100.0, src()));
+            env.player.curses.push(CurseEntry {
+                name: "Vulnerability".into(),
+                skill_name: Some("Vulnerability".into()),
+                mods: vec![Mod {
+                    name: "PhysicalDamageTaken".into(),
+                    mod_type: ModType::Inc,
+                    value: ModValue::Number(30.0),
+                    flags: ModFlags::NONE,
+                    keyword_flags: KeywordFlags::NONE,
+                    tags: Vec::new(),
+                    source: src(),
+                }],
+                priority: 1.0,
+                is_mark: false,
+                active: true,
+            });
+        });
+        run(&mut env);
+
+        // Curse mod should be on enemy
+        let phys_taken = env.enemy.mod_db.sum(
+            ModType::Inc,
+            "PhysicalDamageTaken",
+            ModFlags::NONE,
+            KeywordFlags::NONE,
+        );
+        assert!(
+            (phys_taken - 30.0).abs() < 0.01,
+            "Expected PhysicalDamageTaken 30 on enemy, got {phys_taken}"
+        );
+
+        assert!(
+            env.enemy
+                .mod_db
+                .conditions
+                .get("Cursed")
+                .copied()
+                .unwrap_or(false),
+            "Expected Cursed condition on enemy"
+        );
+        assert!(
+            env.enemy
+                .mod_db
+                .conditions
+                .get("AffectedByVulnerability")
+                .copied()
+                .unwrap_or(false),
+            "Expected AffectedByVulnerability condition on enemy"
+        );
+    }
+
+    #[test]
+    fn curse_limit_respected() {
+        use crate::calc::env::CurseEntry;
+
+        let mut env = make_env(|env| {
+            env.player.mod_db.add(Mod::new_base("Life", 100.0, src()));
+            // Default curse limit is 1
+            // Two curses, only highest priority should apply
+            env.player.curses.push(CurseEntry {
+                name: "Vulnerability".into(),
+                skill_name: None,
+                mods: vec![Mod {
+                    name: "PhysicalDamageTaken".into(),
+                    mod_type: ModType::Inc,
+                    value: ModValue::Number(30.0),
+                    flags: ModFlags::NONE,
+                    keyword_flags: KeywordFlags::NONE,
+                    tags: Vec::new(),
+                    source: src(),
+                }],
+                priority: 2.0, // higher priority
+                is_mark: false,
+                active: true,
+            });
+            env.player.curses.push(CurseEntry {
+                name: "Despair".into(),
+                skill_name: None,
+                mods: vec![Mod {
+                    name: "ChaosDamageTaken".into(),
+                    mod_type: ModType::Inc,
+                    value: ModValue::Number(25.0),
+                    flags: ModFlags::NONE,
+                    keyword_flags: KeywordFlags::NONE,
+                    tags: Vec::new(),
+                    source: src(),
+                }],
+                priority: 1.0, // lower priority
+                is_mark: false,
+                active: true,
+            });
+        });
+        run(&mut env);
+
+        // Only Vulnerability (priority 2) should apply
+        let phys_taken = env.enemy.mod_db.sum(
+            ModType::Inc,
+            "PhysicalDamageTaken",
+            ModFlags::NONE,
+            KeywordFlags::NONE,
+        );
+        assert!(
+            (phys_taken - 30.0).abs() < 0.01,
+            "Expected PhysicalDamageTaken 30, got {phys_taken}"
+        );
+
+        // Despair should NOT apply
+        let chaos_taken = env.enemy.mod_db.sum(
+            ModType::Inc,
+            "ChaosDamageTaken",
+            ModFlags::NONE,
+            KeywordFlags::NONE,
+        );
+        assert_eq!(
+            chaos_taken, 0.0,
+            "Expected ChaosDamageTaken 0 (curse limit), got {chaos_taken}"
+        );
+
+        // CurseOnEnemy should be 1
+        assert_eq!(
+            env.enemy
+                .mod_db
+                .multipliers
+                .get("CurseOnEnemy")
+                .copied()
+                .unwrap_or(0.0),
+            1.0,
+            "Expected CurseOnEnemy multiplier 1"
+        );
+    }
+
+    #[test]
+    fn marks_bypass_curse_limit() {
+        use crate::calc::env::CurseEntry;
+
+        let mut env = make_env(|env| {
+            env.player.mod_db.add(Mod::new_base("Life", 100.0, src()));
+            // One hex (counts against limit)
+            env.player.curses.push(CurseEntry {
+                name: "Vulnerability".into(),
+                skill_name: None,
+                mods: vec![Mod {
+                    name: "PhysicalDamageTaken".into(),
+                    mod_type: ModType::Inc,
+                    value: ModValue::Number(30.0),
+                    flags: ModFlags::NONE,
+                    keyword_flags: KeywordFlags::NONE,
+                    tags: Vec::new(),
+                    source: src(),
+                }],
+                priority: 1.0,
+                is_mark: false,
+                active: true,
+            });
+            // One mark (doesn't count against limit)
+            env.player.curses.push(CurseEntry {
+                name: "Sniper's Mark".into(),
+                skill_name: None,
+                mods: vec![Mod {
+                    name: "ProjectileDamageTaken".into(),
+                    mod_type: ModType::Inc,
+                    value: ModValue::Number(35.0),
+                    flags: ModFlags::NONE,
+                    keyword_flags: KeywordFlags::NONE,
+                    tags: Vec::new(),
+                    source: src(),
+                }],
+                priority: 1.0,
+                is_mark: true,
+                active: true,
+            });
+        });
+        run(&mut env);
+
+        // Both should apply: hex + mark (mark doesn't count against limit)
+        let phys_taken = env.enemy.mod_db.sum(
+            ModType::Inc,
+            "PhysicalDamageTaken",
+            ModFlags::NONE,
+            KeywordFlags::NONE,
+        );
+        assert!(
+            (phys_taken - 30.0).abs() < 0.01,
+            "Expected PhysicalDamageTaken 30, got {phys_taken}"
+        );
+
+        let proj_taken = env.enemy.mod_db.sum(
+            ModType::Inc,
+            "ProjectileDamageTaken",
+            ModFlags::NONE,
+            KeywordFlags::NONE,
+        );
+        assert!(
+            (proj_taken - 35.0).abs() < 0.01,
+            "Expected ProjectileDamageTaken 35, got {proj_taken}"
+        );
+
+        // CurseOnEnemy should be 2
+        assert_eq!(
+            env.enemy
+                .mod_db
+                .multipliers
+                .get("CurseOnEnemy")
+                .copied()
+                .unwrap_or(0.0),
+            2.0,
+            "Expected CurseOnEnemy multiplier 2"
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // Task 15: Non-damaging ailments
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn non_damaging_ailment_defaults() {
+        let mut env = make_env(|env| {
+            env.player.mod_db.add(Mod::new_base("Life", 100.0, src()));
+        });
+        run(&mut env);
+
+        assert_eq!(get_output_f64(&env.player.output, "MaximumChill"), 30.0);
+        assert_eq!(get_output_f64(&env.player.output, "MaximumShock"), 50.0);
+        assert_eq!(get_output_f64(&env.player.output, "MaximumScorch"), 30.0);
+        assert_eq!(get_output_f64(&env.player.output, "MaximumBrittle"), 15.0);
+        assert_eq!(get_output_f64(&env.player.output, "MaximumSap"), 20.0);
+    }
+
+    #[test]
+    fn ailment_effect_does_not_exceed_cap() {
+        let mut env = make_env(|env| {
+            env.player.mod_db.add(Mod::new_base("Life", 100.0, src()));
+            // +100% shock effect would try to make max shock 100, but capped at 50
+            env.player.mod_db.add(Mod {
+                name: "EnemyShockEffect".into(),
+                mod_type: ModType::Inc,
+                value: ModValue::Number(100.0),
+                flags: ModFlags::NONE,
+                keyword_flags: KeywordFlags::NONE,
+                tags: Vec::new(),
+                source: src(),
+            });
+        });
+        run(&mut env);
+
+        let max_shock = get_output_f64(&env.player.output, "MaximumShock");
+        assert_eq!(max_shock, 50.0, "MaximumShock should be capped at 50");
+    }
+
+    #[test]
+    fn self_chill_override_sets_current_chill() {
+        let mut env = make_env(|env| {
+            env.player.mod_db.add(Mod::new_base("Life", 100.0, src()));
+            env.player
+                .mod_db
+                .add(Mod::new_base("SelfChillOverride", 10.0, src()));
+        });
+        run(&mut env);
+
+        let current_chill = get_output_f64(&env.player.output, "CurrentChill");
+        assert_eq!(
+            current_chill, 10.0,
+            "Expected CurrentChill 10, got {current_chill}"
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // Task 16: Exposure processing
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn fire_exposure_applied_to_enemy() {
+        let mut env = make_env(|env| {
+            env.player.mod_db.add(Mod::new_base("Life", 100.0, src()));
+            // -10 fire exposure
+            env.player
+                .mod_db
+                .add(Mod::new_base("FireExposure", -10.0, src()));
+        });
+        run(&mut env);
+
+        let fire_resist = env.enemy.mod_db.sum(
+            ModType::Base,
+            "FireResist",
+            ModFlags::NONE,
+            KeywordFlags::NONE,
+        );
+        assert_eq!(
+            fire_resist, -10.0,
+            "Expected enemy FireResist -10, got {fire_resist}"
+        );
+    }
+
+    #[test]
+    fn multiple_exposures_applied() {
+        let mut env = make_env(|env| {
+            env.player.mod_db.add(Mod::new_base("Life", 100.0, src()));
+            env.player
+                .mod_db
+                .add(Mod::new_base("FireExposure", -15.0, src()));
+            env.player
+                .mod_db
+                .add(Mod::new_base("ColdExposure", -10.0, src()));
+            env.player
+                .mod_db
+                .add(Mod::new_base("LightningExposure", -5.0, src()));
+        });
+        run(&mut env);
+
+        let fire = env.enemy.mod_db.sum(
+            ModType::Base,
+            "FireResist",
+            ModFlags::NONE,
+            KeywordFlags::NONE,
+        );
+        let cold = env.enemy.mod_db.sum(
+            ModType::Base,
+            "ColdResist",
+            ModFlags::NONE,
+            KeywordFlags::NONE,
+        );
+        let lightning = env.enemy.mod_db.sum(
+            ModType::Base,
+            "LightningResist",
+            ModFlags::NONE,
+            KeywordFlags::NONE,
+        );
+        assert_eq!(fire, -15.0, "Fire exposure: {fire}");
+        assert_eq!(cold, -10.0, "Cold exposure: {cold}");
+        assert_eq!(lightning, -5.0, "Lightning exposure: {lightning}");
+    }
+
+    #[test]
+    fn no_exposure_when_zero() {
+        let mut env = make_env(|env| {
+            env.player.mod_db.add(Mod::new_base("Life", 100.0, src()));
+            // No exposure mods set
+        });
+        run(&mut env);
+
+        let fire = env.enemy.mod_db.sum(
+            ModType::Base,
+            "FireResist",
+            ModFlags::NONE,
+            KeywordFlags::NONE,
+        );
+        assert_eq!(fire, 0.0, "No fire exposure should mean 0 resist mod");
+    }
+
+    // ------------------------------------------------------------------
+    // Task 10: Integration tests with oracle-like builds
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn integration_marauder_l90_no_items_life() {
+        // Marauder L90 no items:
+        // Base life = 38 + 12 * 90 = 1118
+        // Str = 32 → life from str = floor(32 * 0.5) = 16
+        // Total base life = 1118 + 16 = 1134
+        let data = Arc::new(GameData::default_for_test());
+        let mut env = CalcEnv {
+            player: Actor::new(crate::mod_db::ModDb::new()),
+            enemy: Actor::new(crate::mod_db::ModDb::new()),
+            mode: CalcMode::Normal,
+            data: data.clone(),
+        };
+
+        // Add Marauder L90 base stats
+        let base_src = ModSource::new("Base", "Marauder base stats");
+        let base_life = 38.0 + 12.0 * 90.0; // 1118
+        env.player
+            .mod_db
+            .add(Mod::new_base("Life", base_life, base_src.clone()));
+        env.player
+            .mod_db
+            .add(Mod::new_base("Mana", 34.0 + 6.0 * 90.0, base_src.clone())); // 574
+        env.player
+            .mod_db
+            .add(Mod::new_base("Str", 32.0, base_src.clone()));
+        env.player
+            .mod_db
+            .add(Mod::new_base("Dex", 14.0, base_src.clone()));
+        env.player.mod_db.add(Mod::new_base("Int", 14.0, base_src));
+
+        run(&mut env);
+
+        let life = get_output_f64(&env.player.output, "Life");
+        // base 1118 + floor(32*0.5) = 1118 + 16 = 1134
+        assert_eq!(life, 1134.0, "Marauder L90 life should be 1134, got {life}");
+
+        let mana = get_output_f64(&env.player.output, "Mana");
+        // base 574, Int = 14, mana inc from Int = floor(14/5) = 2%
+        // 574 * (1 + 2/100) = 574 * 1.02 = 585.48 → round = 585
+        assert_eq!(mana, 585.0, "Marauder L90 mana should be 585, got {mana}");
+
+        let mana_regen = get_output_f64(&env.player.output, "ManaRegen");
+        // 1.75% of 585 = 10.2375
+        assert!(
+            (mana_regen - 10.2375).abs() < 0.1,
+            "Marauder L90 mana regen should be ~10.2, got {mana_regen}"
+        );
+    }
+
+    #[test]
+    fn integration_marauder_l90_with_life_passive() {
+        // Marauder L90 with "10% increased maximum Life" passive
+        let data = Arc::new(GameData::default_for_test());
+        let mut env = CalcEnv {
+            player: Actor::new(crate::mod_db::ModDb::new()),
+            enemy: Actor::new(crate::mod_db::ModDb::new()),
+            mode: CalcMode::Normal,
+            data: data.clone(),
+        };
+
+        let base_src = ModSource::new("Base", "Marauder base stats");
+        let base_life = 38.0 + 12.0 * 90.0; // 1118
+        env.player
+            .mod_db
+            .add(Mod::new_base("Life", base_life, base_src.clone()));
+        env.player
+            .mod_db
+            .add(Mod::new_base("Mana", 34.0 + 6.0 * 90.0, base_src.clone()));
+        env.player
+            .mod_db
+            .add(Mod::new_base("Str", 32.0, base_src.clone()));
+        env.player
+            .mod_db
+            .add(Mod::new_base("Dex", 14.0, base_src.clone()));
+        env.player.mod_db.add(Mod::new_base("Int", 14.0, base_src));
+
+        // +10% increased maximum Life passive
+        let passive_src = ModSource::new("Passive", "Life node");
+        env.player.mod_db.add(Mod {
+            name: "Life".into(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(10.0),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            tags: Vec::new(),
+            source: passive_src,
+        });
+
+        run(&mut env);
+
+        let life = get_output_f64(&env.player.output, "Life");
+        // base 1118 + 16 (Str) = 1134
+        // 1134 * (1 + 10/100) = 1134 * 1.10 = 1247.4 → round = 1247
+        assert_eq!(
+            life, 1247.0,
+            "Marauder L90 with 10% inc life should be 1247, got {life}"
+        );
     }
 }
