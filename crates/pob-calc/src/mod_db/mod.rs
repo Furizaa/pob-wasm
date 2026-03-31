@@ -173,7 +173,7 @@ impl ModDb {
         let mut rows = Vec::new();
         if let Some(list) = self.mods.get(name) {
             for m in list {
-                let type_matches = mod_type.as_ref().map_or(true, |t| t == &m.mod_type);
+                let type_matches = mod_type.as_ref().is_none_or(|t| t == &m.mod_type);
                 if !type_matches {
                     continue;
                 }
@@ -186,10 +186,8 @@ impl ModDb {
                     continue;
                 }
                 // For tabulate, we still check tags but don't scale the value
-                if !m.tags.is_empty() {
-                    if eval_mod::eval_mod(m, cfg, self, output).is_none() {
-                        continue;
-                    }
+                if !m.tags.is_empty() && eval_mod::eval_mod(m, cfg, self, output).is_none() {
+                    continue;
                 }
                 rows.push(TabulatedMod {
                     value: m.value.clone(),
@@ -243,12 +241,10 @@ impl ModDb {
         let mut result = Vec::new();
         if let Some(mods) = self.mods.get(name) {
             for m in mods {
-                if self.mod_matches_cfg(m, &ModType::List, cfg) {
-                    if m.tags.is_empty() {
-                        result.push(m);
-                    } else if eval_mod::eval_mod(m, cfg, self, output).is_some() {
-                        result.push(m);
-                    }
+                if self.mod_matches_cfg(m, &ModType::List, cfg)
+                    && (m.tags.is_empty() || eval_mod::eval_mod(m, cfg, self, output).is_some())
+                {
+                    result.push(m);
                 }
             }
         }
@@ -339,12 +335,10 @@ impl ModDb {
     ) -> bool {
         if let Some(list) = self.mods.get(name) {
             for m in list {
-                if self.mod_matches_cfg(m, &mod_type, cfg) {
-                    if m.tags.is_empty() {
-                        return true;
-                    } else if eval_mod::eval_mod(m, cfg, self, output).is_some() {
-                        return true;
-                    }
+                if self.mod_matches_cfg(m, &mod_type, cfg)
+                    && (m.tags.is_empty() || eval_mod::eval_mod(m, cfg, self, output).is_some())
+                {
+                    return true;
                 }
             }
         }

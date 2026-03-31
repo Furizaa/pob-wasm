@@ -143,6 +143,7 @@ pub enum ItemRarity {
 }
 
 impl ItemRarity {
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         match s.to_uppercase().as_str() {
             "NORMAL" => Some(Self::Normal),
@@ -257,6 +258,7 @@ pub enum ItemSlot {
 }
 
 impl ItemSlot {
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "Weapon 1" => Some(Self::Weapon1),

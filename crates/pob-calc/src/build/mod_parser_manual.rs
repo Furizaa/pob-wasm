@@ -25,7 +25,7 @@ fn first_to_upper(s: &str) -> String {
 /// Title case: capitalize each word, remove spaces (e.g. "fire damage" → "FireDamage").
 fn title_case(s: &str) -> String {
     s.split_whitespace()
-        .map(|w| first_to_upper(w))
+        .map(first_to_upper)
         .collect::<Vec<_>>()
         .join("")
 }
@@ -34,6 +34,7 @@ fn title_case(s: &str) -> String {
 const NON_DAMAGING_AILMENTS: &[&str] = &["Chill", "Freeze", "Shock", "Scorch", "Brittle", "Sap"];
 
 /// Build a simple numeric mod.
+#[allow(dead_code)]
 fn make_mod(name: &str, mod_type: ModType, value: f64, source: &ModSource) -> Mod {
     Mod {
         name: name.into(),
@@ -435,7 +436,7 @@ pub fn handle_manual_special(id: &str, caps: &regex::Captures, source: &ModSourc
         "manual_601" => {
             let slot_name = cap_str(caps, 1).trim();
             let target_slot = remap_support_slot(slot_name);
-            let value = format!("{}", target_slot);
+            let value = target_slot.to_string();
             vec![make_list_mod("LinkedSupport", &value, source)]
         }
 

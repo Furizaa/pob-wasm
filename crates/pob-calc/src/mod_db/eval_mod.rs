@@ -33,9 +33,8 @@ pub fn eval_mod(
         match tag {
             ModTag::Condition { var, neg } => {
                 let met = mod_db.conditions.get(var).copied().unwrap_or(false)
-                    || cfg.map_or(false, |c| {
-                        c.skill_cond.get(var.as_str()).copied().unwrap_or(false)
-                    });
+                    || cfg
+                        .is_some_and(|c| c.skill_cond.get(var.as_str()).copied().unwrap_or(false));
                 if met == *neg {
                     return None;
                 }
@@ -110,15 +109,13 @@ pub fn eval_mod(
             }
             ModTag::SkillType { skill_type } => {
                 // SkillType has no `neg` field — it's a simple inclusion check
-                let met = cfg.map_or(false, |c| c.skill_types.contains(skill_type));
+                let met = cfg.is_some_and(|c| c.skill_types.contains(skill_type));
                 if !met {
                     return None;
                 }
             }
             ModTag::SlotName { slot_name, neg } => {
-                let met = cfg.map_or(false, |c| {
-                    c.slot_name.as_ref().map_or(false, |s| s == slot_name)
-                });
+                let met = cfg.is_some_and(|c| c.slot_name.as_ref() == Some(slot_name));
                 if met == *neg {
                     return None;
                 }
