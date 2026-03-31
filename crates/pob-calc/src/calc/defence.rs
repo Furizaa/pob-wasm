@@ -148,14 +148,20 @@ fn calc_resistances(env: &mut CalcEnv) {
         env.player
             .set_output(&format!("{elem}ResistOverTime"), capped);
 
-        // Totem resists
-        let totem_resist = total_resist.min(max_resist);
-        let totem_over_cap = (total_resist - max_resist).max(0.0);
-        let missing_totem = (max_resist - totem_resist).max(0.0);
+        // Totem resists: use their own base resist values (not player resists)
+        let totem_resist_stat = format!("Totem{elem}Resist");
+        let totem_base_resist =
+            env.player
+                .mod_db
+                .sum_cfg(ModType::Base, &totem_resist_stat, None, &output);
+        let totem_max = max_resist; // Totems share the player's max resist cap
+        let totem_capped = totem_base_resist.min(totem_max);
+        let totem_over_cap = (totem_base_resist - totem_max).max(0.0);
+        let missing_totem = (totem_max - totem_capped).max(0.0);
         env.player
-            .set_output(&format!("Totem{elem}Resist"), totem_resist);
+            .set_output(&format!("Totem{elem}Resist"), totem_capped);
         env.player
-            .set_output(&format!("Totem{elem}ResistTotal"), total_resist);
+            .set_output(&format!("Totem{elem}ResistTotal"), totem_base_resist);
         env.player
             .set_output(&format!("Totem{elem}ResistOverCap"), totem_over_cap);
         env.player
@@ -541,82 +547,96 @@ fn calc_leech_caps(env: &mut CalcEnv) {
 
     let life = get_output_f64(&output, "Life").max(1.0);
     let mana = get_output_f64(&output, "Mana").max(1.0);
-    let es = get_output_f64(&output, "EnergyShield").max(1.0);
+    let es = get_output_f64(&output, "EnergyShield").max(0.0);
 
-    // Max life leech instance (default 10% of life)
-    let life_leech_instance_base =
+    // Leech caps: moddb Base values are percentages of pool.
+    // Defaults come from game_constants in add_base_constants:
+    //   MaxLifeLeechRate = 20 (% of life), MaxLifeLeechInstance = 10 (% of life)
+    //   MaxManaLeechRate = 20 (% of mana), MaxManaLeechInstance = 10 (% of mana)
+    //   MaxEnergyShieldLeechInstance = 10 (% of ES)
+
+    // Max life leech instance (% of life → absolute)
+    let life_leech_instance_pct =
         env.player
             .mod_db
             .sum_cfg(ModType::Base, "MaxLifeLeechInstance", None, &output);
-    let life_leech_instance = if life_leech_instance_base == 0.0 {
-        life * 0.10
+    let life_leech_instance_pct = if life_leech_instance_pct > 0.0 {
+        life_leech_instance_pct
     } else {
-        life_leech_instance_base
+        10.0
     };
+    let life_leech_instance = life * life_leech_instance_pct / 100.0;
     env.player
         .set_output("MaxLifeLeechInstance", life_leech_instance);
 
-    // Max life leech rate (default 20% of life)
-    let life_leech_rate_base =
+    // Max life leech rate (% of life → absolute)
+    let life_leech_rate_pct =
         env.player
             .mod_db
             .sum_cfg(ModType::Base, "MaxLifeLeechRate", None, &output);
-    let life_leech_rate = if life_leech_rate_base == 0.0 {
-        life * 0.20
+    let life_leech_rate_pct = if life_leech_rate_pct > 0.0 {
+        life_leech_rate_pct
     } else {
-        life_leech_rate_base
+        20.0
     };
+    let life_leech_rate = life * life_leech_rate_pct / 100.0;
     env.player.set_output("MaxLifeLeechRate", life_leech_rate);
+    env.player
+        .set_output("MaxLifeLeechRatePercent", life_leech_rate_pct);
 
-    // Max ES leech instance (default 10% of ES)
-    let es_leech_instance_base =
+    // Max ES leech instance (% of ES → absolute)
+    let es_leech_instance_pct =
         env.player
             .mod_db
             .sum_cfg(ModType::Base, "MaxEnergyShieldLeechInstance", None, &output);
-    let es_leech_instance = if es_leech_instance_base == 0.0 {
-        es * 0.10
+    let es_leech_instance_pct = if es_leech_instance_pct > 0.0 {
+        es_leech_instance_pct
     } else {
-        es_leech_instance_base
+        10.0
     };
+    let es_leech_instance = es.max(1.0) * es_leech_instance_pct / 100.0;
     env.player
         .set_output("MaxEnergyShieldLeechInstance", es_leech_instance);
 
-    // Max ES leech rate (default 10% of ES)
-    let es_leech_rate_base =
+    // Max ES leech rate (% of ES → absolute). Default: same as leech rate for ES
+    let es_leech_rate_pct =
         env.player
             .mod_db
             .sum_cfg(ModType::Base, "MaxEnergyShieldLeechRate", None, &output);
-    let es_leech_rate = if es_leech_rate_base == 0.0 {
-        es * 0.10
+    let es_leech_rate_pct = if es_leech_rate_pct > 0.0 {
+        es_leech_rate_pct
     } else {
-        es_leech_rate_base
+        10.0
     };
+    let es_leech_rate = es.max(1.0) * es_leech_rate_pct / 100.0;
     env.player
         .set_output("MaxEnergyShieldLeechRate", es_leech_rate);
 
-    // Max mana leech instance (default 10% of mana)
-    let mana_leech_instance_base =
+    // Max mana leech instance (% of mana → absolute)
+    let mana_leech_instance_pct =
         env.player
             .mod_db
             .sum_cfg(ModType::Base, "MaxManaLeechInstance", None, &output);
-    let mana_leech_instance = if mana_leech_instance_base == 0.0 {
-        mana * 0.10
+    let mana_leech_instance_pct = if mana_leech_instance_pct > 0.0 {
+        mana_leech_instance_pct
     } else {
-        mana_leech_instance_base
+        10.0
     };
+    let mana_leech_instance = mana * mana_leech_instance_pct / 100.0;
     env.player
         .set_output("MaxManaLeechInstance", mana_leech_instance);
 
-    // Max mana leech rate (default 20% of mana)
-    let mana_leech_rate_base =
+    // Max mana leech rate (% of mana → absolute)
+    let mana_leech_rate_pct =
         env.player
             .mod_db
             .sum_cfg(ModType::Base, "MaxManaLeechRate", None, &output);
-    let mana_leech_rate = if mana_leech_rate_base == 0.0 {
-        mana * 0.20
+    let mana_leech_rate_pct = if mana_leech_rate_pct > 0.0 {
+        mana_leech_rate_pct
     } else {
-        mana_leech_rate_base
+        20.0
     };
+    let mana_leech_rate = mana * mana_leech_rate_pct / 100.0;
     env.player.set_output("MaxManaLeechRate", mana_leech_rate);
 }
 

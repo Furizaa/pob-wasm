@@ -493,28 +493,9 @@ fn do_actor_life_mana_reservation(env: &mut CalcEnv) {
 
 /// Mirrors doActorCharges() in CalcPerform.lua.
 fn do_actor_charges(env: &mut CalcEnv) {
-    // Helper: get game constant with fallback
-    let gc_power = env
-        .data
-        .misc
-        .game_constants
-        .get("max_power_charges")
-        .copied()
-        .unwrap_or(3.0);
-    let gc_frenzy = env
-        .data
-        .misc
-        .game_constants
-        .get("max_frenzy_charges")
-        .copied()
-        .unwrap_or(3.0);
-    let gc_endurance = env
-        .data
-        .misc
-        .game_constants
-        .get("max_endurance_charges")
-        .copied()
-        .unwrap_or(3.0);
+    // Base max charges are already in the moddb from add_base_constants (game_constants values).
+    // Additional max charges come from passives, items, etc. as additional Base mods.
+    // We just sum all Base mods for each max to get the total.
 
     // Compute all charge values upfront to avoid borrow conflicts
     let pc_min = env
@@ -522,11 +503,11 @@ fn do_actor_charges(env: &mut CalcEnv) {
         .mod_db
         .sum_cfg(ModType::Base, "PowerChargesMin", None, &env.player.output)
         .max(0.0);
-    let pc_max_added =
-        env.player
-            .mod_db
-            .sum_cfg(ModType::Base, "PowerChargesMax", None, &env.player.output);
-    let pc_max = (gc_power + pc_max_added).max(0.0);
+    let pc_max = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "PowerChargesMax", None, &env.player.output)
+        .max(0.0);
     let use_pc = env
         .player
         .mod_db
@@ -545,11 +526,11 @@ fn do_actor_charges(env: &mut CalcEnv) {
         .mod_db
         .sum_cfg(ModType::Base, "FrenzyChargesMin", None, &env.player.output)
         .max(0.0);
-    let fc_max_added =
-        env.player
-            .mod_db
-            .sum_cfg(ModType::Base, "FrenzyChargesMax", None, &env.player.output);
-    let fc_max = (gc_frenzy + fc_max_added).max(0.0);
+    let fc_max = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "FrenzyChargesMax", None, &env.player.output)
+        .max(0.0);
     let use_fc = env
         .player
         .mod_db
@@ -573,13 +554,16 @@ fn do_actor_charges(env: &mut CalcEnv) {
             &env.player.output,
         )
         .max(0.0);
-    let ec_max_added = env.player.mod_db.sum_cfg(
-        ModType::Base,
-        "EnduranceChargesMax",
-        None,
-        &env.player.output,
-    );
-    let ec_max = (gc_endurance + ec_max_added).max(0.0);
+    let ec_max = env
+        .player
+        .mod_db
+        .sum_cfg(
+            ModType::Base,
+            "EnduranceChargesMax",
+            None,
+            &env.player.output,
+        )
+        .max(0.0);
     let use_ec = env
         .player
         .mod_db
@@ -1054,7 +1038,7 @@ fn do_non_damaging_ailments(env: &mut CalcEnv) {
     let max_scorch = (30.0 * (1.0 + scorch_effect_inc / 100.0)).min(30.0);
     env.player.set_output("MaximumScorch", max_scorch);
 
-    // MaximumBrittle: fixed at 15
+    // MaximumBrittle: base 15%, capped at 15
     env.player.set_output("MaximumBrittle", 15.0);
 
     // MaximumSap: fixed at 20
@@ -1581,10 +1565,13 @@ mod tests {
             env.player
                 .mod_db
                 .add(Mod::new_flag("UsePowerCharges", src()));
-            // Add 2 extra max power charges (default 3 from game_constants)
+            // Base 3 from game constants + 2 extra = 5 total
             env.player
                 .mod_db
-                .add(Mod::new_base("PowerChargesMax", 2.0, src()));
+                .add(Mod::new_base("PowerChargesMax", 3.0, src())); // base from game constants
+            env.player
+                .mod_db
+                .add(Mod::new_base("PowerChargesMax", 2.0, src())); // extra from passives/items
         });
         run(&mut env);
 
