@@ -8,8 +8,10 @@
 use std::sync::LazyLock;
 
 use super::env::CalcEnv;
+use crate::data::gems::{GemData, GemsMap};
 
-// Heuristic spell list — will be replaced by gem data in Task 4.
+// ── Heuristic fallback lists (used when gem data is unavailable) ────────────
+
 // Kinetic Blast is a ranged ATTACK, not a spell — excluded from this list.
 static KNOWN_SPELLS: LazyLock<std::collections::HashSet<&'static str>> = LazyLock::new(|| {
     [
@@ -79,8 +81,54 @@ static KNOWN_SUMMONER_SKILLS: LazyLock<std::collections::HashSet<&'static str>> 
         .collect()
     });
 
+// ── Gem data lookup helper ──────────────────────────────────────────────────
+
+/// Look up a gem in the gems map by trying:
+/// 1. Exact match on `skill_id`
+/// 2. Lowercase match
+/// 3. Lowercase with spaces replaced by underscores
+fn lookup_gem<'a>(gems: &'a GemsMap, skill_id: &str) -> Option<&'a GemData> {
+    gems.get(skill_id).or_else(|| {
+        let lower = skill_id.to_lowercase();
+        gems.get(&lower)
+            .or_else(|| gems.get(&lower.replace(' ', "_")))
+    })
+}
+
+// ── Support gem matching ────────────────────────────────────────────────────
+
+/// Determine if a support gem can support an active skill based on skill type
+/// requirements and exclusions.
+fn can_support(support_data: &GemData, active_skill_types: &[String]) -> bool {
+    // Check require_skill_types: if non-empty, the active skill must have at
+    // least one matching type
+    if !support_data.require_skill_types.is_empty() {
+        let matches = support_data.require_skill_types.iter().any(|req| {
+            active_skill_types
+                .iter()
+                .any(|ast| ast.eq_ignore_ascii_case(req))
+        });
+        if !matches {
+            return false;
+        }
+    }
+    // Check exclude_skill_types: if non-empty, the active skill must have NONE
+    // of those types
+    if !support_data.exclude_skill_types.is_empty() {
+        let excluded = support_data.exclude_skill_types.iter().any(|exc| {
+            active_skill_types
+                .iter()
+                .any(|ast| ast.eq_ignore_ascii_case(exc))
+        });
+        if excluded {
+            return false;
+        }
+    }
+    true
+}
+
 pub fn run(env: &mut CalcEnv, build: &crate::build::Build) {
-    use crate::build::types::ActiveSkill;
+    use crate::build::types::{ActiveSkill, SupportEffect};
     use crate::mod_db::ModDb;
 
     // Resolve the active skill set and socket group
@@ -94,11 +142,28 @@ pub fn run(env: &mut CalcEnv, build: &crate::build::Build) {
         return;
     };
 
-    // Find the active (non-support) gems
-    let active_gems: Vec<_> = skill_group
+    // ── Resolve is_support from gem data ────────────────────────────────────
+    // The XML parser doesn't know which gems are supports; resolve from gem data.
+    // Build a vec of (gem, resolved_is_support) for all enabled gems.
+    let resolved_gems: Vec<_> = skill_group
         .gems
         .iter()
-        .filter(|g| g.enabled && !g.is_support)
+        .filter(|g| g.enabled)
+        .map(|g| {
+            let is_support = if let Some(gd) = lookup_gem(&env.data.gems, &g.skill_id) {
+                gd.is_support
+            } else {
+                g.is_support
+            };
+            (g, is_support)
+        })
+        .collect();
+
+    // Find the active (non-support) gems
+    let active_gems: Vec<_> = resolved_gems
+        .iter()
+        .filter(|(_, is_support)| !is_support)
+        .map(|(g, _)| *g)
         .collect();
     let active_gem_idx = skill_group.main_active_skill;
     let Some(active_gem) = active_gems
@@ -110,10 +175,39 @@ pub fn run(env: &mut CalcEnv, build: &crate::build::Build) {
 
     let skill_id = active_gem.skill_id.clone();
 
-    // Classify skill type by name (heuristic until gem data drives this)
-    let is_spell = KNOWN_SPELLS.contains(skill_id.as_str());
-    let is_attack = !is_spell;
-    let is_melee = is_attack && !KNOWN_RANGED_ATTACKS.contains(skill_id.as_str());
+    // ── Gem data lookup ─────────────────────────────────────────────────────
+    let gem_data = lookup_gem(&env.data.gems, &skill_id);
+
+    // ── Data-driven skill classification ────────────────────────────────────
+    // Use gem data's base_flags and skill_types when available, falling back
+    // to the heuristic lists for unknown gems.
+    let (is_attack, is_spell, is_melee) = if let Some(gd) = gem_data {
+        let has_flag = |f: &str| {
+            gd.base_flags.iter().any(|b| b.eq_ignore_ascii_case(f))
+                || gd.skill_types.iter().any(|t| t.eq_ignore_ascii_case(f))
+        };
+        let is_attack = has_flag("attack");
+        let is_spell = has_flag("spell");
+        let is_melee =
+            has_flag("melee") || (is_attack && !has_flag("projectile") && !has_flag("bow"));
+        (is_attack, is_spell, is_melee)
+    } else {
+        // Fallback to heuristic for unknown gems
+        let is_spell = KNOWN_SPELLS.contains(skill_id.as_str());
+        let is_attack = !is_spell;
+        let is_melee = is_attack && !KNOWN_RANGED_ATTACKS.contains(skill_id.as_str());
+        (is_attack, is_spell, is_melee)
+    };
+
+    // ── Populate skill_types and skill_flags from gem data ──────────────────
+    let (skill_types, skill_flags) = if let Some(gd) = gem_data {
+        let types = gd.skill_types.clone();
+        let flags: std::collections::HashMap<String, bool> =
+            gd.base_flags.iter().map(|f| (f.clone(), true)).collect();
+        (types, flags)
+    } else {
+        (Vec::new(), std::collections::HashMap::new())
+    };
 
     let is_summoner = KNOWN_SUMMONER_SKILLS.contains(skill_id.as_str());
     if is_summoner {
@@ -148,16 +242,6 @@ pub fn run(env: &mut CalcEnv, build: &crate::build::Build) {
         std::collections::HashMap::new();
 
     // Populate base_damage and timing from gem level data.
-    // gems.json keys are lowercase; skillId in the build XML may be mixed-case.
-    let gem_key = skill_id.to_lowercase();
-    // Also try replacing spaces with underscores (e.g. "Heavy Strike" -> "heavy_strike")
-    let gem_key_underscored = gem_key.replace(' ', "_");
-    let gem_data = env
-        .data
-        .gems
-        .get(&gem_key)
-        .or_else(|| env.data.gems.get(&gem_key_underscored));
-
     if let Some(gem_data) = gem_data {
         // Find by level field instead of positional index
         if let Some(level_data) = gem_data.levels.iter().find(|l| l.level == active_gem.level) {
@@ -190,6 +274,27 @@ pub fn run(env: &mut CalcEnv, build: &crate::build::Build) {
         }
     }
 
+    // ── Build support list ──────────────────────────────────────────────────
+    // Iterate other gems in the socket group, find supports that can support
+    // this active skill based on skill type requirements.
+    let support_list: Vec<SupportEffect> = resolved_gems
+        .iter()
+        .filter(|(g, is_support)| *is_support && g.skill_id != active_gem.skill_id)
+        .filter_map(|(g, _)| {
+            let support_gd = lookup_gem(&env.data.gems, &g.skill_id)?;
+            if can_support(support_gd, &skill_types) {
+                Some(SupportEffect {
+                    skill_id: g.skill_id.clone(),
+                    level: g.level,
+                    quality: g.quality,
+                    gem_data: Some(support_gd.id.clone()),
+                })
+            } else {
+                None
+            }
+        })
+        .collect();
+
     env.player.main_skill = Some(ActiveSkill {
         skill_id,
         level: active_gem.level,
@@ -204,11 +309,11 @@ pub fn run(env: &mut CalcEnv, build: &crate::build::Build) {
         attack_speed_base,
         cast_time,
         damage_effectiveness: 1.0,
-        skill_types: Vec::new(),
-        skill_flags: std::collections::HashMap::new(),
+        skill_types,
+        skill_flags,
         skill_cfg: None,
         slot_name: None,
-        support_list: Vec::new(),
+        support_list,
     });
 }
 
@@ -220,6 +325,45 @@ mod tests {
 
     fn make_data() -> Arc<GameData> {
         Arc::new(GameData::from_json(crate::tests::stub_game_data_json()).unwrap())
+    }
+
+    /// Build GameData from a custom gems JSON string merged with the stub misc data.
+    fn make_data_with_gems(gems_json: &str) -> Arc<GameData> {
+        let json = format!(
+            r#"{{
+                "gems": {gems_json},
+                "misc": {{
+                    "game_constants": {{
+                        "base_maximum_all_resistances_%": 75,
+                        "maximum_block_%": 75,
+                        "base_maximum_spell_block_%": 75,
+                        "max_power_charges": 3,
+                        "max_frenzy_charges": 3,
+                        "max_endurance_charges": 3,
+                        "maximum_life_leech_rate_%_per_minute": 20,
+                        "maximum_mana_leech_rate_%_per_minute": 20,
+                        "maximum_life_leech_amount_per_leech_%_max_life": 10,
+                        "maximum_mana_leech_amount_per_leech_%_max_mana": 10,
+                        "maximum_energy_shield_leech_amount_per_leech_%_max_energy_shield": 10,
+                        "base_number_of_totems_allowed": 1,
+                        "impaled_debuff_number_of_reflected_hits": 8,
+                        "soul_eater_maximum_stacks": 40,
+                        "maximum_righteous_charges": 10,
+                        "maximum_blood_scythe_charges": 8
+                    }},
+                    "character_constants": {{"life_per_str": 0.5}},
+                    "monster_life_table": [],
+                    "monster_damage_table": [],
+                    "monster_evasion_table": [],
+                    "monster_accuracy_table": [],
+                    "monster_ally_life_table": [],
+                    "monster_ally_damage_table": [],
+                    "monster_ailment_threshold_table": [],
+                    "monster_phys_conversion_multi_table": []
+                }}
+            }}"#
+        );
+        Arc::new(GameData::from_json(&json).unwrap())
     }
 
     const CLEAVE_BUILD: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
@@ -348,5 +492,357 @@ mod tests {
         let skill = env.player.main_skill.as_ref().unwrap();
         assert!(skill.is_spell, "Fireball should be a spell");
         assert!(!skill.is_attack, "Fireball should not be an attack");
+    }
+
+    // ── Task 9: Data-driven classification tests ────────────────────────────
+
+    #[test]
+    fn data_driven_spell_classification() {
+        // Create game data with a gem that has base_flags: ["spell"]
+        // "MagicMissile" is NOT in the KNOWN_SPELLS list, so the only way it can
+        // be classified as a spell is via the gem data.
+        let gems_json = r#"{
+            "MagicMissile": {
+                "id": "MagicMissile",
+                "display_name": "Magic Missile",
+                "is_support": false,
+                "skill_types": ["Spell", "Projectile"],
+                "base_flags": ["spell", "projectile"],
+                "levels": [{"level": 20, "level_requirement": 70}]
+            }
+        }"#;
+        let data = make_data_with_gems(gems_json);
+
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_29" bandit="None" mainSocketGroup="1"
+         className="Witch" ascendClassName="None"/>
+  <Skills activeSkillSet="1">
+    <SkillSet id="1">
+      <Skill mainActiveSkill="1" enabled="true" slot="Weapon 1">
+        <Gem skillId="MagicMissile" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Tree activeSpec="1"><Spec treeVersion="3_29" nodes="" classId="3" ascendClassId="0"/></Tree>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config/>
+</PathOfBuilding>"#;
+
+        let build = parse_xml(xml).unwrap();
+        let mut env = init_env(&build, data).unwrap();
+        run(&mut env, &build);
+
+        let skill = env.player.main_skill.as_ref().unwrap();
+        assert!(
+            skill.is_spell,
+            "MagicMissile should be classified as spell from gem data"
+        );
+        assert!(!skill.is_attack, "MagicMissile should not be an attack");
+        assert!(
+            skill.skill_types.contains(&"Spell".to_string()),
+            "skill_types should contain Spell"
+        );
+        assert!(
+            skill.skill_flags.contains_key("spell"),
+            "skill_flags should contain 'spell'"
+        );
+    }
+
+    #[test]
+    fn data_driven_attack_melee_classification() {
+        // Cleave with gem data should be classified as attack + melee
+        let gems_json = r#"{
+            "Cleave": {
+                "id": "Cleave",
+                "display_name": "Cleave",
+                "is_support": false,
+                "skill_types": ["Attack", "Melee", "Area"],
+                "base_flags": ["attack", "melee", "area"],
+                "levels": [{"level": 20, "level_requirement": 70}]
+            }
+        }"#;
+        let data = make_data_with_gems(gems_json);
+        let build = parse_xml(CLEAVE_BUILD).unwrap();
+        let mut env = init_env(&build, data).unwrap();
+        run(&mut env, &build);
+
+        let skill = env.player.main_skill.as_ref().unwrap();
+        assert!(skill.is_attack, "Cleave should be attack from gem data");
+        assert!(skill.is_melee, "Cleave should be melee from gem data");
+        assert!(!skill.is_spell, "Cleave should not be a spell");
+    }
+
+    // ── Task 10: Support gem matching tests ─────────────────────────────────
+
+    #[test]
+    fn support_gems_matched_to_active_skill() {
+        // Cleave (attack, melee) + SupportMeleeSplash (requires Attack, Melee)
+        let gems_json = r#"{
+            "Cleave": {
+                "id": "Cleave",
+                "display_name": "Cleave",
+                "is_support": false,
+                "skill_types": ["Attack", "Melee", "Area"],
+                "base_flags": ["attack", "melee", "area"],
+                "levels": [{"level": 20, "level_requirement": 70}]
+            },
+            "SupportMeleeSplash": {
+                "id": "SupportMeleeSplash",
+                "display_name": "Melee Splash Support",
+                "is_support": true,
+                "skill_types": [],
+                "base_flags": [],
+                "require_skill_types": ["Attack", "Melee"],
+                "exclude_skill_types": [],
+                "levels": [{"level": 20, "level_requirement": 70}]
+            }
+        }"#;
+        let data = make_data_with_gems(gems_json);
+
+        // Build XML with both gems in the same socket group.
+        // Note: is_support="false" in XML — the code resolves it from gem data.
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_29" bandit="None" mainSocketGroup="1"
+         className="Marauder" ascendClassName="None"/>
+  <Skills activeSkillSet="1">
+    <SkillSet id="1">
+      <Skill mainActiveSkill="1" enabled="true" slot="Weapon 1">
+        <Gem skillId="Cleave" level="20" quality="0" enabled="true"/>
+        <Gem skillId="SupportMeleeSplash" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Tree activeSpec="1"><Spec treeVersion="3_29" nodes="" classId="1" ascendClassId="0"/></Tree>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config/>
+</PathOfBuilding>"#;
+
+        let build = parse_xml(xml).unwrap();
+        let mut env = init_env(&build, data).unwrap();
+        run(&mut env, &build);
+
+        let skill = env.player.main_skill.as_ref().unwrap();
+        assert_eq!(skill.skill_id, "Cleave");
+        assert_eq!(skill.support_list.len(), 1, "should have 1 support");
+        assert_eq!(skill.support_list[0].skill_id, "SupportMeleeSplash");
+    }
+
+    #[test]
+    fn incompatible_support_not_matched() {
+        // Cleave (attack, melee) + SupportSpellEcho (requires Spell)
+        // SupportSpellEcho should NOT be matched because Cleave is not a spell.
+        let gems_json = r#"{
+            "Cleave": {
+                "id": "Cleave",
+                "display_name": "Cleave",
+                "is_support": false,
+                "skill_types": ["Attack", "Melee", "Area"],
+                "base_flags": ["attack", "melee", "area"],
+                "levels": [{"level": 20, "level_requirement": 70}]
+            },
+            "SupportSpellEcho": {
+                "id": "SupportSpellEcho",
+                "display_name": "Spell Echo Support",
+                "is_support": true,
+                "skill_types": [],
+                "base_flags": [],
+                "require_skill_types": ["Spell"],
+                "exclude_skill_types": [],
+                "levels": [{"level": 20, "level_requirement": 70}]
+            }
+        }"#;
+        let data = make_data_with_gems(gems_json);
+
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_29" bandit="None" mainSocketGroup="1"
+         className="Marauder" ascendClassName="None"/>
+  <Skills activeSkillSet="1">
+    <SkillSet id="1">
+      <Skill mainActiveSkill="1" enabled="true" slot="Weapon 1">
+        <Gem skillId="Cleave" level="20" quality="0" enabled="true"/>
+        <Gem skillId="SupportSpellEcho" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Tree activeSpec="1"><Spec treeVersion="3_29" nodes="" classId="1" ascendClassId="0"/></Tree>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config/>
+</PathOfBuilding>"#;
+
+        let build = parse_xml(xml).unwrap();
+        let mut env = init_env(&build, data).unwrap();
+        run(&mut env, &build);
+
+        let skill = env.player.main_skill.as_ref().unwrap();
+        assert_eq!(skill.skill_id, "Cleave");
+        assert!(
+            skill.support_list.is_empty(),
+            "SupportSpellEcho should not support Cleave (attack/melee)"
+        );
+    }
+
+    #[test]
+    fn support_with_exclude_types_blocks_matching() {
+        // A support that excludes "Melee" should not match Cleave
+        let gems_json = r#"{
+            "Cleave": {
+                "id": "Cleave",
+                "display_name": "Cleave",
+                "is_support": false,
+                "skill_types": ["Attack", "Melee", "Area"],
+                "base_flags": ["attack", "melee", "area"],
+                "levels": [{"level": 20, "level_requirement": 70}]
+            },
+            "SupportRangedAttack": {
+                "id": "SupportRangedAttack",
+                "display_name": "Ranged Attack Support",
+                "is_support": true,
+                "skill_types": [],
+                "base_flags": [],
+                "require_skill_types": ["Attack"],
+                "exclude_skill_types": ["Melee"],
+                "levels": [{"level": 20, "level_requirement": 70}]
+            }
+        }"#;
+        let data = make_data_with_gems(gems_json);
+
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_29" bandit="None" mainSocketGroup="1"
+         className="Marauder" ascendClassName="None"/>
+  <Skills activeSkillSet="1">
+    <SkillSet id="1">
+      <Skill mainActiveSkill="1" enabled="true" slot="Weapon 1">
+        <Gem skillId="Cleave" level="20" quality="0" enabled="true"/>
+        <Gem skillId="SupportRangedAttack" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Tree activeSpec="1"><Spec treeVersion="3_29" nodes="" classId="1" ascendClassId="0"/></Tree>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config/>
+</PathOfBuilding>"#;
+
+        let build = parse_xml(xml).unwrap();
+        let mut env = init_env(&build, data).unwrap();
+        run(&mut env, &build);
+
+        let skill = env.player.main_skill.as_ref().unwrap();
+        assert!(
+            skill.support_list.is_empty(),
+            "SupportRangedAttack should not support Cleave (excludes Melee)"
+        );
+    }
+
+    #[test]
+    fn support_with_no_requirements_matches_any_skill() {
+        // A support with empty require/exclude should match any active skill
+        let gems_json = r#"{
+            "Cleave": {
+                "id": "Cleave",
+                "display_name": "Cleave",
+                "is_support": false,
+                "skill_types": ["Attack", "Melee", "Area"],
+                "base_flags": ["attack", "melee", "area"],
+                "levels": [{"level": 20, "level_requirement": 70}]
+            },
+            "SupportAddedFire": {
+                "id": "SupportAddedFire",
+                "display_name": "Added Fire Damage Support",
+                "is_support": true,
+                "skill_types": [],
+                "base_flags": [],
+                "require_skill_types": [],
+                "exclude_skill_types": [],
+                "levels": [{"level": 20, "level_requirement": 70}]
+            }
+        }"#;
+        let data = make_data_with_gems(gems_json);
+
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_29" bandit="None" mainSocketGroup="1"
+         className="Marauder" ascendClassName="None"/>
+  <Skills activeSkillSet="1">
+    <SkillSet id="1">
+      <Skill mainActiveSkill="1" enabled="true" slot="Weapon 1">
+        <Gem skillId="Cleave" level="20" quality="0" enabled="true"/>
+        <Gem skillId="SupportAddedFire" level="20" quality="0" enabled="true"/>
+      </Skill>
+    </SkillSet>
+  </Skills>
+  <Tree activeSpec="1"><Spec treeVersion="3_29" nodes="" classId="1" ascendClassId="0"/></Tree>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config/>
+</PathOfBuilding>"#;
+
+        let build = parse_xml(xml).unwrap();
+        let mut env = init_env(&build, data).unwrap();
+        run(&mut env, &build);
+
+        let skill = env.player.main_skill.as_ref().unwrap();
+        assert_eq!(
+            skill.support_list.len(),
+            1,
+            "SupportAddedFire (no requirements) should support any skill"
+        );
+        assert_eq!(skill.support_list[0].skill_id, "SupportAddedFire");
+    }
+
+    #[test]
+    fn can_support_fn_unit_tests() {
+        use crate::data::gems::GemData;
+
+        // Helper to build minimal GemData for testing can_support
+        let make_support = |require: Vec<&str>, exclude: Vec<&str>| -> GemData {
+            GemData {
+                id: "test".to_string(),
+                display_name: "test".to_string(),
+                is_support: true,
+                skill_types: vec![],
+                levels: vec![],
+                color: None,
+                cast_time: 0.0,
+                base_effectiveness: 0.0,
+                incremental_effectiveness: 0.0,
+                base_flags: vec![],
+                mana_multiplier_at_20: 0.0,
+                require_skill_types: require.into_iter().map(|s| s.to_string()).collect(),
+                add_skill_types: vec![],
+                exclude_skill_types: exclude.into_iter().map(|s| s.to_string()).collect(),
+                constant_stats: vec![],
+                quality_stats: vec![],
+                stats: vec![],
+            }
+        };
+
+        let attack_melee = vec!["Attack".to_string(), "Melee".to_string()];
+        let spell = vec!["Spell".to_string()];
+
+        // No requirements -> matches anything
+        let s = make_support(vec![], vec![]);
+        assert!(can_support(&s, &attack_melee));
+        assert!(can_support(&s, &spell));
+
+        // Requires Attack -> matches attack, not spell
+        let s = make_support(vec!["Attack"], vec![]);
+        assert!(can_support(&s, &attack_melee));
+        assert!(!can_support(&s, &spell));
+
+        // Requires Spell -> matches spell, not attack
+        let s = make_support(vec!["Spell"], vec![]);
+        assert!(!can_support(&s, &attack_melee));
+        assert!(can_support(&s, &spell));
+
+        // Requires Attack, excludes Melee -> not attack+melee
+        let s = make_support(vec!["Attack"], vec!["Melee"]);
+        assert!(!can_support(&s, &attack_melee));
+
+        // Case insensitive
+        let s = make_support(vec!["attack"], vec![]);
+        assert!(can_support(&s, &attack_melee));
     }
 }
