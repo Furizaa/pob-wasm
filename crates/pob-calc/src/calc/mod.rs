@@ -1,4 +1,6 @@
 pub mod active_skill;
+pub mod calc_tools;
+pub mod calcs;
 pub mod defence;
 pub mod defence_ehp;
 pub mod env;

@@ -8,7 +8,9 @@
 use std::sync::LazyLock;
 
 use super::env::CalcEnv;
+use crate::build::types::ActiveSkill;
 use crate::data::gems::{GemData, GemsMap};
+use crate::mod_db::types::{KeywordFlags, ModFlags, SkillCfg};
 
 // ── Heuristic fallback lists (used when gem data is unavailable) ────────────
 
@@ -127,8 +129,94 @@ fn can_support(support_data: &GemData, active_skill_types: &[String]) -> bool {
     true
 }
 
+/// Build a SkillCfg from the active skill's flags and metadata.
+/// This is the canonical way to construct a SkillCfg for ModDb queries.
+pub fn build_skill_cfg(skill: &ActiveSkill) -> SkillCfg {
+    let mut flags = ModFlags::NONE;
+    if skill.is_attack {
+        flags = flags | ModFlags::ATTACK;
+    }
+    if skill.is_spell {
+        flags = flags | ModFlags::SPELL;
+    }
+    flags = flags | ModFlags::HIT;
+    if skill.is_melee {
+        flags = flags | ModFlags::MELEE;
+    }
+    // Check skill_flags for additional flag types
+    if skill
+        .skill_flags
+        .get("projectile")
+        .copied()
+        .unwrap_or(false)
+    {
+        flags = flags | ModFlags::PROJECTILE;
+    }
+    if skill.skill_flags.get("area").copied().unwrap_or(false) {
+        flags = flags | ModFlags::AREA;
+    }
+
+    let mut keyword_flags = KeywordFlags::NONE;
+    if skill.is_attack {
+        keyword_flags = keyword_flags | KeywordFlags::ATTACK;
+    }
+    if skill.is_spell {
+        keyword_flags = keyword_flags | KeywordFlags::SPELL;
+    }
+    keyword_flags = keyword_flags | KeywordFlags::HIT;
+
+    SkillCfg {
+        flags,
+        keyword_flags,
+        slot_name: skill.slot_name.clone(),
+        skill_name: Some(skill.skill_id.clone()),
+        skill_id: Some(skill.skill_id.clone()),
+        ..Default::default()
+    }
+}
+
+/// Set skill-related conditions on the player mod_db based on the active skill
+/// and equipped weapon data.
+pub fn set_skill_conditions(env: &mut CalcEnv) {
+    let skill = match env.player.main_skill.as_ref() {
+        Some(s) => s,
+        None => return,
+    };
+
+    // Core skill type conditions
+    env.player.mod_db.set_condition("IsMainSkill", true);
+    if skill.is_attack {
+        env.player.mod_db.set_condition("UsingAttack", true);
+    }
+    if skill.is_spell {
+        env.player.mod_db.set_condition("UsingSpell", true);
+    }
+    if skill.is_melee {
+        env.player.mod_db.set_condition("UsingMelee", true);
+    }
+
+    // Weapon-type conditions based on slot and weapon data
+    // (These are set based on what weapon the character is using, which is
+    // relevant for mods like "while using a Sword")
+    if let Some(wd) = env.player.weapon_data1.as_ref() {
+        // Infer weapon type from attack rate and base data heuristics
+        // In a full implementation this would come from item type data;
+        // for now we use the presence of weapon data to set basic conditions
+        if wd.phys_min > 0.0 || wd.phys_max > 0.0 {
+            env.player.mod_db.set_condition("UsingWeapon", true);
+        }
+    }
+
+    if env.player.dual_wield {
+        env.player.mod_db.set_condition("DualWielding", true);
+    }
+    if env.player.has_shield {
+        env.player.mod_db.set_condition("UsingShield", true);
+    }
+}
+
 pub fn run(env: &mut CalcEnv, build: &crate::build::Build) {
-    use crate::build::types::{ActiveSkill, SupportEffect};
+    use crate::build::types::SupportEffect;
     use crate::mod_db::ModDb;
 
     // Resolve the active skill set and socket group
@@ -222,18 +310,6 @@ pub fn run(env: &mut CalcEnv, build: &crate::build::Build) {
         env.player.set_output("MinionCount", count);
     }
 
-    // Set conditions on the player mod db
-    env.player.mod_db.set_condition("IsMainSkill", true);
-    if is_attack {
-        env.player.mod_db.set_condition("UsingAttack", true);
-    }
-    if is_spell {
-        env.player.mod_db.set_condition("UsingSpell", true);
-    }
-    if is_melee {
-        env.player.mod_db.set_condition("UsingMelee", true);
-    }
-
     // Default timing — overridden by gem level data below
     let mut cast_time = if is_spell { 0.7 } else { 0.0 };
     let mut attack_speed_base = if is_attack { 1.5 } else { 0.0 };
@@ -314,7 +390,20 @@ pub fn run(env: &mut CalcEnv, build: &crate::build::Build) {
         skill_cfg: None,
         slot_name: None,
         support_list,
+        triggered_by: None,
     });
+
+    // Build skill_cfg from the resolved active skill
+    if let Some(skill) = env.player.main_skill.as_ref() {
+        let cfg = build_skill_cfg(skill);
+        // Store the cfg back on the skill
+        if let Some(skill_mut) = env.player.main_skill.as_mut() {
+            skill_mut.skill_cfg = Some(cfg);
+        }
+    }
+
+    // Set conditions on the player mod_db based on the active skill and weapon data
+    set_skill_conditions(env);
 }
 
 #[cfg(test)]
