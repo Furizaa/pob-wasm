@@ -1,3 +1,4 @@
+pub mod item_resolver;
 pub mod mod_parser;
 pub mod types;
 pub mod xml_parser;

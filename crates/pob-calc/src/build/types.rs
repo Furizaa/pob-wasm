@@ -207,7 +207,7 @@ pub struct ItemFlaskData {
 }
 
 /// Item level/attribute requirements.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct ItemRequirements {
     pub level: u32,
     pub str_req: u32,
