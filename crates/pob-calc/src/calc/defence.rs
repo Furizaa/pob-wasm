@@ -80,7 +80,7 @@ fn calc_resistances(env: &mut CalcEnv) {
                     .player
                     .mod_db
                     .sum_cfg(ModType::Base, &max_stat, None, &output);
-                let elemental_max = if elemental_types.contains(&elem.as_ref()) {
+                let elemental_max = if elemental_types.contains(elem) {
                     env.player
                         .mod_db
                         .sum_cfg(ModType::Base, "ElementalResistMax", None, &output)
@@ -119,7 +119,7 @@ fn calc_resistances(env: &mut CalcEnv) {
                     .player
                     .mod_db
                     .sum_cfg(ModType::Base, &resist_stat, None, &output);
-                let elemental = if elemental_types.contains(&elem.as_ref()) {
+                let elemental = if elemental_types.contains(elem) {
                     env.player
                         .mod_db
                         .sum_cfg(ModType::Base, "ElementalResist", None, &output)
@@ -839,15 +839,13 @@ fn build_damage_shift_table(env: &mut CalcEnv) {
     }
 
     // Build from {Source}DamageTakenAs{Dest} mods
-    for src in 0..5 {
-        let src_name = DMG_TYPE_NAMES[src];
+    for (src, src_name) in DMG_TYPE_NAMES.iter().enumerate() {
         let mut total_shifted: f64 = 0.0;
 
-        for dst in 0..5 {
+        for (dst, dst_name) in DMG_TYPE_NAMES.iter().enumerate() {
             if src == dst {
                 continue;
             }
-            let dst_name = DMG_TYPE_NAMES[dst];
 
             let stat = format!("{src_name}DamageTakenAs{dst_name}");
             let mut shift = env

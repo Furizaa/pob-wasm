@@ -7,6 +7,7 @@
 #[allow(
     clippy::all,
     unused_imports,
+    unused_assignments,
     dead_code,
     unused_variables,
     unreachable_patterns,
