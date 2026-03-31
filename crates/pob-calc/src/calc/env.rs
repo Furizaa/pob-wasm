@@ -117,6 +117,11 @@ pub struct Actor {
 
     // Action speed
     pub action_speed_mod: f64,
+
+    /// Damage shift table: [source_type][dest_type] = percentage.
+    /// Indices: 0=Physical, 1=Lightning, 2=Cold, 3=Fire, 4=Chaos.
+    /// Initialised as identity (100% stays as original type).
+    pub damage_shift_table: [[f64; 5]; 5],
 }
 
 impl Actor {
@@ -141,6 +146,13 @@ impl Actor {
             debuffs: Vec::new(),
             curses: Vec::new(),
             action_speed_mod: 1.0,
+            damage_shift_table: [
+                [100.0, 0.0, 0.0, 0.0, 0.0],
+                [0.0, 100.0, 0.0, 0.0, 0.0],
+                [0.0, 0.0, 100.0, 0.0, 0.0],
+                [0.0, 0.0, 0.0, 100.0, 0.0],
+                [0.0, 0.0, 0.0, 0.0, 100.0],
+            ],
         }
     }
 
