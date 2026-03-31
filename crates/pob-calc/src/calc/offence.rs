@@ -352,6 +352,7 @@ pub fn run(env: &mut CalcEnv, build: &Build) {
     let double_rate = double_dmg_chance / 100.0;
     let triple_rate = triple_dmg_chance / 100.0;
     let extra_multi = 1.0 + double_rate * 1.0 + triple_rate * 2.0;
+    env.player.set_output("ScaledDamageEffect", extra_multi);
     let average_hit_final = average_hit * extra_multi;
     env.player.set_output("AverageHit", average_hit_final);
 
@@ -363,120 +364,45 @@ pub fn run(env: &mut CalcEnv, build: &Build) {
     let total_dps = average_damage * uses_per_sec;
     env.player.set_output("TotalDPS", total_dps);
 
+    // ── Per-type hit averages (for ailments) ────────────────────────────
+    // Store crit-weighted average hit per damage type for use by ailment modules.
+
+    for dtype in DMG_TYPE_NAMES {
+        let type_avg = calc_type_avg_hit(env, dtype, crit_rate, crit_multi, hit_chance);
+        env.player
+            .set_output(&format!("{}HitAverage", dtype), type_avg);
+    }
+
+    // ── Skill type stats ─────────────────────────────────────────────────
+
+    calc_skill_type_stats(env, &cfg);
+
+    // ── Duration and cost ────────────────────────────────────────────────
+
+    calc_duration_and_cost(env, &cfg);
+
     // ── Ailment DPS ─────────────────────────────────────────────────────
-    // Reference: CalcOffence.lua — IgniteDPS, BleedDPS, PoisonDPS sections
-    // Uses POST-crit average hit per damage type (before enemy resistance for ailments).
+    {
+        let ailment_ctx = super::offence_ailments::AilmentContext {
+            crit_chance,
+            crit_multiplier: crit_multi,
+            hit_chance: hit_chance_pct,
+            speed: uses_per_sec,
+            is_attack,
+        };
+        super::offence_ailments::calc_ignite(env, &cfg, &ailment_ctx);
+        super::offence_ailments::calc_bleed(env, &cfg, &ailment_ctx);
+        super::offence_ailments::calc_poison(env, &cfg, &ailment_ctx);
+    }
 
-    let fire_hit = calc_type_avg_hit(
-        env,
-        "Fire",
-        &cfg,
-        &output_snap,
-        crit_rate,
-        crit_multi,
-        hit_chance,
-    );
-    let phys_hit = calc_type_avg_hit(
-        env,
-        "Physical",
-        &cfg,
-        &output_snap,
-        crit_rate,
-        crit_multi,
-        hit_chance,
-    );
-    let chaos_hit = calc_type_avg_hit(
-        env,
-        "Chaos",
-        &cfg,
-        &output_snap,
-        crit_rate,
-        crit_multi,
-        hit_chance,
-    );
+    // ── Impale and non-ailment DoT ───────────────────────────────────────
 
-    // Ignite DPS: fire_hit * 0.5 per second
-    let inc_burn =
-        env.player
-            .mod_db
-            .sum_cfg(ModType::Inc, "BurningDamage", Some(&cfg), &output_snap)
-            + env
-                .player
-                .mod_db
-                .sum_cfg(ModType::Inc, "AilmentDamage", Some(&cfg), &output_snap)
-            + env
-                .player
-                .mod_db
-                .sum_cfg(ModType::Inc, "FireDamage", Some(&cfg), &output_snap);
-    let more_burn = env
-        .player
-        .mod_db
-        .more_cfg("BurningDamage", Some(&cfg), &output_snap)
-        * env
-            .player
-            .mod_db
-            .more_cfg("AilmentDamage", Some(&cfg), &output_snap);
-    let ignite_dps = fire_hit * 0.5 * (1.0 + inc_burn / 100.0) * more_burn;
-    env.player.set_output("IgniteDPS", ignite_dps);
+    super::offence_dot::calc_impale(env, &cfg);
+    super::offence_dot::calc_skill_dot(env, &cfg);
 
-    // Bleed DPS: phys_hit * 0.7 / 5.0 (bleed ticks for 5 seconds at 70% of hit damage)
-    let inc_bleed =
-        env.player
-            .mod_db
-            .sum_cfg(ModType::Inc, "BleedDamage", Some(&cfg), &output_snap)
-            + env
-                .player
-                .mod_db
-                .sum_cfg(ModType::Inc, "AilmentDamage", Some(&cfg), &output_snap)
-            + env
-                .player
-                .mod_db
-                .sum_cfg(ModType::Inc, "PhysicalDamage", Some(&cfg), &output_snap);
-    let more_bleed = env
-        .player
-        .mod_db
-        .more_cfg("BleedDamage", Some(&cfg), &output_snap)
-        * env
-            .player
-            .mod_db
-            .more_cfg("AilmentDamage", Some(&cfg), &output_snap);
-    let bleed_dps = phys_hit * 0.7 / 5.0 * (1.0 + inc_bleed / 100.0) * more_bleed;
-    env.player.set_output("BleedDPS", bleed_dps);
+    // ── Combined DPS ────────────────────────────────────────────────────
 
-    // Poison DPS: (phys_hit + chaos_hit) * 0.3 / 2.0
-    let inc_poison =
-        env.player
-            .mod_db
-            .sum_cfg(ModType::Inc, "PoisonDamage", Some(&cfg), &output_snap)
-            + env
-                .player
-                .mod_db
-                .sum_cfg(ModType::Inc, "AilmentDamage", Some(&cfg), &output_snap)
-            + env
-                .player
-                .mod_db
-                .sum_cfg(ModType::Inc, "ChaosDamage", Some(&cfg), &output_snap);
-    let more_poison = env
-        .player
-        .mod_db
-        .more_cfg("PoisonDamage", Some(&cfg), &output_snap)
-        * env
-            .player
-            .mod_db
-            .more_cfg("AilmentDamage", Some(&cfg), &output_snap);
-    let poison_dps = (phys_hit + chaos_hit) * 0.3 / 2.0 * (1.0 + inc_poison / 100.0) * more_poison;
-    env.player.set_output("PoisonDPS", poison_dps);
-
-    // TotalDotDPS
-    let total_dot_dps = ignite_dps + bleed_dps + poison_dps;
-    env.player.set_output("TotalDotDPS", total_dot_dps);
-
-    // CombinedDPS: hit DPS + dominant DoT DPS
-    let dominant_dot = [ignite_dps, bleed_dps, poison_dps]
-        .into_iter()
-        .fold(0.0_f64, f64::max);
-    let combined_dps = total_dps + dominant_dot;
-    env.player.set_output("CombinedDPS", combined_dps);
+    super::offence_dot::calc_combined_dps(env);
 
     // ── Leech ────────────────────────────────────────────────────────────
 
@@ -531,8 +457,6 @@ fn apply_conversion(
 fn calc_type_avg_hit(
     env: &CalcEnv,
     dtype: &str,
-    cfg: &SkillCfg,
-    output: &super::env::OutputTable,
     crit_rate: f64,
     crit_multi: f64,
     hit_chance: f64,
@@ -541,9 +465,153 @@ fn calc_type_avg_hit(
     let max = get_output_f64(&env.player.output, &format!("{}Max", dtype));
     let avg = (min + max) / 2.0;
     let crit_weighted = avg * (1.0 - crit_rate) + avg * crit_multi * crit_rate;
-    // Suppress unused variable warnings — cfg and output are for future use
-    let _ = (cfg, output);
     crit_weighted * hit_chance
+}
+
+// ── Skill type stats (Task 8) ───────────────────────────────────────────────
+
+fn calc_skill_type_stats(env: &mut CalcEnv, cfg: &SkillCfg) {
+    let output_snap = env.player.output.clone();
+
+    // Projectile count
+    let proj_count =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "ProjectileCount", Some(cfg), &output_snap);
+    if proj_count > 0.0 {
+        env.player.set_output("ProjectileCount", proj_count);
+    }
+
+    // Pierce count
+    let pierce = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "PierceCount", Some(cfg), &output_snap);
+    env.player.set_output("PierceCount", pierce);
+
+    // Chain max
+    let chain = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "ChainCountMax", Some(cfg), &output_snap);
+    env.player.set_output("ChainMax", chain);
+
+    // Fork count
+    let fork = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "ForkCountMax", Some(cfg), &output_snap);
+    env.player.set_output("ForkCount", fork);
+
+    // Melee weapon range
+    let weapon_range =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "MeleeWeaponRange", Some(cfg), &output_snap);
+    env.player.set_output("WeaponRange", weapon_range);
+
+    // Trap throwing speed
+    let trap_inc =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Inc, "TrapThrowingSpeed", Some(cfg), &output_snap);
+    let trap_more = env
+        .player
+        .mod_db
+        .more_cfg("TrapThrowingSpeed", Some(cfg), &output_snap);
+    let trap_speed = (1.0 + trap_inc / 100.0) * trap_more;
+    env.player.set_output("TrapThrowingSpeed", trap_speed);
+
+    // Mine laying speed
+    let mine_inc =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Inc, "MineLayingSpeed", Some(cfg), &output_snap);
+    let mine_more = env
+        .player
+        .mod_db
+        .more_cfg("MineLayingSpeed", Some(cfg), &output_snap);
+    let mine_speed = (1.0 + mine_inc / 100.0) * mine_more;
+    env.player.set_output("MineLayingSpeed", mine_speed);
+
+    // Active totem limit
+    let totem_limit =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "ActiveTotemLimit", Some(cfg), &output_snap);
+    let totem_limit = if totem_limit > 0.0 { totem_limit } else { 1.0 };
+    env.player.set_output("ActiveTotemLimit", totem_limit);
+
+    // Totem placement speed
+    let totem_inc =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Inc, "TotemPlacementSpeed", Some(cfg), &output_snap);
+    let totem_more = env
+        .player
+        .mod_db
+        .more_cfg("TotemPlacementSpeed", Some(cfg), &output_snap);
+    let totem_speed = (1.0 + totem_inc / 100.0) * totem_more;
+    env.player.set_output("TotemPlacementSpeed", totem_speed);
+}
+
+// ── Duration and cost (Task 9) ──────────────────────────────────────────────
+
+fn calc_duration_and_cost(env: &mut CalcEnv, cfg: &SkillCfg) {
+    let output_snap = env.player.output.clone();
+
+    // Duration
+    let base_dur = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "Duration", Some(cfg), &output_snap);
+    let dur_inc = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Inc, "Duration", Some(cfg), &output_snap);
+    let dur_more = env
+        .player
+        .mod_db
+        .more_cfg("Duration", Some(cfg), &output_snap);
+    let duration = crate::calc::offence_utils::calc_skill_duration(base_dur, dur_inc, dur_more);
+    env.player.set_output("Duration", duration);
+
+    // Cooldown
+    let base_cd = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "Cooldown", Some(cfg), &output_snap);
+    let cd_inc =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Inc, "CooldownRecovery", Some(cfg), &output_snap);
+    let cd_more = env
+        .player
+        .mod_db
+        .more_cfg("CooldownRecovery", Some(cfg), &output_snap);
+    let cooldown = crate::calc::offence_utils::calc_skill_cooldown(base_cd, cd_inc, cd_more);
+    env.player.set_output("Cooldown", cooldown);
+
+    // Mana cost
+    let mana_base = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "ManaCost", Some(cfg), &output_snap);
+    let mana_inc = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Inc, "ManaCost", Some(cfg), &output_snap);
+    let mana_more = env
+        .player
+        .mod_db
+        .more_cfg("ManaCost", Some(cfg), &output_snap);
+    let mana_cost = mana_base * (1.0 + mana_inc / 100.0) * mana_more;
+    env.player.set_output("ManaCost", mana_cost.max(0.0));
+
+    // Mana per second
+    let speed = get_output_f64(&output_snap, "Speed");
+    let mana_per_sec = if speed > 0.0 { mana_cost * speed } else { 0.0 };
+    env.player.set_output("ManaPerSecondCost", mana_per_sec);
 }
 
 // ── Leech calculation ───────────────────────────────────────────────────────

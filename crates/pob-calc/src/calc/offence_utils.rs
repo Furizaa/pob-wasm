@@ -44,8 +44,8 @@ impl Default for ConversionTable {
     /// Identity matrix: each type stays as itself, no extra.
     fn default() -> Self {
         let mut base = [[0.0; NUM_DMG_TYPES]; NUM_DMG_TYPES];
-        for i in 0..NUM_DMG_TYPES {
-            base[i][i] = 1.0;
+        for (i, row) in base.iter_mut().enumerate() {
+            row[i] = 1.0;
         }
         Self {
             base,
@@ -102,18 +102,18 @@ pub fn build_conversion_table(
         // Cap total conversion at 100%
         if total_conv > 100.0 {
             let scale = 100.0 / total_conv;
-            for dst in 0..NUM_DMG_TYPES {
-                conv_amounts[dst] *= scale;
+            for amount in &mut conv_amounts {
+                *amount *= scale;
             }
             total_conv = 100.0;
         }
 
         // Set conversion fractions (as 0.0–1.0)
-        for dst in 0..NUM_DMG_TYPES {
+        for (dst, &amount) in conv_amounts.iter().enumerate() {
             if src == dst {
                 continue;
             }
-            table.base[src][dst] = conv_amounts[dst] / 100.0;
+            table.base[src][dst] = amount / 100.0;
         }
 
         // Remainder stays as the source type
