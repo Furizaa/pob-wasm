@@ -36,6 +36,44 @@ pub struct GameData {
 }
 
 impl GameData {
+    /// Create a minimal valid GameData with reasonable defaults for testing.
+    /// Game constants use real PoE values; all collections are empty.
+    #[cfg(test)]
+    pub fn default_for_test() -> Self {
+        let json = r#"{
+            "gems": {},
+            "misc": {
+                "game_constants": {
+                    "base_maximum_all_resistances_%": 75,
+                    "maximum_block_%": 75,
+                    "base_maximum_spell_block_%": 75,
+                    "max_power_charges": 3,
+                    "max_frenzy_charges": 3,
+                    "max_endurance_charges": 3,
+                    "maximum_life_leech_rate_%_per_minute": 20,
+                    "maximum_mana_leech_rate_%_per_minute": 20,
+                    "maximum_life_leech_amount_per_leech_%_max_life": 10,
+                    "maximum_mana_leech_amount_per_leech_%_max_mana": 10,
+                    "maximum_energy_shield_leech_amount_per_leech_%_max_energy_shield": 10,
+                    "base_number_of_totems_allowed": 1,
+                    "impaled_debuff_number_of_reflected_hits": 8,
+                    "soul_eater_maximum_stacks": 40
+                },
+                "character_constants": {},
+                "monster_life_table": [],
+                "monster_damage_table": [],
+                "monster_evasion_table": [],
+                "monster_accuracy_table": [],
+                "monster_ally_life_table": [],
+                "monster_ally_damage_table": [],
+                "monster_ailment_threshold_table": [],
+                "monster_phys_conversion_multi_table": []
+            },
+            "tree": { "nodes": {} }
+        }"#;
+        Self::from_json(json).expect("default_for_test JSON must be valid")
+    }
+
     /// Parse a combined JSON string containing all game data sections.
     /// The JSON structure matches what `data-extractor` produces.
     pub fn from_json(json: &str) -> Result<Self, DataError> {
@@ -131,6 +169,61 @@ mod tests {
         let data = GameData::from_json(json).unwrap();
         assert!(data.bases.is_empty());
         assert!(data.uniques.is_empty());
+    }
+
+    #[test]
+    fn default_for_test_creates_valid_game_data() {
+        let data = GameData::default_for_test();
+        // Collections are empty
+        assert_eq!(data.gems.len(), 0);
+        assert!(data.passive_tree.nodes.is_empty());
+        assert!(data.bases.is_empty());
+        assert!(data.uniques.is_empty());
+        // Game constants have real PoE values
+        assert_eq!(
+            data.misc
+                .game_constants
+                .get("base_maximum_all_resistances_%"),
+            Some(&75.0)
+        );
+        assert_eq!(data.misc.game_constants.get("maximum_block_%"), Some(&75.0));
+        assert_eq!(
+            data.misc.game_constants.get("max_power_charges"),
+            Some(&3.0)
+        );
+        assert_eq!(
+            data.misc.game_constants.get("max_frenzy_charges"),
+            Some(&3.0)
+        );
+        assert_eq!(
+            data.misc.game_constants.get("max_endurance_charges"),
+            Some(&3.0)
+        );
+        assert_eq!(
+            data.misc
+                .game_constants
+                .get("maximum_life_leech_rate_%_per_minute"),
+            Some(&20.0)
+        );
+        assert_eq!(
+            data.misc
+                .game_constants
+                .get("base_number_of_totems_allowed"),
+            Some(&1.0)
+        );
+        assert_eq!(
+            data.misc
+                .game_constants
+                .get("impaled_debuff_number_of_reflected_hits"),
+            Some(&8.0)
+        );
+        assert_eq!(
+            data.misc.game_constants.get("soul_eater_maximum_stacks"),
+            Some(&40.0)
+        );
+        // Monster tables are empty
+        assert!(data.misc.monster_life_table.is_empty());
+        assert!(data.misc.monster_damage_table.is_empty());
     }
 
     #[test]
