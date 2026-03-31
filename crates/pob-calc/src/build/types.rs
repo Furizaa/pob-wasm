@@ -89,6 +89,8 @@ pub struct ActiveSkill {
     pub slot_name: Option<String>,
     /// List of support gems linked to this active skill
     pub support_list: Vec<SupportEffect>,
+    /// If set, this skill is triggered by some mechanism (e.g. "CastOnCrit", "CWC", "CWDT", "Trap", "Mine", "Totem")
+    pub triggered_by: Option<String>,
 }
 
 // ── Item types ──────────────────────────────────────────────────────────────

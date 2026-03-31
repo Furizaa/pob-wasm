@@ -825,6 +825,7 @@ mod tests {
             skill_cfg: None,
             slot_name: None,
             support_list: vec![],
+            triggered_by: None,
         });
         env.player.set_output("Accuracy", 1000.0);
         env.player.action_speed_mod = 1.0;
@@ -883,6 +884,7 @@ mod tests {
             skill_cfg: None,
             slot_name: None,
             support_list: vec![],
+            triggered_by: None,
         });
         env.player.set_output("Accuracy", 1000.0);
         env.player.action_speed_mod = 1.0;
@@ -946,6 +948,7 @@ mod tests {
             skill_cfg: None,
             slot_name: None,
             support_list: vec![],
+            triggered_by: None,
         });
         env.player.action_speed_mod = 1.0;
 
@@ -1010,6 +1013,7 @@ mod tests {
             skill_cfg: None,
             slot_name: None,
             support_list: vec![],
+            triggered_by: None,
         });
         env.player.action_speed_mod = 1.0;
 
@@ -1068,6 +1072,7 @@ mod tests {
             skill_cfg: None,
             slot_name: None,
             support_list: vec![],
+            triggered_by: None,
         });
         env.player.set_output("Accuracy", 100.0); // low accuracy
         env.player.action_speed_mod = 1.0;
@@ -1133,6 +1138,7 @@ mod tests {
             skill_cfg: None,
             slot_name: None,
             support_list: vec![],
+            triggered_by: None,
         });
         env.player.set_output("Accuracy", 10000.0);
         env.player.action_speed_mod = 1.0;
@@ -1199,6 +1205,7 @@ mod tests {
             skill_cfg: None,
             slot_name: None,
             support_list: vec![],
+            triggered_by: None,
         });
         env.player.action_speed_mod = 1.0;
 
@@ -1255,6 +1262,7 @@ mod tests {
             skill_cfg: None,
             slot_name: None,
             support_list: vec![],
+            triggered_by: None,
         });
         env.player.set_output("Accuracy", 10000.0);
         env.player.action_speed_mod = 1.0;
@@ -1310,6 +1318,7 @@ mod tests {
             skill_cfg: None,
             slot_name: None,
             support_list: vec![],
+            triggered_by: None,
         });
         env.player.action_speed_mod = 1.0;
 
@@ -1364,6 +1373,7 @@ mod tests {
             skill_cfg: None,
             slot_name: None,
             support_list: vec![],
+            triggered_by: None,
         });
         env.player.action_speed_mod = 1.0;
 
@@ -1427,6 +1437,7 @@ mod tests {
             skill_cfg: None,
             slot_name: None,
             support_list: vec![],
+            triggered_by: None,
         });
         env.player.action_speed_mod = 1.0;
 
@@ -1493,6 +1504,7 @@ mod tests {
             skill_cfg: None,
             slot_name: None,
             support_list: vec![],
+            triggered_by: None,
         });
         env.player.action_speed_mod = 1.0;
 
@@ -1548,6 +1560,7 @@ mod tests {
             skill_cfg: None,
             slot_name: None,
             support_list: vec![],
+            triggered_by: None,
         });
         env.player.action_speed_mod = 1.0;
 
