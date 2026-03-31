@@ -70,6 +70,26 @@ pub struct ReservationRow {
     pub total: String,
 }
 
+/// A buff/debuff entry with its name and the list of mods it provides.
+#[derive(Debug, Clone)]
+pub struct BuffEntry {
+    pub name: String,
+    pub skill_name: Option<String>,
+    pub mods: Vec<crate::mod_db::types::Mod>,
+    pub active: bool,
+}
+
+/// A curse entry with priority and slot tracking.
+#[derive(Debug, Clone)]
+pub struct CurseEntry {
+    pub name: String,
+    pub skill_name: Option<String>,
+    pub mods: Vec<crate::mod_db::types::Mod>,
+    pub priority: f64,
+    pub is_mark: bool,
+    pub active: bool,
+}
+
 /// An actor (player or minion) in a calculation environment.
 pub struct Actor {
     pub mod_db: ModDb,
@@ -82,6 +102,21 @@ pub struct Actor {
     pub has_shield: bool,
     pub dual_wield: bool,
     pub active_skill_list: Vec<crate::build::types::ActiveSkill>,
+
+    // Reservation tracking
+    pub reserved_life: f64,
+    pub reserved_life_percent: f64,
+    pub reserved_mana: f64,
+    pub reserved_mana_percent: f64,
+
+    // Buff/debuff/curse lists
+    pub buffs: Vec<BuffEntry>,
+    pub guards: Vec<BuffEntry>,
+    pub debuffs: Vec<BuffEntry>,
+    pub curses: Vec<CurseEntry>,
+
+    // Action speed
+    pub action_speed_mod: f64,
 }
 
 impl Actor {
@@ -97,6 +132,15 @@ impl Actor {
             has_shield: false,
             dual_wield: false,
             active_skill_list: Vec::new(),
+            reserved_life: 0.0,
+            reserved_life_percent: 0.0,
+            reserved_mana: 0.0,
+            reserved_mana_percent: 0.0,
+            buffs: Vec::new(),
+            guards: Vec::new(),
+            debuffs: Vec::new(),
+            curses: Vec::new(),
+            action_speed_mod: 1.0,
         }
     }
 
@@ -166,5 +210,63 @@ impl CalcEnv {
             mode: CalcMode::Normal,
             data,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn actor_new_reservation_defaults_are_zero() {
+        let actor = Actor::new(ModDb::new());
+        assert_eq!(actor.reserved_life, 0.0);
+        assert_eq!(actor.reserved_life_percent, 0.0);
+        assert_eq!(actor.reserved_mana, 0.0);
+        assert_eq!(actor.reserved_mana_percent, 0.0);
+    }
+
+    #[test]
+    fn actor_new_buff_lists_are_empty() {
+        let actor = Actor::new(ModDb::new());
+        assert!(actor.buffs.is_empty());
+        assert!(actor.guards.is_empty());
+        assert!(actor.debuffs.is_empty());
+        assert!(actor.curses.is_empty());
+    }
+
+    #[test]
+    fn actor_new_action_speed_mod_defaults_to_one() {
+        let actor = Actor::new(ModDb::new());
+        assert_eq!(actor.action_speed_mod, 1.0);
+    }
+
+    #[test]
+    fn buff_entry_can_be_constructed() {
+        let entry = BuffEntry {
+            name: "Anger".into(),
+            skill_name: Some("Anger".into()),
+            mods: Vec::new(),
+            active: true,
+        };
+        assert_eq!(entry.name, "Anger");
+        assert!(entry.active);
+        assert!(entry.mods.is_empty());
+    }
+
+    #[test]
+    fn curse_entry_can_be_constructed() {
+        let entry = CurseEntry {
+            name: "Vulnerability".into(),
+            skill_name: Some("Vulnerability".into()),
+            mods: Vec::new(),
+            priority: 1.0,
+            is_mark: false,
+            active: true,
+        };
+        assert_eq!(entry.name, "Vulnerability");
+        assert_eq!(entry.priority, 1.0);
+        assert!(!entry.is_mark);
+        assert!(entry.active);
     }
 }
