@@ -35,6 +35,15 @@ pub fn init_env(build: &Build, data: Arc<GameData>) -> Result<CalcEnv, CalcError
     // Add item mods from equipped items and extract weapon data
     add_item_mods(build, &mut env);
 
+    // Add jewel mods from jewel slots
+    add_jewel_mods(build, &mut env);
+
+    // Add flask mods (only if conditionUsingFlask is true)
+    add_flask_mods(build, &mut env);
+
+    // Initialize enemy ModDb
+    init_enemy_db(build, &mut env.enemy.mod_db, &env.data.clone());
+
     Ok(env)
 }
 
@@ -1081,6 +1090,268 @@ Implicits: 0
         assert!(!env.player.has_shield, "should not have shield");
         assert!(env.player.dual_wield, "should be dual wielding");
     }
+
+    // --- Task 11 tests: enemy ModDb initialization ---
+
+    #[test]
+    fn enemy_db_initialized_with_level() {
+        let data = make_default_data();
+        let build = build_with_class("Marauder"); // level 90
+        let env = init_env(&build, data).unwrap();
+
+        let level =
+            env.enemy
+                .mod_db
+                .sum(ModType::Base, "Level", ModFlags::NONE, KeywordFlags::NONE);
+        assert_eq!(level, 90.0, "Enemy level should be 90");
+    }
+
+    #[test]
+    fn enemy_db_has_base_resistances() {
+        let data = make_default_data();
+        let build = build_with_class("Marauder");
+        let env = init_env(&build, data).unwrap();
+
+        let fire = env.enemy.mod_db.sum(
+            ModType::Base,
+            "FireResist",
+            ModFlags::NONE,
+            KeywordFlags::NONE,
+        );
+        assert_eq!(fire, 0.0, "Enemy base FireResist should be 0");
+
+        let phys_dr = env.enemy.mod_db.sum(
+            ModType::Base,
+            "PhysicalDamageReduction",
+            ModFlags::NONE,
+            KeywordFlags::NONE,
+        );
+        assert_eq!(phys_dr, 0.0, "Enemy PhysicalDamageReduction should be 0");
+    }
+
+    #[test]
+    fn enemy_db_config_overrides() {
+        // Build with enemyFireResist = 40
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_29" bandit="None" mainSocketGroup="1"
+         className="Marauder" ascendClassName="None"/>
+  <Skills activeSkillSet="1"><SkillSet id="1"/></Skills>
+  <Tree activeSpec="1">
+    <Spec treeVersion="3_29" nodes="" classId="1" ascendClassId="0"/>
+  </Tree>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config>
+    <Input name="enemyFireResist" number="40"/>
+  </Config>
+</PathOfBuilding>"#;
+        let build = parse_xml(xml).unwrap();
+        let data = make_default_data();
+        let env = init_env(&build, data).unwrap();
+
+        let fire = env.enemy.mod_db.sum(
+            ModType::Base,
+            "FireResist",
+            ModFlags::NONE,
+            KeywordFlags::NONE,
+        );
+        // Base 0 + config override 40 = 40
+        assert_eq!(
+            fire, 40.0,
+            "Enemy FireResist should include config override, got {fire}"
+        );
+    }
+
+    #[test]
+    fn enemy_db_monster_life_from_table() {
+        // Create data with a monster_life_table that has an entry for level 3
+        let json = r#"{
+            "gems": {},
+            "misc": {
+                "game_constants": {},
+                "character_constants": {},
+                "monster_life_table": [100, 120, 145],
+                "monster_damage_table": [],
+                "monster_evasion_table": [],
+                "monster_accuracy_table": [],
+                "monster_ally_life_table": [],
+                "monster_ally_damage_table": [],
+                "monster_ailment_threshold_table": [],
+                "monster_phys_conversion_multi_table": []
+            },
+            "tree": { "nodes": {} }
+        }"#;
+        let data = Arc::new(GameData::from_json(json).unwrap());
+
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="3" targetVersion="3_29" bandit="None" mainSocketGroup="1"
+         className="Marauder" ascendClassName="None"/>
+  <Skills activeSkillSet="1"><SkillSet id="1"/></Skills>
+  <Tree activeSpec="1">
+    <Spec treeVersion="3_29" nodes="" classId="1" ascendClassId="0"/>
+  </Tree>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config/>
+</PathOfBuilding>"#;
+        let build = parse_xml(xml).unwrap();
+        let env = init_env(&build, data).unwrap();
+
+        let life = env
+            .enemy
+            .mod_db
+            .sum(ModType::Base, "Life", ModFlags::NONE, KeywordFlags::NONE);
+        // Level 3 → index 2 → 145
+        assert_eq!(
+            life, 145.0,
+            "Enemy life should be 145 for level 3, got {life}"
+        );
+    }
+
+    // --- Task 12 tests: jewel processing ---
+
+    #[test]
+    fn jewel_mods_added_to_player_moddb() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_29" bandit="None" mainSocketGroup="1"
+         className="Marauder" ascendClassName="None"/>
+  <Skills activeSkillSet="1"><SkillSet id="1"/></Skills>
+  <Tree activeSpec="1">
+    <Spec treeVersion="3_29" nodes="" classId="1" ascendClassId="0"/>
+  </Tree>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Test Jewel
+Cobalt Jewel
+Implicits: 0
++15 to maximum Life
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Jewel 1" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config/>
+</PathOfBuilding>"#;
+        let build = parse_xml(xml).unwrap();
+        let data = make_default_data();
+        let env = init_env(&build, data).unwrap();
+
+        // Check that the jewel mod is in the player moddb as Item-sourced
+        let tabs = env
+            .player
+            .mod_db
+            .tabulate("Life", None, ModFlags::NONE, KeywordFlags::NONE);
+        assert!(
+            tabs.iter().any(|t| t.source_category == "Item"
+                && t.source_name.contains("Cobalt Jewel")
+                && t.source_name.contains("Jewel 1")
+                && t.value.as_f64().abs() >= 15.0),
+            "Should find a +15 Life mod from jewel Item source, tabs: {:?}",
+            tabs
+        );
+    }
+
+    // --- Task 13 tests: flask processing ---
+
+    #[test]
+    fn flask_mods_added_when_using_flask() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_29" bandit="None" mainSocketGroup="1"
+         className="Marauder" ascendClassName="None"/>
+  <Skills activeSkillSet="1"><SkillSet id="1"/></Skills>
+  <Tree activeSpec="1">
+    <Spec treeVersion="3_29" nodes="" classId="1" ascendClassId="0"/>
+  </Tree>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: MAGIC
+Seething Divine Life Flask of Staunching
+Divine Life Flask
+Implicits: 0
++50 to maximum Life
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Flask 1" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config>
+    <Input name="conditionUsingFlask" boolean="true"/>
+  </Config>
+</PathOfBuilding>"#;
+        let build = parse_xml(xml).unwrap();
+        let data = make_default_data();
+        let env = init_env(&build, data).unwrap();
+
+        // Flask mods should be in the player moddb
+        let tabs = env
+            .player
+            .mod_db
+            .tabulate("Life", None, ModFlags::NONE, KeywordFlags::NONE);
+        assert!(
+            tabs.iter().any(|t| t.source_category == "Item"
+                && t.source_name.contains("Divine Life Flask")
+                && t.value.as_f64().abs() >= 50.0),
+            "Should find a +50 Life mod from flask Item source, tabs: {:?}",
+            tabs
+        );
+
+        // UsingFlask condition should be set
+        assert_eq!(
+            env.player.mod_db.conditions.get("UsingFlask"),
+            Some(&true),
+            "UsingFlask condition should be true"
+        );
+    }
+
+    #[test]
+    fn flask_mods_not_added_when_not_using() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_29" bandit="None" mainSocketGroup="1"
+         className="Marauder" ascendClassName="None"/>
+  <Skills activeSkillSet="1"><SkillSet id="1"/></Skills>
+  <Tree activeSpec="1">
+    <Spec treeVersion="3_29" nodes="" classId="1" ascendClassId="0"/>
+  </Tree>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: MAGIC
+Seething Divine Life Flask of Staunching
+Divine Life Flask
+Implicits: 0
++50 to maximum Life
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Flask 1" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config/>
+</PathOfBuilding>"#;
+        let build = parse_xml(xml).unwrap();
+        let data = make_default_data();
+        let env = init_env(&build, data).unwrap();
+
+        // Flask mods should NOT be in the player moddb
+        let tabs = env
+            .player
+            .mod_db
+            .tabulate("Life", None, ModFlags::NONE, KeywordFlags::NONE);
+        assert!(
+            !tabs.iter().any(|t| t.source_category == "Item"
+                && t.source_name.contains("Divine Life Flask")),
+            "Flask mods should NOT be in player moddb when not using flask"
+        );
+
+        // UsingFlask condition should not be set
+        assert_ne!(
+            env.player.mod_db.conditions.get("UsingFlask"),
+            Some(&true),
+            "UsingFlask condition should NOT be true"
+        );
+    }
 }
 
 /// Process equipped items: parse their mods into the player ModDb and extract weapon data.
@@ -1156,6 +1427,138 @@ fn add_item_mods(build: &Build, env: &mut CalcEnv) {
         && !env.player.has_shield
     {
         env.player.dual_wield = true;
+    }
+}
+
+/// Initialize the enemy ModDb with level, base resistances, life, and config overrides.
+/// Mirrors the enemy initialization in CalcSetup.lua.
+fn init_enemy_db(build: &Build, db: &mut ModDb, data: &GameData) {
+    let level = build.level as f64;
+    let src = ModSource::new("Base", "enemy defaults");
+
+    // Set enemy level
+    db.add(Mod::new_base("Level", level, src.clone()));
+
+    // Base resistances = 0
+    db.add(Mod::new_base("FireResist", 0.0, src.clone()));
+    db.add(Mod::new_base("ColdResist", 0.0, src.clone()));
+    db.add(Mod::new_base("LightningResist", 0.0, src.clone()));
+    db.add(Mod::new_base("ChaosResist", 0.0, src.clone()));
+
+    // Physical damage reduction = 0
+    db.add(Mod::new_base("PhysicalDamageReduction", 0.0, src.clone()));
+
+    // Enemy life from monster_life_table (0-based index: level 1 → index 0)
+    let level_idx = (build.level as usize).saturating_sub(1);
+    if let Some(&life) = data.misc.monster_life_table.get(level_idx) {
+        db.add(Mod::new_base("Life", life as f64, src.clone()));
+    }
+
+    // Config overrides: keys starting with "enemy" set enemy stats
+    // e.g. "enemyFireResist" → "FireResist", "enemyLevel" → "Level"
+    let config_src = ModSource::new("Config", "enemy override");
+    for (key, &val) in &build.config.numbers {
+        if let Some(stat_name) = key.strip_prefix("enemy") {
+            if !stat_name.is_empty() {
+                // First character is already uppercase in camelCase (e.g. "enemyFireResist" → "FireResist")
+                db.add(Mod::new_base(stat_name, val, config_src.clone()));
+            }
+        }
+    }
+}
+
+/// Process jewel items: parse their mods into the player ModDb.
+/// Mirrors the jewel slot processing in CalcSetup.lua.
+fn add_jewel_mods(build: &Build, env: &mut CalcEnv) {
+    let item_set = match build.item_sets.get(build.active_item_set) {
+        Some(set) => set,
+        None => return,
+    };
+
+    for (slot_name, &item_id) in &item_set.slots {
+        let slot = match ItemSlot::from_str(slot_name) {
+            Some(s) => s,
+            None => continue,
+        };
+
+        if !slot.is_jewel() {
+            continue;
+        }
+
+        let item = match build.items.get(&item_id) {
+            Some(i) => i,
+            None => continue,
+        };
+
+        let source = ModSource::new("Item", format!("{} ({})", item.base_type, slot_name));
+
+        let mod_lines = item
+            .implicits
+            .iter()
+            .chain(item.explicits.iter())
+            .chain(item.crafted_mods.iter());
+
+        for line in mod_lines {
+            let mods = crate::build::mod_parser::parse_mod(line, source.clone());
+            for m in mods {
+                env.player.mod_db.add(m);
+            }
+        }
+    }
+}
+
+/// Process flask items: parse their mods into the player ModDb when flasks are active.
+/// Mirrors the flask slot processing in CalcSetup.lua.
+fn add_flask_mods(build: &Build, env: &mut CalcEnv) {
+    // Only process flasks if conditionUsingFlask is true in config
+    let using_flask = build
+        .config
+        .booleans
+        .get("conditionUsingFlask")
+        .copied()
+        .unwrap_or(false);
+
+    if !using_flask {
+        return;
+    }
+
+    // Set the UsingFlask condition on player moddb
+    env.player.mod_db.set_condition("UsingFlask", true);
+
+    let item_set = match build.item_sets.get(build.active_item_set) {
+        Some(set) => set,
+        None => return,
+    };
+
+    for (slot_name, &item_id) in &item_set.slots {
+        let slot = match ItemSlot::from_str(slot_name) {
+            Some(s) => s,
+            None => continue,
+        };
+
+        if !slot.is_flask() {
+            continue;
+        }
+
+        let item = match build.items.get(&item_id) {
+            Some(i) => i,
+            None => continue,
+        };
+
+        let source = ModSource::new("Item", format!("{} ({})", item.base_type, slot_name));
+
+        let mod_lines = item
+            .implicits
+            .iter()
+            .chain(item.explicits.iter())
+            .chain(item.crafted_mods.iter());
+
+        for line in mod_lines {
+            let mods = crate::build::mod_parser::parse_mod(line, source.clone());
+            for m in mods {
+                env.player.mod_db.add(m);
+            }
+        }
     }
 }
 
