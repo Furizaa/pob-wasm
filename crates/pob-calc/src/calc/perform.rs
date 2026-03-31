@@ -1217,7 +1217,7 @@ fn do_regen_recharge_leech(env: &mut CalcEnv) {
             .mod_db
             .sum_cfg(ModType::Base, "MaxLifeLeechRate", None, &env.player.output);
     // Default from game constants: 20% per minute → converted to per second by POB
-    let max_life_leech_rate = if max_life_leech_rate_base > 0.0 {
+    let _max_life_leech_rate = if max_life_leech_rate_base > 0.0 {
         max_life_leech_rate_base
     } else {
         env.data
