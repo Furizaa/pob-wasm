@@ -21,10 +21,23 @@ jobs:
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
       - name: Install LuaJIT
-        run: sudo apt-get install -y luajit
+        run: sudo apt-get install -y luajit libluajit-5.1-dev
 
       - name: Run native tests (pob-calc + data-extractor)
-        run: cargo test --workspace --exclude pob-wasm
+        run: cargo test --workspace --exclude pob-wasm --exclude modparser-codegen
+
+      - name: Run codegen tests
+        run: cargo test -p modparser-codegen
+
+      - name: Check generated code is fresh
+        run: |
+          cargo run -p modparser-codegen -- \
+            --output /tmp/mod_parser_generated.rs \
+            --manifest /tmp/mod_parser_manual_manifest.rs
+          diff crates/pob-calc/src/build/mod_parser_generated.rs /tmp/mod_parser_generated.rs || \
+            (echo "ERROR: mod_parser_generated.rs is stale. Run 'cargo run -p modparser-codegen' and commit." && exit 1)
+          diff crates/pob-calc/src/build/mod_parser_manual_manifest.rs /tmp/mod_parser_manual_manifest.rs || \
+            (echo "ERROR: mod_parser_manual_manifest.rs is stale. Run 'cargo run -p modparser-codegen' and commit." && exit 1)
 
       - name: Build WASM package
         run: wasm-pack build crates/pob-wasm --target web --release

@@ -21,10 +21,22 @@ fn build_real_game_data_json(data_dir: &str) -> Result<String, Box<dyn std::erro
     let misc: serde_json::Value = serde_json::from_str(&misc_str)?;
     let tree: serde_json::Value = serde_json::from_str(&tree_str)?;
 
+    let bases: serde_json::Value = std::fs::read_to_string(format!("{data_dir}/bases.json"))
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or(serde_json::Value::Array(vec![]));
+
+    let uniques: serde_json::Value = std::fs::read_to_string(format!("{data_dir}/uniques.json"))
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or(serde_json::Value::Array(vec![]));
+
     let combined = serde_json::json!({
         "gems": gems,
         "misc": misc,
         "tree": tree,
+        "bases": bases,
+        "uniques": uniques,
     });
     Ok(serde_json::to_string(&combined)?)
 }
@@ -213,6 +225,182 @@ oracle_test!(
 );
 oracle_test!(oracle_triple_conversion, "realworld_triple_conversion");
 oracle_test!(oracle_spectre_summoner, "realworld_spectre_summoner");
+
+// ── Phase 5 integration tests: item loading and basic stats ─────────────────
+
+#[test]
+#[ignore] // requires DATA_DIR
+fn phase5_items_loaded_and_mods_applied() {
+    let data = load_game_data()
+        .expect("DATA_DIR must be set and contain valid game data for phase5 tests");
+    let xml = load_build_xml("realworld_phys_melee_slayer");
+    let build = parse_xml(&xml).unwrap();
+
+    // Verify items were parsed
+    assert!(
+        !build.items.is_empty(),
+        "Build should have items, got {}",
+        build.items.len()
+    );
+    println!(
+        "realworld_phys_melee_slayer: {} items parsed",
+        build.items.len()
+    );
+
+    // Run calculation
+    let result = calculate(&build, Arc::clone(&data)).unwrap();
+
+    // Life should be substantial for a real build with gear
+    let life = result
+        .output
+        .get("Life")
+        .and_then(|v| match v {
+            pob_calc::calc::env::OutputValue::Number(n) => Some(*n),
+            _ => None,
+        })
+        .unwrap_or(0.0);
+    println!("Life: {life}");
+    assert!(
+        life > 500.0,
+        "Life should be > 500 for a real build, got {life}"
+    );
+
+    // Str should be positive for a melee build
+    let str_val = result
+        .output
+        .get("Str")
+        .and_then(|v| match v {
+            pob_calc::calc::env::OutputValue::Number(n) => Some(*n),
+            _ => None,
+        })
+        .unwrap_or(0.0);
+    println!("Str: {str_val}");
+    assert!(
+        str_val > 0.0,
+        "Str should be > 0 for a melee build, got {str_val}"
+    );
+}
+
+#[test]
+#[ignore] // requires DATA_DIR
+fn phase5_all_oracle_builds_have_items() {
+    let mut builds_with_items = 0;
+    let mut builds_total = 0;
+
+    for entry in std::fs::read_dir("tests/oracle").unwrap() {
+        let path = entry.unwrap().path();
+        let fname = path.file_name().unwrap().to_str().unwrap_or("").to_string();
+        if path.extension().map_or(false, |e| e == "xml") && fname.starts_with("realworld_") {
+            builds_total += 1;
+            let xml = std::fs::read_to_string(&path).unwrap();
+            let build = parse_xml(&xml).unwrap();
+            let item_count = build.items.len();
+            if item_count > 0 {
+                builds_with_items += 1;
+            }
+            println!("{fname}: {item_count} items");
+        }
+    }
+
+    println!("\n{builds_with_items}/{builds_total} builds have items");
+    assert!(
+        builds_with_items > 0,
+        "At least some builds should have items"
+    );
+    // All real-world builds should have items
+    assert_eq!(
+        builds_with_items, builds_total,
+        "All real-world builds should have items, but only {builds_with_items}/{builds_total} do"
+    );
+}
+
+#[test]
+#[ignore] // requires DATA_DIR
+fn phase5_all_oracle_builds_calculate_with_items() {
+    let data = load_game_data()
+        .expect("DATA_DIR must be set and contain valid game data for phase5 tests");
+    let mut success = 0;
+    let mut failed = 0;
+    let mut errors: Vec<String> = Vec::new();
+
+    for entry in std::fs::read_dir("tests/oracle").unwrap() {
+        let path = entry.unwrap().path();
+        let fname = path.file_name().unwrap().to_str().unwrap_or("").to_string();
+        if path.extension().map_or(false, |e| e == "xml") && fname.starts_with("realworld_") {
+            let xml = std::fs::read_to_string(&path).unwrap();
+            let build = match parse_xml(&xml) {
+                Ok(b) => b,
+                Err(e) => {
+                    errors.push(format!("{fname}: parse error: {e}"));
+                    failed += 1;
+                    continue;
+                }
+            };
+
+            let item_count = build.items.len();
+
+            match calculate(&build, Arc::clone(&data)) {
+                Ok(result) => {
+                    let life = result
+                        .output
+                        .get("Life")
+                        .and_then(|v| match v {
+                            pob_calc::calc::env::OutputValue::Number(n) => Some(*n),
+                            _ => None,
+                        })
+                        .unwrap_or(0.0);
+                    let str_val = result
+                        .output
+                        .get("Str")
+                        .and_then(|v| match v {
+                            pob_calc::calc::env::OutputValue::Number(n) => Some(*n),
+                            _ => None,
+                        })
+                        .unwrap_or(0.0);
+                    let dex_val = result
+                        .output
+                        .get("Dex")
+                        .and_then(|v| match v {
+                            pob_calc::calc::env::OutputValue::Number(n) => Some(*n),
+                            _ => None,
+                        })
+                        .unwrap_or(0.0);
+                    let int_val = result
+                        .output
+                        .get("Int")
+                        .and_then(|v| match v {
+                            pob_calc::calc::env::OutputValue::Number(n) => Some(*n),
+                            _ => None,
+                        })
+                        .unwrap_or(0.0);
+
+                    println!(
+                        "{fname}: {item_count} items, Life={life:.0}, Str={str_val:.0}, Dex={dex_val:.0}, Int={int_val:.0}"
+                    );
+                    success += 1;
+                }
+                Err(e) => {
+                    errors.push(format!("{fname}: calc error: {e}"));
+                    failed += 1;
+                }
+            }
+        }
+    }
+
+    println!("\n{success} succeeded, {failed} failed");
+    if !errors.is_empty() {
+        println!("\nErrors:");
+        for e in &errors {
+            println!("  {e}");
+        }
+    }
+
+    assert!(
+        success > 0,
+        "At least some builds should calculate successfully"
+    );
+    assert_eq!(failed, 0, "{failed} builds failed to calculate");
+}
 
 #[cfg(test)]
 mod comparator_tests {

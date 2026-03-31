@@ -4,6 +4,8 @@ members = [
     "crates/pob-calc",
     "crates/pob-wasm",
     "crates/data-extractor",
+    "tools/modparser-codegen",
+    "tools/pob-data-extractor",
 ]
 
 [workspace.dependencies]
