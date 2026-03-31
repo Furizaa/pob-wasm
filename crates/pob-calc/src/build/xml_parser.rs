@@ -72,6 +72,7 @@ pub fn parse_xml(xml: &str) -> Result<Build, ParseError> {
                             item_sets: Vec::new(),
                             active_item_set: 0,
                             config: BuildConfig::default(),
+                            items: HashMap::new(),
                         });
                     }
                     "Skills" => {

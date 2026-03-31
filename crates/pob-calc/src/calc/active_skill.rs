@@ -193,6 +193,7 @@ pub fn run(env: &mut CalcEnv, build: &crate::build::Build) {
     env.player.main_skill = Some(ActiveSkill {
         skill_id,
         level: active_gem.level,
+        quality: active_gem.quality,
         skill_mod_db: ModDb::new(),
         is_attack,
         is_spell,
@@ -202,6 +203,12 @@ pub fn run(env: &mut CalcEnv, build: &crate::build::Build) {
         base_damage,
         attack_speed_base,
         cast_time,
+        damage_effectiveness: 1.0,
+        skill_types: Vec::new(),
+        skill_flags: std::collections::HashMap::new(),
+        skill_cfg: None,
+        slot_name: None,
+        support_list: Vec::new(),
     });
 }
 
