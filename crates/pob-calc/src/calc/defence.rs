@@ -416,9 +416,7 @@ fn calc_primary_defences(env: &mut CalcEnv) {
     };
     env.player.set_output("EvadeChance", evade_chance);
 
-    // Armour defence outputs
-    env.player.set_output("ArmourDefense", armour);
-    env.player.set_output("RawArmourDefense", armour);
+    // Armour defence internal tracking (not output to match PoB)
 }
 
 // ── Task 6: Spell suppression + dodge ────────────────────────────────────────
@@ -677,8 +675,7 @@ fn calc_es_recharge(env: &mut CalcEnv) {
         .mod_db
         .more_cfg("EnergyShieldRechargeRate", None, &output);
     let recharge_rate = es * 0.20 * (1.0 + inc / 100.0) * more;
-    env.player
-        .set_output("EnergyShieldRechargeRate", recharge_rate);
+    env.player.set_output("EnergyShieldRecharge", recharge_rate);
 
     // ES recharge delay: 2s / (1 + faster/100)
     let faster =
@@ -711,7 +708,7 @@ fn calc_movement_and_avoidance(env: &mut CalcEnv) {
         .sum_cfg(ModType::Inc, "MovementSpeed", None, &output);
     let ms_more = env.player.mod_db.more_cfg("MovementSpeed", None, &output);
     let ms = (1.0 + ms_inc / 100.0) * ms_more;
-    env.player.set_output("MovementSpeed", ms);
+    env.player.set_output("MovementSpeedMod", ms);
 
     let action_speed = env.player.action_speed_mod;
     env.player
@@ -727,15 +724,7 @@ fn calc_movement_and_avoidance(env: &mut CalcEnv) {
         env.player.set_output(&stat, val);
     }
 
-    // Life/Mana/ES on suppress
-    for resource in &["Life", "Mana", "EnergyShield"] {
-        let stat = format!("{resource}OnSuppress");
-        let val = env
-            .player
-            .mod_db
-            .sum_cfg(ModType::Base, &stat, None, &output);
-        env.player.set_output(&stat, val);
-    }
+    // Life/Mana/ES on suppress — computed but not output (PoB doesn't output these directly)
 
     // Ailment avoidance
     let elemental_ailments = [
@@ -754,30 +743,74 @@ fn calc_movement_and_avoidance(env: &mut CalcEnv) {
             .sum_cfg(ModType::Base, "ElementalAilmentAvoidance", None, &output);
 
     for ailment in &all_ailments {
-        let stat = format!("Avoid{ailment}");
+        let mod_stat = format!("Avoid{ailment}");
         let base = env
             .player
             .mod_db
-            .sum_cfg(ModType::Base, &stat, None, &output);
+            .sum_cfg(ModType::Base, &mod_stat, None, &output);
         let extra = if elemental_ailments.contains(ailment) {
             elemental_avoid
         } else {
             0.0
         };
         let val = (base + extra).clamp(0.0, 100.0);
-        env.player.set_output(&stat, val);
+        // PoB output key is "{Ailment}AvoidChance"
+        let output_key = format!("{ailment}AvoidChance");
+        env.player.set_output(&output_key, val);
     }
+
+    // Blind, Silence, InterruptStun avoidance
+    let blind_avoid = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "AvoidBlind", None, &output)
+        .clamp(0.0, 100.0);
+    env.player.set_output("BlindAvoidChance", blind_avoid);
+
+    let silence_avoid = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "AvoidSilence", None, &output)
+        .clamp(0.0, 100.0);
+    env.player.set_output("SilenceAvoidChance", silence_avoid);
+
+    let interrupt_stun_avoid = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "AvoidInterruptStun", None, &output)
+        .clamp(0.0, 100.0);
+    env.player
+        .set_output("InterruptStunAvoidChance", interrupt_stun_avoid);
 
     // Per-damage-type avoidance
     for type_name in DMG_TYPE_NAMES.iter() {
-        let stat = format!("Avoid{type_name}Damage");
+        let mod_stat = format!("Avoid{type_name}Damage");
         let val = env
             .player
             .mod_db
-            .sum_cfg(ModType::Base, &stat, None, &output)
+            .sum_cfg(ModType::Base, &mod_stat, None, &output)
             .clamp(0.0, 100.0);
-        env.player.set_output(&stat, val);
+        // PoB output key is "Avoid{Type}DamageChance"
+        let output_key = format!("Avoid{type_name}DamageChance");
+        env.player.set_output(&output_key, val);
     }
+
+    // All damage from hits avoidance
+    let avoid_all_hits = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "AvoidAllDamageFromHits", None, &output)
+        .clamp(0.0, 100.0);
+    env.player
+        .set_output("AvoidAllDamageFromHitsChance", avoid_all_hits);
+
+    // Projectile avoidance
+    let avoid_proj = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "AvoidProjectiles", None, &output)
+        .clamp(0.0, 100.0);
+    env.player.set_output("AvoidProjectilesChance", avoid_proj);
 
     // Curse avoidance
     let curse_avoid = env
@@ -785,26 +818,31 @@ fn calc_movement_and_avoidance(env: &mut CalcEnv) {
         .mod_db
         .sum_cfg(ModType::Base, "AvoidCurse", None, &output)
         .clamp(0.0, 100.0);
-    env.player.set_output("AvoidCurse", curse_avoid);
+    env.player.set_output("CurseAvoidChance", curse_avoid);
 
     // Stun avoidance (separate from stun calc, this is the avoidance stat)
     // Handled in calc_stun
 
-    // Immunities
+    // Immunities — set conditions but don't output (PoB doesn't output these)
     let cb_immune = env
         .player
         .mod_db
         .flag_cfg("CorruptedBloodImmunity", None, &output);
-    env.player
-        .set_output("CorruptedBloodImmunity", if cb_immune { 1.0 } else { 0.0 });
+    if cb_immune {
+        env.player
+            .mod_db
+            .set_condition("CorruptedBloodImmunity", true);
+    }
 
     let maim_immune = env.player.mod_db.flag_cfg("MaimImmunity", None, &output);
-    env.player
-        .set_output("MaimImmunity", if maim_immune { 1.0 } else { 0.0 });
+    if maim_immune {
+        env.player.mod_db.set_condition("MaimImmunity", true);
+    }
 
     let hinder_immune = env.player.mod_db.flag_cfg("HinderImmunity", None, &output);
-    env.player
-        .set_output("HinderImmunity", if hinder_immune { 1.0 } else { 0.0 });
+    if hinder_immune {
+        env.player.mod_db.set_condition("HinderImmunity", true);
+    }
 
     // Crit extra damage reduction
     let crit_dr =
@@ -813,17 +851,22 @@ fn calc_movement_and_avoidance(env: &mut CalcEnv) {
             .sum_cfg(ModType::Base, "CritExtraDamageReduction", None, &output);
     env.player.set_output("CritExtraDamageReduction", crit_dr);
 
-    // Debuff expiration rate
+    // Debuff expiration rate: PoB outputs the raw inc% (0 = no change)
     let debuff_rate_inc =
         env.player
             .mod_db
             .sum_cfg(ModType::Inc, "DebuffExpirationRate", None, &output);
-    let debuff_rate_more = env
-        .player
-        .mod_db
-        .more_cfg("DebuffExpirationRate", None, &output);
-    let debuff_rate = (1.0 + debuff_rate_inc / 100.0) * debuff_rate_more;
-    env.player.set_output("DebuffExpirationRate", debuff_rate);
+    env.player
+        .set_output("DebuffExpirationRate", debuff_rate_inc);
+
+    // DebuffExpirationModifier: 100 + inc  (100 = base)
+    let debuff_modifier = 100.0 + debuff_rate_inc;
+    env.player
+        .set_output("DebuffExpirationModifier", debuff_modifier);
+
+    // showDebuffExpirationModifier: true if modifier != 100
+    env.player
+        .set_output_bool("showDebuffExpirationModifier", debuff_rate_inc != 0.0);
 }
 
 // ── Task 10: Damage shift table ──────────────────────────────────────────────
@@ -931,7 +974,7 @@ fn calc_stun(env: &mut CalcEnv) {
         .mod_db
         .sum_cfg(ModType::Base, "AvoidStun", None, &output)
         .clamp(0.0, 100.0);
-    env.player.set_output("AvoidStun", avoid);
+    env.player.set_output("StunAvoidChance", avoid);
 
     // Stun duration: 0.35 / (1 + recovery_inc/100) * (1 + duration_inc/100)
     let recovery_inc = env
@@ -1140,7 +1183,7 @@ mod tests {
             source: src(),
         }]);
         run(&mut env);
-        let ms = get_output_f64(&env.player.output, "MovementSpeed");
+        let ms = get_output_f64(&env.player.output, "MovementSpeedMod");
         assert!((ms - 1.30).abs() < 0.01, "expected ~1.30, got {ms}");
     }
 

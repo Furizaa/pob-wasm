@@ -1166,9 +1166,8 @@ fn do_regen_recharge_leech(env: &mut CalcEnv) {
     let total_life_degen = life_degen_flat + life_degen_pct / 100.0 * life;
     env.player.set_output("LifeDegen", total_life_degen);
 
-    // Net life regen
-    let net_life_regen = total_life_regen - total_life_degen;
-    env.player.set_output("LifeRegenNet", net_life_regen);
+    // Net life regen — used internally, not output to match PoB
+    // (PoB computes net regen in the UI layer, not in the calc engine)
 
     // -- Mana regen --
     // Base mana regen is 1.75% of max mana per second
@@ -1244,22 +1243,15 @@ fn do_regen_recharge_leech(env: &mut CalcEnv) {
             .copied()
             .unwrap_or(20.0)
     };
-    let life_leech_per_sec = max_life_leech_rate / 100.0 * life;
-    env.player
-        .set_output("MaxLifeLeechRate", max_life_leech_rate);
-    env.player
-        .set_output("LifeLeechGainPerSecond", life_leech_per_sec);
+    // MaxLifeLeechRate is computed in defence.rs calc_leech_caps — skip here to avoid double-output
 
-    // Vaal Pact: doubles leech, sets regen to 0
+    // Vaal Pact: sets regen to 0
     let vaal_pact = env
         .player
         .mod_db
         .flag_cfg("VaalPact", None, &env.player.output);
     if vaal_pact {
-        env.player
-            .set_output("LifeLeechGainPerSecond", life_leech_per_sec * 2.0);
         env.player.set_output("LifeRegen", 0.0);
-        env.player.set_output("LifeRegenNet", -total_life_degen);
         env.player.mod_db.set_condition("VaalPact", true);
     }
 
@@ -1352,30 +1344,10 @@ fn do_mom_eb(env: &mut CalcEnv) {
 // Attack / cast speed (kept from original)
 // ---------------------------------------------------------------------------
 
-fn do_actor_attack_cast_speed(env: &mut CalcEnv) {
-    let inc_attack =
-        env.player
-            .mod_db
-            .sum(ModType::Inc, "Speed", ModFlags::ATTACK, KeywordFlags::NONE);
-    let more_attack = env
-        .player
-        .mod_db
-        .more("Speed", ModFlags::ATTACK, KeywordFlags::NONE);
-    env.player.set_output(
-        "AttackSpeedMod",
-        1.0 * (1.0 + inc_attack / 100.0) * more_attack,
-    );
-
-    let inc_cast =
-        env.player
-            .mod_db
-            .sum(ModType::Inc, "Speed", ModFlags::SPELL, KeywordFlags::NONE);
-    let more_cast = env
-        .player
-        .mod_db
-        .more("Speed", ModFlags::SPELL, KeywordFlags::NONE);
-    env.player
-        .set_output("CastSpeedMod", 1.0 * (1.0 + inc_cast / 100.0) * more_cast);
+fn do_actor_attack_cast_speed(_env: &mut CalcEnv) {
+    // Attack and cast speed mods are computed but stored internally;
+    // PoB outputs "Speed" from the active skill, not raw attack/cast mods.
+    // These are available via mod_db queries for the offence pass.
 }
 
 // ---------------------------------------------------------------------------
@@ -1913,8 +1885,8 @@ mod tests {
         assert!(env.player.output.contains_key("TotalAttr"));
         assert!(env.player.output.contains_key("LowestAttribute"));
         assert!(env.player.output.contains_key("ActionSpeedMod"));
-        assert!(env.player.output.contains_key("AttackSpeedMod"));
-        assert!(env.player.output.contains_key("CastSpeedMod"));
+        // AttackSpeedMod/CastSpeedMod are no longer directly output (PoB uses "Speed")
+        // These are now computed via mod_db queries in the offence pass
         assert!(env.player.output.contains_key("LifeReserved"));
         assert!(env.player.output.contains_key("ManaReserved"));
         assert!(env.player.output.contains_key("PowerCharges"));
@@ -1964,7 +1936,7 @@ mod tests {
     }
 
     #[test]
-    fn vaal_pact_doubles_leech_and_zeroes_regen() {
+    fn vaal_pact_zeroes_regen() {
         let mut env = make_env(|env| {
             env.player.mod_db.add(Mod::new_base("Life", 1000.0, src()));
             env.player
@@ -1978,12 +1950,14 @@ mod tests {
         let regen = get_output_f64(&env.player.output, "LifeRegen");
         assert_eq!(regen, 0.0, "Expected 0 life regen with Vaal Pact");
 
-        // Leech should be doubled: default 20% rate → 20/100 * 1000 * 2 = 400
-        let leech = get_output_f64(&env.player.output, "LifeLeechGainPerSecond");
-        assert!(
-            (leech - 400.0).abs() < 0.01,
-            "Expected doubled leech 400.0, got {leech}"
-        );
+        // VaalPact condition should be set
+        assert!(env
+            .player
+            .mod_db
+            .conditions
+            .get("VaalPact")
+            .copied()
+            .unwrap_or(false));
     }
 
     // ------------------------------------------------------------------

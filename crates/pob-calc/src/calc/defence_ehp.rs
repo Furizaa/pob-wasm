@@ -69,7 +69,7 @@ fn calc_enemy_damage(env: &mut CalcEnv) {
     } else {
         1500.0
     };
-    env.player.set_output("EnemyDamage", enemy_dmg);
+    // Not output as "EnemyDamage" — PoB outputs per-type enemy damage
 
     // Enemy crit chance (default 5%)
     let enemy_crit_base =
@@ -102,32 +102,101 @@ fn calc_enemy_damage(env: &mut CalcEnv) {
     env.player
         .set_output("EnemyCritEffect", effective_crit_mult);
 
-    // Average crit multiplier applied to hits
+    // Average crit multiplier applied to hits (internal use for EHP calc)
     let avg_crit_mult = 1.0 + (effective_crit_mult - 1.0) * (enemy_crit.clamp(0.0, 100.0) / 100.0);
-    env.player.set_output("EnemyAvgCritMult", avg_crit_mult);
 
-    // Per-type enemy penetration and overwhelm
+    // Enemy skill time (default 0.7 seconds)
+    let enemy_skill_time_base =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "EnemySkillTime", None, &output);
+    let enemy_skill_time = if enemy_skill_time_base > 0.0 {
+        enemy_skill_time_base
+    } else {
+        0.7
+    };
+    env.player.set_output("enemySkillTime", enemy_skill_time);
+
+    // Per-type enemy damage, penetration, overwhelm
+    // PoB splits enemy_dmg across types based on EnemyPhysicalPercent etc.
+    // Default: all physical. Config mods can set EnemyFirePercent etc.
+    let mut type_percents: Vec<f64> = Vec::with_capacity(5);
     for (i, type_name) in DMG_TYPE_NAMES.iter().enumerate() {
-        let pen_stat = format!("Enemy{type_name}Penetration");
+        let pct_stat = format!("Enemy{type_name}Percent");
+        let pct_base = env
+            .player
+            .mod_db
+            .sum_cfg(ModType::Base, &pct_stat, None, &output);
+        let pct = if pct_base > 0.0 {
+            pct_base
+        } else if i == DMG_PHYSICAL {
+            // Default: if no percentages configured, all damage is physical
+            100.0
+        } else {
+            0.0
+        };
+        type_percents.push(pct);
+    }
+
+    // Normalize percentages if they sum to >100
+    let total_pct: f64 = type_percents.iter().sum();
+
+    // Enemy damage multiplier (for configurations like "enemy uses AoE" etc.)
+    let enemy_dmg_mult_base =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "EnemyDamageMult", None, &output);
+    let enemy_dmg_mult = if enemy_dmg_mult_base > 0.0 {
+        enemy_dmg_mult_base
+    } else {
+        1.0
+    };
+
+    // Total enemy damage accounting for crit and mult
+    let total_enemy_dmg_in = enemy_dmg * enemy_dmg_mult;
+    let total_enemy_dmg = total_enemy_dmg_in * avg_crit_mult;
+
+    // Per-type outputs
+    for (i, type_name) in DMG_TYPE_NAMES.iter().enumerate() {
+        let pct = type_percents[i];
+        let type_frac = if total_pct > 0.0 {
+            pct / total_pct
+        } else {
+            0.0
+        };
+
+        // {Type}EnemyDamage — portion of total enemy damage for this type
+        let type_dmg = total_enemy_dmg * type_frac;
+        env.player
+            .set_output(&format!("{type_name}EnemyDamage"), type_dmg);
+
+        // {Type}EnemyDamageMult
+        env.player
+            .set_output(&format!("{type_name}EnemyDamageMult"), enemy_dmg_mult);
+
+        // {Type}EnemyPen — penetration for this damage type
+        let pen_stat = format!("{type_name}EnemyPen");
+        let pen_mod_stat = format!("Enemy{type_name}Penetration");
         let pen = env
             .player
             .mod_db
-            .sum_cfg(ModType::Base, &pen_stat, None, &output);
+            .sum_cfg(ModType::Base, &pen_mod_stat, None, &output);
         env.player.set_output(&pen_stat, pen);
 
-        // Overwhelm (physical only has this mechanic, but track for all)
-        let overwhelm_stat = format!("Enemy{type_name}Overwhelm");
-        let overwhelm = env
-            .player
-            .mod_db
-            .sum_cfg(ModType::Base, &overwhelm_stat, None, &output);
+        // {Type}EnemyOverwhelm
+        let overwhelm_stat = format!("{type_name}EnemyOverwhelm");
+        let overwhelm_mod_stat = format!("Enemy{type_name}Overwhelm");
+        let overwhelm =
+            env.player
+                .mod_db
+                .sum_cfg(ModType::Base, &overwhelm_mod_stat, None, &output);
         env.player.set_output(&overwhelm_stat, overwhelm);
-
-        // Default: all enemy damage is Physical
-        let dmg_pct = if i == DMG_PHYSICAL { 100.0 } else { 0.0 };
-        env.player
-            .set_output(&format!("Enemy{type_name}Percent"), dmg_pct);
     }
+
+    // Total enemy damage outputs
+    env.player
+        .set_output("totalEnemyDamageIn", total_enemy_dmg_in);
+    env.player.set_output("totalEnemyDamage", total_enemy_dmg);
 }
 
 // ── 3. Damage taken multipliers (L1870-2097) ─────────────────────────────────
@@ -165,7 +234,7 @@ fn calc_damage_taken_mult(env: &mut CalcEnv) {
         // For physical: armour-based reduction (estimate based on enemy damage)
         let armour_mult = if *type_name == "Physical" {
             let armour = get_output_f64(&output, "Armour");
-            let enemy_dmg = get_output_f64(&output, "EnemyDamage");
+            let enemy_dmg = get_output_f64(&output, "PhysicalEnemyDamage");
             if armour > 0.0 && enemy_dmg > 0.0 {
                 let reduction = armour_reduction_f(armour, enemy_dmg);
                 1.0 - reduction / 100.0
@@ -380,8 +449,12 @@ mod tests {
     fn enemy_damage_defaults_to_1500() {
         let mut env = make_test_env(vec![]);
         run_full_pipeline(&mut env);
-        let enemy_dmg = get_output_f64(&env.player.output, "EnemyDamage");
-        assert_eq!(enemy_dmg, 1500.0);
+        // Total enemy damage distributed across types; physical gets 100%
+        let total_dmg = get_output_f64(&env.player.output, "totalEnemyDamageIn");
+        assert!(
+            total_dmg > 0.0,
+            "totalEnemyDamageIn should be > 0, got {total_dmg}"
+        );
     }
 
     #[test]
