@@ -1,5 +1,6 @@
 use super::env::CalcEnv;
 use crate::{
+    build::types::ItemSlot,
     build::Build,
     data::GameData,
     error::CalcError,
@@ -28,7 +29,13 @@ pub fn init_env(build: &Build, data: Arc<GameData>) -> Result<CalcEnv, CalcError
     // Add config conditions
     add_config_conditions(build, &mut player_db);
 
-    Ok(CalcEnv::new(player_db, enemy_db, data))
+    // Create the env first so add_item_mods can populate weapon data on the Actor
+    let mut env = CalcEnv::new(player_db, enemy_db, data);
+
+    // Add item mods from equipped items and extract weapon data
+    add_item_mods(build, &mut env);
+
+    Ok(env)
 }
 
 /// Helper: look up a game constant or use a default.
@@ -701,6 +708,454 @@ mod tests {
         assert_eq!(str_val, 20.0, "Scion Str should be 20");
         assert_eq!(dex_val, 20.0, "Scion Dex should be 20");
         assert_eq!(int_val, 20.0, "Scion Int should be 20");
+    }
+
+    // --- Task 6 tests: item mods added to player moddb ---
+
+    #[test]
+    fn item_mods_added_to_player_moddb() {
+        // XML with a belt that has "+30 to maximum Life" and "+40 to Strength"
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_29" bandit="None" mainSocketGroup="1"
+         className="Marauder" ascendClassName="None"/>
+  <Skills activeSkillSet="1"><SkillSet id="1"/></Skills>
+  <Tree activeSpec="1">
+    <Spec treeVersion="3_29" nodes="" classId="1" ascendClassId="0"/>
+  </Tree>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Test Belt
+Leather Belt
+Implicits: 0
++30 to maximum Life
++40 to Strength
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Belt" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config/>
+</PathOfBuilding>"#;
+        let build = parse_xml(xml).unwrap();
+        let data = make_default_data();
+        let env = init_env(&build, data).unwrap();
+
+        // Check that item mods are sourced from "Item"
+        let tabs = env
+            .player
+            .mod_db
+            .tabulate("Life", None, ModFlags::NONE, KeywordFlags::NONE);
+        assert!(
+            tabs.iter()
+                .any(|t| t.source_category == "Item" && t.value.as_f64().abs() >= 30.0),
+            "Should find a +30 Life mod from Item source, tabs: {:?}",
+            tabs
+        );
+
+        let str_tabs = env
+            .player
+            .mod_db
+            .tabulate("Str", None, ModFlags::NONE, KeywordFlags::NONE);
+        assert!(
+            str_tabs
+                .iter()
+                .any(|t| t.source_category == "Item" && t.value.as_f64().abs() >= 40.0),
+            "Should find a +40 Str mod from Item source, tabs: {:?}",
+            str_tabs
+        );
+    }
+
+    #[test]
+    fn flask_and_jewel_slots_skipped() {
+        // Ensure flask/jewel items are NOT added to the player moddb
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_29" bandit="None" mainSocketGroup="1"
+         className="Marauder" ascendClassName="None"/>
+  <Skills activeSkillSet="1"><SkillSet id="1"/></Skills>
+  <Tree activeSpec="1">
+    <Spec treeVersion="3_29" nodes="" classId="1" ascendClassId="0"/>
+  </Tree>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: NORMAL
+Divine Life Flask
+Implicits: 0
++500 to maximum Life
+    </Item>
+    <Item id="2">
+Rarity: RARE
+Test Jewel
+Cobalt Jewel
+Implicits: 0
++10 to Intelligence
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Flask 1" itemId="1"/>
+      <Slot name="Jewel 1" itemId="2"/>
+    </ItemSet>
+  </Items>
+  <Config/>
+</PathOfBuilding>"#;
+        let build = parse_xml(xml).unwrap();
+        let data = make_default_data();
+        let env = init_env(&build, data).unwrap();
+
+        // Neither flask nor jewel mods should be in the player moddb as Item-sourced
+        let life_tabs =
+            env.player
+                .mod_db
+                .tabulate("Life", None, ModFlags::NONE, KeywordFlags::NONE);
+        assert!(
+            !life_tabs
+                .iter()
+                .any(|t| t.source_category == "Item" && t.value.as_f64() >= 500.0),
+            "Flask mods should NOT be in player moddb"
+        );
+
+        let int_tabs = env
+            .player
+            .mod_db
+            .tabulate("Int", None, ModFlags::NONE, KeywordFlags::NONE);
+        assert!(
+            !int_tabs
+                .iter()
+                .any(|t| t.source_category == "Item" && t.source_name == "Cobalt Jewel"),
+            "Jewel mods should NOT be in player moddb"
+        );
+    }
+
+    // --- Task 8 tests: weapon data extraction ---
+
+    #[test]
+    fn weapon_data_extracted_from_equipped_weapon() {
+        // Build with a weapon item in Weapon 1 slot
+        let json = r#"{
+            "gems": {},
+            "misc": {
+                "game_constants": {},
+                "character_constants": {},
+                "monster_life_table": [],
+                "monster_damage_table": [],
+                "monster_evasion_table": [],
+                "monster_accuracy_table": [],
+                "monster_ally_life_table": [],
+                "monster_ally_damage_table": [],
+                "monster_ailment_threshold_table": [],
+                "monster_phys_conversion_multi_table": []
+            },
+            "tree": { "nodes": {} },
+            "bases": [
+                {
+                    "name": "Rusted Sword",
+                    "item_type": "One Handed Sword",
+                    "sub_type": "Sword",
+                    "socket_limit": 3,
+                    "tags": ["sword", "weapon"],
+                    "weapon": {
+                        "physical_min": 10.0,
+                        "physical_max": 20.0,
+                        "crit_chance_base": 5.0,
+                        "attack_rate_base": 1.4,
+                        "range": 11
+                    }
+                }
+            ]
+        }"#;
+        let data = Arc::new(GameData::from_json(json).unwrap());
+
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_29" bandit="None" mainSocketGroup="1"
+         className="Marauder" ascendClassName="None"/>
+  <Skills activeSkillSet="1"><SkillSet id="1"/></Skills>
+  <Tree activeSpec="1">
+    <Spec treeVersion="3_29" nodes="" classId="1" ascendClassId="0"/>
+  </Tree>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: RARE
+Test Sword
+Rusted Sword
+Quality: 20
+Implicits: 0
+Adds 10 to 20 Physical Damage
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config/>
+</PathOfBuilding>"#;
+        let build = parse_xml(xml).unwrap();
+        let env = init_env(&build, data).unwrap();
+
+        // weapon_data1 should be populated
+        let wd = env
+            .player
+            .weapon_data1
+            .as_ref()
+            .expect("weapon_data1 should be set for Weapon 1 slot");
+        // Quality 20 => factor 1.2, phys_min = 10 * 1.2 = 12.0
+        assert!(
+            (wd.phys_min - 12.0).abs() < 1e-9,
+            "phys_min should be 12.0, got {}",
+            wd.phys_min
+        );
+        assert!(
+            (wd.phys_max - 24.0).abs() < 1e-9,
+            "phys_max should be 24.0, got {}",
+            wd.phys_max
+        );
+        assert!(
+            (wd.attack_rate - 1.4).abs() < 1e-9,
+            "attack_rate should be 1.4"
+        );
+        assert!(!env.player.has_shield, "should not have shield");
+        assert!(!env.player.dual_wield, "should not be dual wielding");
+    }
+
+    #[test]
+    fn shield_in_weapon2_sets_has_shield() {
+        let json = r#"{
+            "gems": {},
+            "misc": {
+                "game_constants": {},
+                "character_constants": {},
+                "monster_life_table": [],
+                "monster_damage_table": [],
+                "monster_evasion_table": [],
+                "monster_accuracy_table": [],
+                "monster_ally_life_table": [],
+                "monster_ally_damage_table": [],
+                "monster_ailment_threshold_table": [],
+                "monster_phys_conversion_multi_table": []
+            },
+            "tree": { "nodes": {} },
+            "bases": [
+                {
+                    "name": "Rusted Sword",
+                    "item_type": "One Handed Sword",
+                    "weapon": {
+                        "physical_min": 10.0,
+                        "physical_max": 20.0,
+                        "crit_chance_base": 5.0,
+                        "attack_rate_base": 1.4,
+                        "range": 11
+                    }
+                },
+                {
+                    "name": "Kite Shield",
+                    "item_type": "Shield",
+                    "armour": {
+                        "armour_min": 50.0,
+                        "armour_max": 60.0,
+                        "block_chance": 22
+                    }
+                }
+            ]
+        }"#;
+        let data = Arc::new(GameData::from_json(json).unwrap());
+
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_29" bandit="None" mainSocketGroup="1"
+         className="Marauder" ascendClassName="None"/>
+  <Skills activeSkillSet="1"><SkillSet id="1"/></Skills>
+  <Tree activeSpec="1">
+    <Spec treeVersion="3_29" nodes="" classId="1" ascendClassId="0"/>
+  </Tree>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: NORMAL
+Rusted Sword
+Rusted Sword
+Implicits: 0
+    </Item>
+    <Item id="2">
+Rarity: NORMAL
+Kite Shield
+Kite Shield
+Implicits: 0
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+      <Slot name="Weapon 2" itemId="2"/>
+    </ItemSet>
+  </Items>
+  <Config/>
+</PathOfBuilding>"#;
+        let build = parse_xml(xml).unwrap();
+        let env = init_env(&build, data).unwrap();
+
+        assert!(
+            env.player.weapon_data1.is_some(),
+            "weapon_data1 should be set"
+        );
+        assert!(env.player.has_shield, "has_shield should be true");
+        // Shield has no weapon data, so weapon_data2 should be None
+        assert!(
+            env.player.weapon_data2.is_none(),
+            "weapon_data2 should be None for shield"
+        );
+        assert!(
+            !env.player.dual_wield,
+            "should not be dual wielding with a shield"
+        );
+    }
+
+    #[test]
+    fn dual_wield_detected() {
+        let json = r#"{
+            "gems": {},
+            "misc": {
+                "game_constants": {},
+                "character_constants": {},
+                "monster_life_table": [],
+                "monster_damage_table": [],
+                "monster_evasion_table": [],
+                "monster_accuracy_table": [],
+                "monster_ally_life_table": [],
+                "monster_ally_damage_table": [],
+                "monster_ailment_threshold_table": [],
+                "monster_phys_conversion_multi_table": []
+            },
+            "tree": { "nodes": {} },
+            "bases": [
+                {
+                    "name": "Rusted Sword",
+                    "item_type": "One Handed Sword",
+                    "weapon": {
+                        "physical_min": 10.0,
+                        "physical_max": 20.0,
+                        "crit_chance_base": 5.0,
+                        "attack_rate_base": 1.4,
+                        "range": 11
+                    }
+                }
+            ]
+        }"#;
+        let data = Arc::new(GameData::from_json(json).unwrap());
+
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_29" bandit="None" mainSocketGroup="1"
+         className="Marauder" ascendClassName="None"/>
+  <Skills activeSkillSet="1"><SkillSet id="1"/></Skills>
+  <Tree activeSpec="1">
+    <Spec treeVersion="3_29" nodes="" classId="1" ascendClassId="0"/>
+  </Tree>
+  <Items activeItemSet="1">
+    <Item id="1">
+Rarity: NORMAL
+Rusted Sword
+Rusted Sword
+Implicits: 0
+    </Item>
+    <Item id="2">
+Rarity: NORMAL
+Rusted Sword
+Rusted Sword
+Implicits: 0
+    </Item>
+    <ItemSet id="1">
+      <Slot name="Weapon 1" itemId="1"/>
+      <Slot name="Weapon 2" itemId="2"/>
+    </ItemSet>
+  </Items>
+  <Config/>
+</PathOfBuilding>"#;
+        let build = parse_xml(xml).unwrap();
+        let env = init_env(&build, data).unwrap();
+
+        assert!(
+            env.player.weapon_data1.is_some(),
+            "weapon_data1 should be set"
+        );
+        assert!(
+            env.player.weapon_data2.is_some(),
+            "weapon_data2 should be set"
+        );
+        assert!(!env.player.has_shield, "should not have shield");
+        assert!(env.player.dual_wield, "should be dual wielding");
+    }
+}
+
+/// Process equipped items: parse their mods into the player ModDb and extract weapon data.
+/// Mirrors the item slot processing in CalcSetup.lua.
+fn add_item_mods(build: &Build, env: &mut CalcEnv) {
+    // Get the active item set
+    let item_set = match build.item_sets.get(build.active_item_set) {
+        Some(set) => set,
+        None => return,
+    };
+
+    for (slot_name, &item_id) in &item_set.slots {
+        let slot = match ItemSlot::from_str(slot_name) {
+            Some(s) => s,
+            None => continue,
+        };
+
+        // Skip flask and jewel slots (handled separately in later tasks)
+        if slot.is_flask() || slot.is_jewel() {
+            continue;
+        }
+
+        let item = match build.items.get(&item_id) {
+            Some(i) => i,
+            None => continue,
+        };
+
+        // Resolve base stats into a local copy so we don't mutate build
+        let mut resolved_item = item.clone();
+        crate::build::item_resolver::resolve_item_base(&mut resolved_item, &env.data.bases);
+
+        let source = ModSource::new("Item", &resolved_item.base_type);
+
+        // Parse and add all mod categories
+        let mod_lines = resolved_item
+            .implicits
+            .iter()
+            .chain(resolved_item.explicits.iter())
+            .chain(resolved_item.crafted_mods.iter())
+            .chain(resolved_item.enchant_mods.iter());
+
+        for line in mod_lines {
+            let mods = crate::build::mod_parser::parse_mod(line, source.clone());
+            for m in mods {
+                env.player.mod_db.add(m);
+            }
+        }
+
+        // Task 8: Extract weapon data from weapon slots
+        match slot {
+            ItemSlot::Weapon1 => {
+                if let Some(ref wd) = resolved_item.weapon_data {
+                    env.player.weapon_data1 = Some(wd.clone());
+                }
+            }
+            ItemSlot::Weapon2 => {
+                if let Some(ref wd) = resolved_item.weapon_data {
+                    env.player.weapon_data2 = Some(wd.clone());
+                }
+                // Check if this is a shield (item_type contains "Shield")
+                if resolved_item.item_type.contains("Shield") {
+                    env.player.has_shield = true;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // After processing all slots, determine dual-wield status:
+    // Dual wield = weapon in slot 1 AND weapon in slot 2 (not a shield)
+    if env.player.weapon_data1.is_some()
+        && env.player.weapon_data2.is_some()
+        && !env.player.has_shield
+    {
+        env.player.dual_wield = true;
     }
 }
 

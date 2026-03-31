@@ -77,6 +77,11 @@ pub struct Actor {
     pub breakdown: BreakdownTable,
     pub minion: Option<Box<Actor>>,
     pub main_skill: Option<crate::build::types::ActiveSkill>,
+    pub weapon_data1: Option<crate::build::types::ItemWeaponData>,
+    pub weapon_data2: Option<crate::build::types::ItemWeaponData>,
+    pub has_shield: bool,
+    pub dual_wield: bool,
+    pub active_skill_list: Vec<crate::build::types::ActiveSkill>,
 }
 
 impl Actor {
@@ -87,6 +92,11 @@ impl Actor {
             breakdown: HashMap::new(),
             minion: None,
             main_skill: None,
+            weapon_data1: None,
+            weapon_data2: None,
+            has_shield: false,
+            dual_wield: false,
+            active_skill_list: Vec::new(),
         }
     }
 
