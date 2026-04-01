@@ -1,0 +1,79 @@
+   Compiling pob-calc v0.1.0 (/Users/andreashoffmann1/projects/pob-wasm/crates/pob-calc)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.37s
+     Running tests/parity_report.rs (target/debug/deps/parity_report-6c0cdac149d60081)
+
+running 1 test
+
+================================================================================
+  PARITY DASHBOARD
+================================================================================
+Chunk                                             Builds     Fields   Status
+--------------------------------------------------------------------------------
+PERF-01-attributes                               0/30     39/261   PARTIAL
+PERF-02-life-mana-es                             0/30     76/300   PARTIAL
+PERF-03-charges                                  0/30    356/720   PARTIAL
+PERF-04-reservation                              1/30     62/120   PARTIAL
+PERF-05-buffs                                    0/30     31/126   PARTIAL
+PERF-06-aura-curse                                     -          -    EMPTY
+PERF-07-regen-recharge-leech                     0/30    135/957   PARTIAL
+PERF-08-action-speed-conditions                  3/30     32/90    PARTIAL
+DEF-01-resistances                               0/30    147/360   PARTIAL
+DEF-02-armour-evasion-es-ward                    0/30     12/226   PARTIAL
+DEF-03-block-suppression                         0/30    165/330   PARTIAL
+DEF-04-damage-reduction-avoidance                0/30    794/990   PARTIAL
+DEF-05-recovery-in-defence                             -          -    EMPTY
+DEF-06-ehp                                       0/30     53/1066  PARTIAL
+OFF-01-base-damage                               0/30      5/90    PARTIAL
+OFF-02-conversion                                      -          -    EMPTY
+OFF-03-crit-hit                                  0/30      8/166   PARTIAL
+OFF-04-speed-dps                                 0/30     25/151   PARTIAL
+OFF-05-ailments                                 10/30    192/296   PARTIAL
+OFF-06-dot-impale                                0/30     66/122   PARTIAL
+OFF-07-combined-dps                              0/30     36/237   PARTIAL
+TRIG-01-trigger-rates                           29/30      0/1        FAIL
+TRIG-02-totem-trap-mine                         28/30     49/54    PARTIAL
+MIR-01-mirages                                  29/30      0/1        FAIL
+AGG-01-full-dps                                  0/30      0/60       FAIL
+--------------------------------------------------------------------------------
+Chunks: 0/22 pass | Fields: 2283/6724 correct (34.0%)
+
+================================================================================
+  PER-BUILD SUMMARY
+================================================================================
+Build                                                 Correct      Total
+--------------------------------------------------------------------------------
+realworld_dual_wield                                173/624  (27.7%)
+realworld_cwc_trigger                               166/695  (23.9%)
+realworld_timeless_jewel                            150/634  (23.7%)
+realworld_rf_juggernaut                             166/711  (23.3%)
+realworld_champion_impale                           149/644  (23.1%)
+realworld_shield_1h                                 145/629  (23.1%)
+realworld_flask_pathfinder                          146/640  (22.8%)
+realworld_bleed_gladiator                           144/633  (22.7%)
+realworld_dot_caster_trickster                      162/716  (22.6%)
+realworld_minion_necromancer                        157/694  (22.6%)
+realworld_spectre_summoner                          157/694  (22.6%)
+realworld_phys_to_fire_conversion                   147/651  (22.6%)
+realworld_mom_eb                                    161/716  (22.5%)
+realworld_spell_caster_inquisitor                   160/715  (22.4%)
+realworld_ci_lowlife_es                             156/699  (22.3%)
+realworld_ele_melee_raider                          141/634  (22.2%)
+realworld_trap_saboteur                             161/726  (22.2%)
+realworld_two_handed                                144/652  (22.1%)
+realworld_mine_saboteur                             162/737  (22.0%)
+realworld_max_block_gladiator                       141/642  (22.0%)
+realworld_totem_hierophant                          161/734  (21.9%)
+realworld_triple_conversion                         139/653  (21.3%)
+realworld_poison_pathfinder                         139/655  (21.2%)
+realworld_cluster_jewel                             153/726  (21.1%)
+realworld_aura_stacker                              152/726  (20.9%)
+realworld_ignite_elementalist                       151/728  (20.7%)
+realworld_phys_melee_slayer                         113/631  (17.9%)
+realworld_bow_deadeye                               113/642  (17.6%)
+realworld_coc_trigger                               111/732  (15.2%)
+realworld_wand_occultist                            100/756  (13.2%)
+================================================================================
+test parity_report ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.72s
+
