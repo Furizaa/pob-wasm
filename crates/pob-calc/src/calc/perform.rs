@@ -22,33 +22,34 @@ pub fn run(env: &mut CalcEnv) {
     do_actor_attack_cast_speed(env);
     do_mom_eb(env);
     set_final_conditions(env);
+    do_attr_requirements(env);
 }
 
 // ---------------------------------------------------------------------------
 // Attributes & conditions
 // ---------------------------------------------------------------------------
 
+/// Compute a single Str/Dex/Int stat value using calcLib.val semantics:
+/// base * (1 + inc/100) * more, rounded to nearest integer.
+/// Short-circuits to 0 if base == 0 (mirrors Lua calcLib.val).
+/// Result is clamped to >= 0.
+fn calc_attr(
+    mod_db: &crate::mod_db::ModDb,
+    output: &crate::calc::env::OutputTable,
+    stat: &str,
+) -> f64 {
+    let base = mod_db.sum_cfg(ModType::Base, stat, None, output);
+    if base == 0.0 {
+        return 0.0;
+    }
+    let inc = mod_db.sum_cfg(ModType::Inc, stat, None, output);
+    let more = mod_db.more_cfg(stat, None, output);
+    (base * (1.0 + inc / 100.0) * more).round().max(0.0)
+}
+
 /// Mirrors doActorAttribsConditions() in CalcPerform.lua.
 /// Computes Str/Dex/Int, Omniscience, attribute-derived bonuses, and conditions.
 fn do_actor_attribs_conditions(env: &mut CalcEnv) {
-    let o = &env.player.output;
-
-    // Compute raw Str/Dex/Int
-    let str_base = env.player.mod_db.sum_cfg(ModType::Base, "Str", None, o);
-    let str_inc = env.player.mod_db.sum_cfg(ModType::Inc, "Str", None, o);
-    let str_more = env.player.mod_db.more_cfg("Str", None, o);
-    let str_val = (str_base * (1.0 + str_inc / 100.0) * str_more).floor();
-
-    let dex_base = env.player.mod_db.sum_cfg(ModType::Base, "Dex", None, o);
-    let dex_inc = env.player.mod_db.sum_cfg(ModType::Inc, "Dex", None, o);
-    let dex_more = env.player.mod_db.more_cfg("Dex", None, o);
-    let dex_val = (dex_base * (1.0 + dex_inc / 100.0) * dex_more).floor();
-
-    let int_base = env.player.mod_db.sum_cfg(ModType::Base, "Int", None, o);
-    let int_inc = env.player.mod_db.sum_cfg(ModType::Inc, "Int", None, o);
-    let int_more = env.player.mod_db.more_cfg("Int", None, o);
-    let int_val = (int_base * (1.0 + int_inc / 100.0) * int_more).floor();
-
     // Omniscience: converts Str+Dex+Int to Omni
     let omniscience = env
         .player
@@ -56,21 +57,80 @@ fn do_actor_attribs_conditions(env: &mut CalcEnv) {
         .flag_cfg("Omniscience", None, &env.player.output);
 
     if omniscience {
-        let omni = str_val + dex_val + int_val;
-        env.player.set_output("Omni", omni);
-        env.player.set_output("Str", 0.0);
-        env.player.set_output("Dex", 0.0);
-        env.player.set_output("Int", 0.0);
-        env.player.mod_db.set_condition("Omniscience", true);
+        compute_omniscience(env);
     } else {
-        env.player.set_output("Str", str_val);
-        env.player.set_output("Dex", dex_val);
-        env.player.set_output("Int", int_val);
+        // TWO-PASS LOOP: needed because some INC mods on Str/Dex/Int are conditioned on
+        // "StrHigherThanDex" etc. which themselves depend on the Str/Dex/Int values.
+        // Pass 1 computes raw values; conditions are set; pass 2 recomputes with updated conditions.
+        for _pass in 0..2 {
+            let str_val = calc_attr(&env.player.mod_db, &env.player.output, "Str");
+            let dex_val = calc_attr(&env.player.mod_db, &env.player.output, "Dex");
+            let int_val = calc_attr(&env.player.mod_db, &env.player.output, "Int");
+
+            env.player.set_output("Str", str_val);
+            env.player.set_output("Dex", dex_val);
+            env.player.set_output("Int", int_val);
+
+            // Sort for LowestAttribute and TwoHighestAttributesEqual
+            let mut stats = [str_val, dex_val, int_val];
+            stats.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+            env.player.set_output("LowestAttribute", stats[0]);
+            env.player
+                .mod_db
+                .set_condition("TwoHighestAttributesEqual", stats[1] == stats[2]);
+
+            // Comparison conditions (used by mods like "if Dex higher than Int")
+            env.player
+                .mod_db
+                .set_condition("DexHigherThanInt", dex_val > int_val);
+            env.player
+                .mod_db
+                .set_condition("StrHigherThanInt", str_val > int_val);
+            env.player
+                .mod_db
+                .set_condition("IntHigherThanDex", int_val > dex_val);
+            env.player
+                .mod_db
+                .set_condition("StrHigherThanDex", str_val > dex_val);
+            env.player
+                .mod_db
+                .set_condition("IntHigherThanStr", int_val > str_val);
+            env.player
+                .mod_db
+                .set_condition("DexHigherThanStr", dex_val > str_val);
+
+            // "Highest" conditions use >= (tie-breaks: both can be "highest")
+            env.player.mod_db.set_condition(
+                "StrHighestAttribute",
+                str_val >= dex_val && str_val >= int_val,
+            );
+            env.player.mod_db.set_condition(
+                "IntHighestAttribute",
+                int_val >= str_val && int_val >= dex_val,
+            );
+            env.player.mod_db.set_condition(
+                "DexHighestAttribute",
+                dex_val >= str_val && dex_val >= int_val,
+            );
+            // "SingleHighest" conditions use strict > (no ties)
+            env.player.mod_db.set_condition(
+                "IntSingleHighestAttribute",
+                int_val > str_val && int_val > dex_val,
+            );
+            env.player.mod_db.set_condition(
+                "DexSingleHighestAttribute",
+                dex_val > str_val && dex_val > int_val,
+            );
+        }
     }
 
     let str_out = get_output_f64(&env.player.output, "Str");
     let dex_out = get_output_f64(&env.player.output, "Dex");
     let int_out = get_output_f64(&env.player.output, "Int");
+
+    // TotalAttr
+    let total_attr = str_out + dex_out + int_out;
+    env.player.set_output("TotalAttr", total_attr);
 
     // Check global "no attribute bonuses" flags
     let no_attr_bonuses =
@@ -99,13 +159,13 @@ fn do_actor_attribs_conditions(env: &mut CalcEnv) {
 
     // Strength derived bonuses
     if !no_str_bonuses {
-        // +1 life per 2 Str
+        // +1 Life per 2 Str (floor)
         let no_str_life = env
             .player
             .mod_db
             .flag_cfg("NoStrBonusToLife", None, &env.player.output);
         if !no_str_life {
-            let life_from_str = (str_out * 0.5).floor();
+            let life_from_str = (str_out / 2.0).floor();
             if life_from_str > 0.0 {
                 env.player
                     .mod_db
@@ -114,7 +174,24 @@ fn do_actor_attribs_conditions(env: &mut CalcEnv) {
         }
 
         // +1% Inc melee phys dmg per 5 Str (with MELEE flag)
-        let melee_phys_from_str = (str_out / 5.0).floor();
+        // Check for DexIntToMeleeBonus and StrDmgBonusRatioOverride
+        let dex_int_bonus = env.player.mod_db.sum_cfg(
+            ModType::Base,
+            "DexIntToMeleeBonus",
+            None,
+            &env.player.output,
+        );
+        let str_dmg_bonus_override = env.player.mod_db.sum_cfg(
+            ModType::Base,
+            "StrDmgBonusRatioOverride",
+            None,
+            &env.player.output,
+        );
+        let melee_phys_from_str = if str_dmg_bonus_override > 0.0 {
+            ((str_out + dex_int_bonus) * str_dmg_bonus_override).floor()
+        } else {
+            ((str_out + dex_int_bonus) / 5.0).floor()
+        };
         if melee_phys_from_str > 0.0 {
             env.player.mod_db.add(Mod {
                 name: "PhysicalDamage".into(),
@@ -130,8 +207,13 @@ fn do_actor_attribs_conditions(env: &mut CalcEnv) {
 
     // Dexterity derived bonuses
     if !no_dex_bonuses {
-        // +2 accuracy per Dex
-        let acc_from_dex = (dex_out * 2.0).floor();
+        // Accuracy per Dex: check DexAccBonusOverride first, default 2
+        let dex_acc_mult = env
+            .player
+            .mod_db
+            .override_value("DexAccBonusOverride", None, &env.player.output)
+            .unwrap_or(2.0);
+        let acc_from_dex = (dex_out * dex_acc_mult).floor();
         if acc_from_dex > 0.0 {
             env.player.mod_db.add(Mod::new_base(
                 "Accuracy",
@@ -163,33 +245,27 @@ fn do_actor_attribs_conditions(env: &mut CalcEnv) {
 
     // Intelligence derived bonuses
     if !no_int_bonuses {
-        // +1% Inc mana per 5 Int
+        // +1 Mana per 2 Int (BASE, floor) — Lua: m_floor(output.Int / 2), "BASE"
         let no_int_mana = env
             .player
             .mod_db
             .flag_cfg("NoIntBonusToMana", None, &env.player.output);
         if !no_int_mana {
-            let mana_inc_from_int = (int_out / 5.0).floor();
-            if mana_inc_from_int > 0.0 {
-                env.player.mod_db.add(Mod {
-                    name: "Mana".into(),
-                    mod_type: ModType::Inc,
-                    value: ModValue::Number(mana_inc_from_int),
-                    flags: ModFlags::NONE,
-                    keyword_flags: KeywordFlags::NONE,
-                    tags: Vec::new(),
-                    source: attr_src_int.clone(),
-                });
+            let mana_from_int = (int_out / 2.0).floor();
+            if mana_from_int > 0.0 {
+                env.player
+                    .mod_db
+                    .add(Mod::new_base("Mana", mana_from_int, attr_src_int.clone()));
             }
         }
 
-        // +1% Inc ES per 5 Int
+        // +1% Inc ES per 10 Int — Lua: m_floor(output.Int / 10), "INC"
         let no_int_es = env
             .player
             .mod_db
             .flag_cfg("NoIntBonusToES", None, &env.player.output);
         if !no_int_es {
-            let es_inc_from_int = (int_out / 5.0).floor();
+            let es_inc_from_int = (int_out / 10.0).floor();
             if es_inc_from_int > 0.0 {
                 env.player.mod_db.add(Mod {
                     name: "EnergyShield".into(),
@@ -203,32 +279,6 @@ fn do_actor_attribs_conditions(env: &mut CalcEnv) {
             }
         }
     }
-
-    // Attribute comparison conditions
-    env.player
-        .mod_db
-        .set_condition("StrHigherThanDex", str_out > dex_out);
-    env.player
-        .mod_db
-        .set_condition("DexHigherThanStr", dex_out > str_out);
-    env.player
-        .mod_db
-        .set_condition("StrHigherThanInt", str_out > int_out);
-    env.player
-        .mod_db
-        .set_condition("IntHigherThanStr", int_out > str_out);
-    env.player
-        .mod_db
-        .set_condition("DexHigherThanInt", dex_out > int_out);
-    env.player
-        .mod_db
-        .set_condition("IntHigherThanDex", int_out > dex_out);
-
-    // TotalAttr and LowestAttribute
-    let total_attr = str_out + dex_out + int_out;
-    env.player.set_output("TotalAttr", total_attr);
-    let lowest = str_out.min(dex_out).min(int_out);
-    env.player.set_output("LowestAttribute", lowest);
 
     // Exposure tracking conditions
     let fire_exposure = env.player.mod_db.sum_cfg(
@@ -285,6 +335,26 @@ fn do_actor_attribs_conditions(env: &mut CalcEnv) {
     env.player
         .mod_db
         .set_condition("CanInflictSap", sap_chance > 0.0);
+}
+
+/// Placeholder for the Omniscience path.
+/// The real implementation caps each stat at its class base value,
+/// converts excess to Omni BASE mods, mirrors INC/MORE to Omni,
+/// and subtracts double/triple dip overlaps. For now, use simplified version.
+fn compute_omniscience(env: &mut CalcEnv) {
+    // Simple approximation: Omni = Str + Dex + Int, individual stats zeroed.
+    // TODO: implement full Lua logic (CalcPerform.lua lines 410-472).
+    let str_val = calc_attr(&env.player.mod_db, &env.player.output, "Str");
+    let dex_val = calc_attr(&env.player.mod_db, &env.player.output, "Dex");
+    let int_val = calc_attr(&env.player.mod_db, &env.player.output, "Int");
+
+    let omni = str_val + dex_val + int_val;
+    env.player.set_output("Omni", omni.max(0.0));
+    env.player.set_output("Str", 0.0);
+    env.player.set_output("Dex", 0.0);
+    env.player.set_output("Int", 0.0);
+    env.player.set_output("LowestAttribute", 0.0);
+    env.player.mod_db.set_condition("Omniscience", true);
 }
 
 // ---------------------------------------------------------------------------
@@ -1358,6 +1428,95 @@ fn set_final_conditions(env: &mut CalcEnv) {
 }
 
 // ---------------------------------------------------------------------------
+// Attribute requirements
+// ---------------------------------------------------------------------------
+
+/// Compute attribute requirements from equipped items and gems.
+/// Mirrors CalcPerform.lua lines 1924-1987.
+/// Writes ReqStr, ReqDex, ReqInt, ReqStrString, ReqDexString, ReqIntString to output.
+fn do_attr_requirements(env: &mut CalcEnv) {
+    // Compute global requirement multiplier from GlobalAttributeRequirements mods
+    let req_inc = env.player.mod_db.sum_cfg(
+        ModType::Inc,
+        "GlobalAttributeRequirements",
+        None,
+        &env.player.output,
+    );
+    let req_more =
+        env.player
+            .mod_db
+            .more_cfg("GlobalAttributeRequirements", None, &env.player.output);
+    let req_mult = (1.0 + req_inc / 100.0) * req_more;
+
+    // Check IgnoreAttributeRequirements flag
+    let ignore_req =
+        env.player
+            .mod_db
+            .flag_cfg("IgnoreAttributeRequirements", None, &env.player.output);
+
+    // For each attribute, find the maximum requirement from all sources
+    for attr in &["Str", "Dex", "Int"] {
+        let req_field = format!("Req{attr}");
+        let req_str_field = format!("Req{attr}String");
+
+        // Pre-initialize String variant to 0
+        env.player
+            .output
+            .insert(req_str_field.clone(), super::env::OutputValue::Number(0.0));
+
+        let mut max_req: f64 = 0.0;
+        let mut max_source_name = String::new();
+
+        for entry in &env.requirements_table {
+            let base_req = match *attr {
+                "Str" => entry.str_req,
+                "Dex" => entry.dex_req,
+                "Int" => entry.int_req,
+                _ => 0.0,
+            };
+
+            if base_req > 0.0 {
+                let req = (base_req * req_mult).floor();
+                if req > max_req {
+                    max_req = req;
+                    max_source_name = entry.source_name.clone();
+                }
+            }
+        }
+
+        if ignore_req {
+            max_req = 0.0;
+        }
+
+        if max_req > 0.0 {
+            let current_req_field_val = env
+                .player
+                .output
+                .get(&req_field)
+                .and_then(|v| {
+                    if let super::env::OutputValue::Number(n) = v {
+                        Some(*n)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(0.0);
+
+            if max_req > current_req_field_val {
+                env.player
+                    .output
+                    .insert(req_field, super::env::OutputValue::Number(max_req));
+                env.player
+                    .output
+                    .insert(req_str_field, super::env::OutputValue::Number(max_req));
+                // Note: ReqXxxItem would be set here in a full implementation
+                let _ = max_source_name; // suppress unused warning
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -1382,6 +1541,7 @@ mod tests {
             enemy: Actor::new(ModDb::new()),
             mode: CalcMode::Normal,
             data,
+            requirements_table: Vec::new(),
         };
         setup(&mut env);
         env
@@ -1447,7 +1607,7 @@ mod tests {
     #[test]
     fn int_bonus_to_mana_and_es() {
         let mut env = make_env(|env| {
-            // 200 Int → mana inc = floor(200/5) = 40%, es inc = 40%
+            // 200 Int → mana base = floor(200/2) = 100, es inc = floor(200/10) = 20%
             env.player.mod_db.add(Mod::new_base("Int", 200.0, src()));
             env.player.mod_db.add(Mod::new_base("Life", 50.0, src()));
             env.player.mod_db.add(Mod::new_base("Mana", 100.0, src()));
@@ -1459,25 +1619,29 @@ mod tests {
 
         assert_eq!(get_output_f64(&env.player.output, "Int"), 200.0);
 
-        let mana_inc =
+        // Mana bonus from Int is BASE (floor(Int/2)), not INC
+        let mana_base =
             env.player
                 .mod_db
-                .sum(ModType::Inc, "Mana", ModFlags::NONE, KeywordFlags::NONE);
-        assert_eq!(mana_inc, 40.0);
+                .sum(ModType::Base, "Mana", ModFlags::NONE, KeywordFlags::NONE);
+        // Base mana from Int: floor(200/2) = 100. Total base = 100 (initial) + 100 = 200
+        assert_eq!(mana_base, 200.0);
 
+        // ES bonus from Int is INC (floor(Int/10)), not floor(Int/5)
         let es_inc = env.player.mod_db.sum(
             ModType::Inc,
             "EnergyShield",
             ModFlags::NONE,
             KeywordFlags::NONE,
         );
-        assert_eq!(es_inc, 40.0);
+        // floor(200/10) = 20
+        assert_eq!(es_inc, 20.0);
 
-        // Mana should be: 100 * (1 + 40/100) = 140
-        assert_eq!(get_output_f64(&env.player.output, "Mana"), 140.0);
+        // Mana should be: (100 + 100) * 1.0 * 1.0 = 200 (no INC mods)
+        assert_eq!(get_output_f64(&env.player.output, "Mana"), 200.0);
 
-        // ES should be: 50 * (1 + 40/100) = 70
-        assert_eq!(get_output_f64(&env.player.output, "EnergyShield"), 70.0);
+        // ES should be: 50 * (1 + 20/100) = 60
+        assert_eq!(get_output_f64(&env.player.output, "EnergyShield"), 60.0);
     }
 
     // ------------------------------------------------------------------
@@ -2490,6 +2654,7 @@ mod tests {
             enemy: Actor::new(crate::mod_db::ModDb::new()),
             mode: CalcMode::Normal,
             data: data.clone(),
+            requirements_table: Vec::new(),
         };
 
         // Add Marauder L90 base stats
@@ -2516,14 +2681,14 @@ mod tests {
         assert_eq!(life, 1134.0, "Marauder L90 life should be 1134, got {life}");
 
         let mana = get_output_f64(&env.player.output, "Mana");
-        // base 574, Int = 14, mana inc from Int = floor(14/5) = 2%
-        // 574 * (1 + 2/100) = 574 * 1.02 = 585.48 → round = 585
-        assert_eq!(mana, 585.0, "Marauder L90 mana should be 585, got {mana}");
+        // base 574, Int = 14, mana base from Int = floor(14/2) = 7 (Lua: BASE not INC)
+        // total mana = (574 + 7) = 581
+        assert_eq!(mana, 581.0, "Marauder L90 mana should be 581, got {mana}");
 
         let mana_regen = get_output_f64(&env.player.output, "ManaRegen");
-        // 1.75% of 585 = 10.2375
+        // 1.75% of 581 = 10.1675
         assert!(
-            (mana_regen - 10.2375).abs() < 0.1,
+            (mana_regen - 10.1675).abs() < 0.1,
             "Marauder L90 mana regen should be ~10.2, got {mana_regen}"
         );
     }
@@ -2537,6 +2702,7 @@ mod tests {
             enemy: Actor::new(crate::mod_db::ModDb::new()),
             mode: CalcMode::Normal,
             data: data.clone(),
+            requirements_table: Vec::new(),
         };
 
         let base_src = ModSource::new("Base", "Marauder base stats");

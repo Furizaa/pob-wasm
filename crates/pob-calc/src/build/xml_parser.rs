@@ -106,6 +106,15 @@ pub fn parse_xml(xml: &str) -> Result<Build, ParseError> {
                             main_active_skill,
                             gems: Vec::new(),
                         });
+                        // If there's no active SkillSet, create an implicit one.
+                        // This handles builds where <Skill> elements are directly under <Skills>
+                        // without a <SkillSet> wrapper (newer PoB build format).
+                        if current_skill_set.is_none() {
+                            current_skill_set = Some(SkillSet {
+                                id: 1,
+                                skills: Vec::new(),
+                            });
+                        }
                     }
                     "Gem" => {
                         if let Some(ref mut skill) = current_skill {
@@ -222,6 +231,15 @@ pub fn parse_xml(xml: &str) -> Result<Build, ParseError> {
                             (&mut current_skill_set, current_skill.take())
                         {
                             ss.skills.push(skill);
+                        }
+                    }
+                    "Skills" => {
+                        // Close any implicit SkillSet that was created for builds
+                        // without explicit <SkillSet> elements.
+                        if let Some(ss) = current_skill_set.take() {
+                            if !ss.skills.is_empty() {
+                                skill_sets.push(ss);
+                            }
                         }
                     }
                     "SkillSet" => {

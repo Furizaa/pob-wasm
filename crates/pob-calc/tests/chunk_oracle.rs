@@ -18,7 +18,26 @@ use std::sync::Arc;
 fn load_game_data() -> Option<Arc<GameData>> {
     let data_dir = std::env::var("DATA_DIR").ok()?;
     let json = build_real_game_data_json(&data_dir).ok()?;
-    GameData::from_json(&json).ok().map(Arc::new)
+    let mut data = GameData::from_json(&json).ok()?;
+
+    // Load version-specific passive trees for better accuracy with old builds.
+    let tree_dir = format!("{data_dir}/tree");
+    for (version, filename) in &[("3_13", "poe1_3_13.json"), ("3_6", "poe1_3_6.json")] {
+        let path = format!("{tree_dir}/{filename}");
+        if let Ok(tree_str) = std::fs::read_to_string(&path) {
+            if let Ok(tree) = pob_calc::passive_tree::PassiveTree::from_json(&tree_str) {
+                data.add_versioned_tree(version.to_string(), tree);
+            }
+        }
+    }
+
+    // Load gem attribute requirement multipliers.
+    let gem_reqs_path = format!("{data_dir}/gem_reqs.json");
+    if let Ok(gem_reqs_str) = std::fs::read_to_string(&gem_reqs_path) {
+        let _ = data.load_gem_reqs_from_json(&gem_reqs_str);
+    }
+
+    Some(Arc::new(data))
 }
 
 fn build_real_game_data_json(data_dir: &str) -> Result<String, Box<dyn std::error::Error>> {
