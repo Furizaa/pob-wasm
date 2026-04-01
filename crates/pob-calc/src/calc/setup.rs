@@ -1400,6 +1400,32 @@ fn add_item_mods(build: &Build, env: &mut CalcEnv) {
             }
         }
 
+        // Add base armour/evasion/ES/block from resolved armour data
+        if let Some(ref ad) = resolved_item.armour_data {
+            if ad.armour > 0.0 {
+                env.player
+                    .mod_db
+                    .add(Mod::new_base("Armour", ad.armour, source.clone()));
+            }
+            if ad.evasion > 0.0 {
+                env.player
+                    .mod_db
+                    .add(Mod::new_base("Evasion", ad.evasion, source.clone()));
+            }
+            if ad.energy_shield > 0.0 {
+                env.player.mod_db.add(Mod::new_base(
+                    "EnergyShield",
+                    ad.energy_shield,
+                    source.clone(),
+                ));
+            }
+            if ad.block > 0.0 {
+                env.player
+                    .mod_db
+                    .add(Mod::new_base("ShieldBlockChance", ad.block, source.clone()));
+            }
+        }
+
         // Task 8: Extract weapon data from weapon slots
         match slot {
             ItemSlot::Weapon1 => {
@@ -1571,6 +1597,36 @@ fn add_config_conditions(build: &Build, db: &mut ModDb) {
                 // Convert camelCase to TitleCase: "conditionFullLife" → "FullLife"
                 let cond = cond_name[..1].to_uppercase() + &cond_name[1..];
                 db.set_condition(&cond, true);
+            }
+            // "use*" booleans → set condition with TitleCase name
+            // e.g. "useEnduranceCharges" → "UseEnduranceCharges"
+            else if let Some(rest) = name.strip_prefix("use") {
+                if !rest.is_empty() {
+                    let first_upper = rest[..1].to_uppercase();
+                    let cond = format!("Use{}{}", first_upper, &rest[1..]);
+                    db.set_condition(&cond, true);
+                }
+            }
+            // "buff*" booleans → map to the actual game condition
+            // POB convention: buffFortification → Fortified, buffOnslaught → Onslaught, etc.
+            else if let Some(rest) = name.strip_prefix("buff") {
+                if !rest.is_empty() {
+                    let cond = match name.as_str() {
+                        "buffFortification" => "Fortified",
+                        "buffOnslaught" => "Onslaught",
+                        "buffTailwind" => "Tailwind",
+                        "buffElusive" => "Elusive",
+                        "buffUnholyMight" => "UnholyMight",
+                        "buffPhasing" => "Phasing",
+                        "buffAdrenaline" => "Adrenaline",
+                        _ => {
+                            // Generic: strip "buff" prefix, keep rest as condition name
+                            // e.g. "buffSomething" → "Something"
+                            rest
+                        }
+                    };
+                    db.set_condition(cond, true);
+                }
             }
         }
     }

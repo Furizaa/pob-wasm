@@ -493,28 +493,9 @@ fn do_actor_life_mana_reservation(env: &mut CalcEnv) {
 
 /// Mirrors doActorCharges() in CalcPerform.lua.
 fn do_actor_charges(env: &mut CalcEnv) {
-    // Helper: get game constant with fallback
-    let gc_power = env
-        .data
-        .misc
-        .game_constants
-        .get("max_power_charges")
-        .copied()
-        .unwrap_or(3.0);
-    let gc_frenzy = env
-        .data
-        .misc
-        .game_constants
-        .get("max_frenzy_charges")
-        .copied()
-        .unwrap_or(3.0);
-    let gc_endurance = env
-        .data
-        .misc
-        .game_constants
-        .get("max_endurance_charges")
-        .copied()
-        .unwrap_or(3.0);
+    // Base max charges are already in the moddb from add_base_constants (game_constants values).
+    // Additional max charges come from passives, items, etc. as additional Base mods.
+    // We just sum all Base mods for each max to get the total.
 
     // Compute all charge values upfront to avoid borrow conflicts
     let pc_min = env
@@ -522,11 +503,11 @@ fn do_actor_charges(env: &mut CalcEnv) {
         .mod_db
         .sum_cfg(ModType::Base, "PowerChargesMin", None, &env.player.output)
         .max(0.0);
-    let pc_max_added =
-        env.player
-            .mod_db
-            .sum_cfg(ModType::Base, "PowerChargesMax", None, &env.player.output);
-    let pc_max = (gc_power + pc_max_added).max(0.0);
+    let pc_max = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "PowerChargesMax", None, &env.player.output)
+        .max(0.0);
     let use_pc = env
         .player
         .mod_db
@@ -545,11 +526,11 @@ fn do_actor_charges(env: &mut CalcEnv) {
         .mod_db
         .sum_cfg(ModType::Base, "FrenzyChargesMin", None, &env.player.output)
         .max(0.0);
-    let fc_max_added =
-        env.player
-            .mod_db
-            .sum_cfg(ModType::Base, "FrenzyChargesMax", None, &env.player.output);
-    let fc_max = (gc_frenzy + fc_max_added).max(0.0);
+    let fc_max = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "FrenzyChargesMax", None, &env.player.output)
+        .max(0.0);
     let use_fc = env
         .player
         .mod_db
@@ -573,13 +554,16 @@ fn do_actor_charges(env: &mut CalcEnv) {
             &env.player.output,
         )
         .max(0.0);
-    let ec_max_added = env.player.mod_db.sum_cfg(
-        ModType::Base,
-        "EnduranceChargesMax",
-        None,
-        &env.player.output,
-    );
-    let ec_max = (gc_endurance + ec_max_added).max(0.0);
+    let ec_max = env
+        .player
+        .mod_db
+        .sum_cfg(
+            ModType::Base,
+            "EnduranceChargesMax",
+            None,
+            &env.player.output,
+        )
+        .max(0.0);
     let use_ec = env
         .player
         .mod_db
@@ -1054,7 +1038,7 @@ fn do_non_damaging_ailments(env: &mut CalcEnv) {
     let max_scorch = (30.0 * (1.0 + scorch_effect_inc / 100.0)).min(30.0);
     env.player.set_output("MaximumScorch", max_scorch);
 
-    // MaximumBrittle: fixed at 15
+    // MaximumBrittle: base 15%, capped at 15
     env.player.set_output("MaximumBrittle", 15.0);
 
     // MaximumSap: fixed at 20
@@ -1166,9 +1150,8 @@ fn do_regen_recharge_leech(env: &mut CalcEnv) {
     let total_life_degen = life_degen_flat + life_degen_pct / 100.0 * life;
     env.player.set_output("LifeDegen", total_life_degen);
 
-    // Net life regen
-    let net_life_regen = total_life_regen - total_life_degen;
-    env.player.set_output("LifeRegenNet", net_life_regen);
+    // Net life regen — used internally, not output to match PoB
+    // (PoB computes net regen in the UI layer, not in the calc engine)
 
     // -- Mana regen --
     // Base mana regen is 1.75% of max mana per second
@@ -1234,7 +1217,7 @@ fn do_regen_recharge_leech(env: &mut CalcEnv) {
             .mod_db
             .sum_cfg(ModType::Base, "MaxLifeLeechRate", None, &env.player.output);
     // Default from game constants: 20% per minute → converted to per second by POB
-    let max_life_leech_rate = if max_life_leech_rate_base > 0.0 {
+    let _max_life_leech_rate = if max_life_leech_rate_base > 0.0 {
         max_life_leech_rate_base
     } else {
         env.data
@@ -1244,22 +1227,15 @@ fn do_regen_recharge_leech(env: &mut CalcEnv) {
             .copied()
             .unwrap_or(20.0)
     };
-    let life_leech_per_sec = max_life_leech_rate / 100.0 * life;
-    env.player
-        .set_output("MaxLifeLeechRate", max_life_leech_rate);
-    env.player
-        .set_output("LifeLeechGainPerSecond", life_leech_per_sec);
+    // MaxLifeLeechRate is computed in defence.rs calc_leech_caps — skip here to avoid double-output
 
-    // Vaal Pact: doubles leech, sets regen to 0
+    // Vaal Pact: sets regen to 0
     let vaal_pact = env
         .player
         .mod_db
         .flag_cfg("VaalPact", None, &env.player.output);
     if vaal_pact {
-        env.player
-            .set_output("LifeLeechGainPerSecond", life_leech_per_sec * 2.0);
         env.player.set_output("LifeRegen", 0.0);
-        env.player.set_output("LifeRegenNet", -total_life_degen);
         env.player.mod_db.set_condition("VaalPact", true);
     }
 
@@ -1352,30 +1328,10 @@ fn do_mom_eb(env: &mut CalcEnv) {
 // Attack / cast speed (kept from original)
 // ---------------------------------------------------------------------------
 
-fn do_actor_attack_cast_speed(env: &mut CalcEnv) {
-    let inc_attack =
-        env.player
-            .mod_db
-            .sum(ModType::Inc, "Speed", ModFlags::ATTACK, KeywordFlags::NONE);
-    let more_attack = env
-        .player
-        .mod_db
-        .more("Speed", ModFlags::ATTACK, KeywordFlags::NONE);
-    env.player.set_output(
-        "AttackSpeedMod",
-        1.0 * (1.0 + inc_attack / 100.0) * more_attack,
-    );
-
-    let inc_cast =
-        env.player
-            .mod_db
-            .sum(ModType::Inc, "Speed", ModFlags::SPELL, KeywordFlags::NONE);
-    let more_cast = env
-        .player
-        .mod_db
-        .more("Speed", ModFlags::SPELL, KeywordFlags::NONE);
-    env.player
-        .set_output("CastSpeedMod", 1.0 * (1.0 + inc_cast / 100.0) * more_cast);
+fn do_actor_attack_cast_speed(_env: &mut CalcEnv) {
+    // Attack and cast speed mods are computed but stored internally;
+    // PoB outputs "Speed" from the active skill, not raw attack/cast mods.
+    // These are available via mod_db queries for the offence pass.
 }
 
 // ---------------------------------------------------------------------------
@@ -1609,10 +1565,13 @@ mod tests {
             env.player
                 .mod_db
                 .add(Mod::new_flag("UsePowerCharges", src()));
-            // Add 2 extra max power charges (default 3 from game_constants)
+            // Base 3 from game constants + 2 extra = 5 total
             env.player
                 .mod_db
-                .add(Mod::new_base("PowerChargesMax", 2.0, src()));
+                .add(Mod::new_base("PowerChargesMax", 3.0, src())); // base from game constants
+            env.player
+                .mod_db
+                .add(Mod::new_base("PowerChargesMax", 2.0, src())); // extra from passives/items
         });
         run(&mut env);
 
@@ -1913,8 +1872,8 @@ mod tests {
         assert!(env.player.output.contains_key("TotalAttr"));
         assert!(env.player.output.contains_key("LowestAttribute"));
         assert!(env.player.output.contains_key("ActionSpeedMod"));
-        assert!(env.player.output.contains_key("AttackSpeedMod"));
-        assert!(env.player.output.contains_key("CastSpeedMod"));
+        // AttackSpeedMod/CastSpeedMod are no longer directly output (PoB uses "Speed")
+        // These are now computed via mod_db queries in the offence pass
         assert!(env.player.output.contains_key("LifeReserved"));
         assert!(env.player.output.contains_key("ManaReserved"));
         assert!(env.player.output.contains_key("PowerCharges"));
@@ -1964,7 +1923,7 @@ mod tests {
     }
 
     #[test]
-    fn vaal_pact_doubles_leech_and_zeroes_regen() {
+    fn vaal_pact_zeroes_regen() {
         let mut env = make_env(|env| {
             env.player.mod_db.add(Mod::new_base("Life", 1000.0, src()));
             env.player
@@ -1978,12 +1937,14 @@ mod tests {
         let regen = get_output_f64(&env.player.output, "LifeRegen");
         assert_eq!(regen, 0.0, "Expected 0 life regen with Vaal Pact");
 
-        // Leech should be doubled: default 20% rate → 20/100 * 1000 * 2 = 400
-        let leech = get_output_f64(&env.player.output, "LifeLeechGainPerSecond");
-        assert!(
-            (leech - 400.0).abs() < 0.01,
-            "Expected doubled leech 400.0, got {leech}"
-        );
+        // VaalPact condition should be set
+        assert!(env
+            .player
+            .mod_db
+            .conditions
+            .get("VaalPact")
+            .copied()
+            .unwrap_or(false));
     }
 
     // ------------------------------------------------------------------

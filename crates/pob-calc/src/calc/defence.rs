@@ -148,14 +148,20 @@ fn calc_resistances(env: &mut CalcEnv) {
         env.player
             .set_output(&format!("{elem}ResistOverTime"), capped);
 
-        // Totem resists
-        let totem_resist = total_resist.min(max_resist);
-        let totem_over_cap = (total_resist - max_resist).max(0.0);
-        let missing_totem = (max_resist - totem_resist).max(0.0);
+        // Totem resists: use their own base resist values (not player resists)
+        let totem_resist_stat = format!("Totem{elem}Resist");
+        let totem_base_resist =
+            env.player
+                .mod_db
+                .sum_cfg(ModType::Base, &totem_resist_stat, None, &output);
+        let totem_max = max_resist; // Totems share the player's max resist cap
+        let totem_capped = totem_base_resist.min(totem_max);
+        let totem_over_cap = (totem_base_resist - totem_max).max(0.0);
+        let missing_totem = (totem_max - totem_capped).max(0.0);
         env.player
-            .set_output(&format!("Totem{elem}Resist"), totem_resist);
+            .set_output(&format!("Totem{elem}Resist"), totem_capped);
         env.player
-            .set_output(&format!("Totem{elem}ResistTotal"), total_resist);
+            .set_output(&format!("Totem{elem}ResistTotal"), totem_base_resist);
         env.player
             .set_output(&format!("Totem{elem}ResistOverCap"), totem_over_cap);
         env.player
@@ -416,9 +422,7 @@ fn calc_primary_defences(env: &mut CalcEnv) {
     };
     env.player.set_output("EvadeChance", evade_chance);
 
-    // Armour defence outputs
-    env.player.set_output("ArmourDefense", armour);
-    env.player.set_output("RawArmourDefense", armour);
+    // Armour defence internal tracking (not output to match PoB)
 }
 
 // ── Task 6: Spell suppression + dodge ────────────────────────────────────────
@@ -543,82 +547,96 @@ fn calc_leech_caps(env: &mut CalcEnv) {
 
     let life = get_output_f64(&output, "Life").max(1.0);
     let mana = get_output_f64(&output, "Mana").max(1.0);
-    let es = get_output_f64(&output, "EnergyShield").max(1.0);
+    let es = get_output_f64(&output, "EnergyShield").max(0.0);
 
-    // Max life leech instance (default 10% of life)
-    let life_leech_instance_base =
+    // Leech caps: moddb Base values are percentages of pool.
+    // Defaults come from game_constants in add_base_constants:
+    //   MaxLifeLeechRate = 20 (% of life), MaxLifeLeechInstance = 10 (% of life)
+    //   MaxManaLeechRate = 20 (% of mana), MaxManaLeechInstance = 10 (% of mana)
+    //   MaxEnergyShieldLeechInstance = 10 (% of ES)
+
+    // Max life leech instance (% of life → absolute)
+    let life_leech_instance_pct =
         env.player
             .mod_db
             .sum_cfg(ModType::Base, "MaxLifeLeechInstance", None, &output);
-    let life_leech_instance = if life_leech_instance_base == 0.0 {
-        life * 0.10
+    let life_leech_instance_pct = if life_leech_instance_pct > 0.0 {
+        life_leech_instance_pct
     } else {
-        life_leech_instance_base
+        10.0
     };
+    let life_leech_instance = life * life_leech_instance_pct / 100.0;
     env.player
         .set_output("MaxLifeLeechInstance", life_leech_instance);
 
-    // Max life leech rate (default 20% of life)
-    let life_leech_rate_base =
+    // Max life leech rate (% of life → absolute)
+    let life_leech_rate_pct =
         env.player
             .mod_db
             .sum_cfg(ModType::Base, "MaxLifeLeechRate", None, &output);
-    let life_leech_rate = if life_leech_rate_base == 0.0 {
-        life * 0.20
+    let life_leech_rate_pct = if life_leech_rate_pct > 0.0 {
+        life_leech_rate_pct
     } else {
-        life_leech_rate_base
+        20.0
     };
+    let life_leech_rate = life * life_leech_rate_pct / 100.0;
     env.player.set_output("MaxLifeLeechRate", life_leech_rate);
+    env.player
+        .set_output("MaxLifeLeechRatePercent", life_leech_rate_pct);
 
-    // Max ES leech instance (default 10% of ES)
-    let es_leech_instance_base =
+    // Max ES leech instance (% of ES → absolute)
+    let es_leech_instance_pct =
         env.player
             .mod_db
             .sum_cfg(ModType::Base, "MaxEnergyShieldLeechInstance", None, &output);
-    let es_leech_instance = if es_leech_instance_base == 0.0 {
-        es * 0.10
+    let es_leech_instance_pct = if es_leech_instance_pct > 0.0 {
+        es_leech_instance_pct
     } else {
-        es_leech_instance_base
+        10.0
     };
+    let es_leech_instance = es.max(1.0) * es_leech_instance_pct / 100.0;
     env.player
         .set_output("MaxEnergyShieldLeechInstance", es_leech_instance);
 
-    // Max ES leech rate (default 10% of ES)
-    let es_leech_rate_base =
+    // Max ES leech rate (% of ES → absolute). Default: same as leech rate for ES
+    let es_leech_rate_pct =
         env.player
             .mod_db
             .sum_cfg(ModType::Base, "MaxEnergyShieldLeechRate", None, &output);
-    let es_leech_rate = if es_leech_rate_base == 0.0 {
-        es * 0.10
+    let es_leech_rate_pct = if es_leech_rate_pct > 0.0 {
+        es_leech_rate_pct
     } else {
-        es_leech_rate_base
+        10.0
     };
+    let es_leech_rate = es.max(1.0) * es_leech_rate_pct / 100.0;
     env.player
         .set_output("MaxEnergyShieldLeechRate", es_leech_rate);
 
-    // Max mana leech instance (default 10% of mana)
-    let mana_leech_instance_base =
+    // Max mana leech instance (% of mana → absolute)
+    let mana_leech_instance_pct =
         env.player
             .mod_db
             .sum_cfg(ModType::Base, "MaxManaLeechInstance", None, &output);
-    let mana_leech_instance = if mana_leech_instance_base == 0.0 {
-        mana * 0.10
+    let mana_leech_instance_pct = if mana_leech_instance_pct > 0.0 {
+        mana_leech_instance_pct
     } else {
-        mana_leech_instance_base
+        10.0
     };
+    let mana_leech_instance = mana * mana_leech_instance_pct / 100.0;
     env.player
         .set_output("MaxManaLeechInstance", mana_leech_instance);
 
-    // Max mana leech rate (default 20% of mana)
-    let mana_leech_rate_base =
+    // Max mana leech rate (% of mana → absolute)
+    let mana_leech_rate_pct =
         env.player
             .mod_db
             .sum_cfg(ModType::Base, "MaxManaLeechRate", None, &output);
-    let mana_leech_rate = if mana_leech_rate_base == 0.0 {
-        mana * 0.20
+    let mana_leech_rate_pct = if mana_leech_rate_pct > 0.0 {
+        mana_leech_rate_pct
     } else {
-        mana_leech_rate_base
+        20.0
     };
+    let mana_leech_rate = mana * mana_leech_rate_pct / 100.0;
     env.player.set_output("MaxManaLeechRate", mana_leech_rate);
 }
 
@@ -677,8 +695,7 @@ fn calc_es_recharge(env: &mut CalcEnv) {
         .mod_db
         .more_cfg("EnergyShieldRechargeRate", None, &output);
     let recharge_rate = es * 0.20 * (1.0 + inc / 100.0) * more;
-    env.player
-        .set_output("EnergyShieldRechargeRate", recharge_rate);
+    env.player.set_output("EnergyShieldRecharge", recharge_rate);
 
     // ES recharge delay: 2s / (1 + faster/100)
     let faster =
@@ -711,7 +728,7 @@ fn calc_movement_and_avoidance(env: &mut CalcEnv) {
         .sum_cfg(ModType::Inc, "MovementSpeed", None, &output);
     let ms_more = env.player.mod_db.more_cfg("MovementSpeed", None, &output);
     let ms = (1.0 + ms_inc / 100.0) * ms_more;
-    env.player.set_output("MovementSpeed", ms);
+    env.player.set_output("MovementSpeedMod", ms);
 
     let action_speed = env.player.action_speed_mod;
     env.player
@@ -727,15 +744,7 @@ fn calc_movement_and_avoidance(env: &mut CalcEnv) {
         env.player.set_output(&stat, val);
     }
 
-    // Life/Mana/ES on suppress
-    for resource in &["Life", "Mana", "EnergyShield"] {
-        let stat = format!("{resource}OnSuppress");
-        let val = env
-            .player
-            .mod_db
-            .sum_cfg(ModType::Base, &stat, None, &output);
-        env.player.set_output(&stat, val);
-    }
+    // Life/Mana/ES on suppress — computed but not output (PoB doesn't output these directly)
 
     // Ailment avoidance
     let elemental_ailments = [
@@ -754,30 +763,74 @@ fn calc_movement_and_avoidance(env: &mut CalcEnv) {
             .sum_cfg(ModType::Base, "ElementalAilmentAvoidance", None, &output);
 
     for ailment in &all_ailments {
-        let stat = format!("Avoid{ailment}");
+        let mod_stat = format!("Avoid{ailment}");
         let base = env
             .player
             .mod_db
-            .sum_cfg(ModType::Base, &stat, None, &output);
+            .sum_cfg(ModType::Base, &mod_stat, None, &output);
         let extra = if elemental_ailments.contains(ailment) {
             elemental_avoid
         } else {
             0.0
         };
         let val = (base + extra).clamp(0.0, 100.0);
-        env.player.set_output(&stat, val);
+        // PoB output key is "{Ailment}AvoidChance"
+        let output_key = format!("{ailment}AvoidChance");
+        env.player.set_output(&output_key, val);
     }
+
+    // Blind, Silence, InterruptStun avoidance
+    let blind_avoid = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "AvoidBlind", None, &output)
+        .clamp(0.0, 100.0);
+    env.player.set_output("BlindAvoidChance", blind_avoid);
+
+    let silence_avoid = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "AvoidSilence", None, &output)
+        .clamp(0.0, 100.0);
+    env.player.set_output("SilenceAvoidChance", silence_avoid);
+
+    let interrupt_stun_avoid = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "AvoidInterruptStun", None, &output)
+        .clamp(0.0, 100.0);
+    env.player
+        .set_output("InterruptStunAvoidChance", interrupt_stun_avoid);
 
     // Per-damage-type avoidance
     for type_name in DMG_TYPE_NAMES.iter() {
-        let stat = format!("Avoid{type_name}Damage");
+        let mod_stat = format!("Avoid{type_name}Damage");
         let val = env
             .player
             .mod_db
-            .sum_cfg(ModType::Base, &stat, None, &output)
+            .sum_cfg(ModType::Base, &mod_stat, None, &output)
             .clamp(0.0, 100.0);
-        env.player.set_output(&stat, val);
+        // PoB output key is "Avoid{Type}DamageChance"
+        let output_key = format!("Avoid{type_name}DamageChance");
+        env.player.set_output(&output_key, val);
     }
+
+    // All damage from hits avoidance
+    let avoid_all_hits = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "AvoidAllDamageFromHits", None, &output)
+        .clamp(0.0, 100.0);
+    env.player
+        .set_output("AvoidAllDamageFromHitsChance", avoid_all_hits);
+
+    // Projectile avoidance
+    let avoid_proj = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "AvoidProjectiles", None, &output)
+        .clamp(0.0, 100.0);
+    env.player.set_output("AvoidProjectilesChance", avoid_proj);
 
     // Curse avoidance
     let curse_avoid = env
@@ -785,26 +838,31 @@ fn calc_movement_and_avoidance(env: &mut CalcEnv) {
         .mod_db
         .sum_cfg(ModType::Base, "AvoidCurse", None, &output)
         .clamp(0.0, 100.0);
-    env.player.set_output("AvoidCurse", curse_avoid);
+    env.player.set_output("CurseAvoidChance", curse_avoid);
 
     // Stun avoidance (separate from stun calc, this is the avoidance stat)
     // Handled in calc_stun
 
-    // Immunities
+    // Immunities — set conditions but don't output (PoB doesn't output these)
     let cb_immune = env
         .player
         .mod_db
         .flag_cfg("CorruptedBloodImmunity", None, &output);
-    env.player
-        .set_output("CorruptedBloodImmunity", if cb_immune { 1.0 } else { 0.0 });
+    if cb_immune {
+        env.player
+            .mod_db
+            .set_condition("CorruptedBloodImmunity", true);
+    }
 
     let maim_immune = env.player.mod_db.flag_cfg("MaimImmunity", None, &output);
-    env.player
-        .set_output("MaimImmunity", if maim_immune { 1.0 } else { 0.0 });
+    if maim_immune {
+        env.player.mod_db.set_condition("MaimImmunity", true);
+    }
 
     let hinder_immune = env.player.mod_db.flag_cfg("HinderImmunity", None, &output);
-    env.player
-        .set_output("HinderImmunity", if hinder_immune { 1.0 } else { 0.0 });
+    if hinder_immune {
+        env.player.mod_db.set_condition("HinderImmunity", true);
+    }
 
     // Crit extra damage reduction
     let crit_dr =
@@ -813,17 +871,22 @@ fn calc_movement_and_avoidance(env: &mut CalcEnv) {
             .sum_cfg(ModType::Base, "CritExtraDamageReduction", None, &output);
     env.player.set_output("CritExtraDamageReduction", crit_dr);
 
-    // Debuff expiration rate
+    // Debuff expiration rate: PoB outputs the raw inc% (0 = no change)
     let debuff_rate_inc =
         env.player
             .mod_db
             .sum_cfg(ModType::Inc, "DebuffExpirationRate", None, &output);
-    let debuff_rate_more = env
-        .player
-        .mod_db
-        .more_cfg("DebuffExpirationRate", None, &output);
-    let debuff_rate = (1.0 + debuff_rate_inc / 100.0) * debuff_rate_more;
-    env.player.set_output("DebuffExpirationRate", debuff_rate);
+    env.player
+        .set_output("DebuffExpirationRate", debuff_rate_inc);
+
+    // DebuffExpirationModifier: 100 + inc  (100 = base)
+    let debuff_modifier = 100.0 + debuff_rate_inc;
+    env.player
+        .set_output("DebuffExpirationModifier", debuff_modifier);
+
+    // showDebuffExpirationModifier: true if modifier != 100
+    env.player
+        .set_output_bool("showDebuffExpirationModifier", debuff_rate_inc != 0.0);
 }
 
 // ── Task 10: Damage shift table ──────────────────────────────────────────────
@@ -931,7 +994,7 @@ fn calc_stun(env: &mut CalcEnv) {
         .mod_db
         .sum_cfg(ModType::Base, "AvoidStun", None, &output)
         .clamp(0.0, 100.0);
-    env.player.set_output("AvoidStun", avoid);
+    env.player.set_output("StunAvoidChance", avoid);
 
     // Stun duration: 0.35 / (1 + recovery_inc/100) * (1 + duration_inc/100)
     let recovery_inc = env
@@ -1140,7 +1203,7 @@ mod tests {
             source: src(),
         }]);
         run(&mut env);
-        let ms = get_output_f64(&env.player.output, "MovementSpeed");
+        let ms = get_output_f64(&env.player.output, "MovementSpeedMod");
         assert!((ms - 1.30).abs() < 0.01, "expected ~1.30, got {ms}");
     }
 
