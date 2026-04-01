@@ -285,15 +285,42 @@ feedback during development without replacing the final strict check.
 
 ## 8. Agent Execution Workflow
 
+### 8.0 Guiding Principle: Port the Lua, Not the Tests
+
+**The goal is a faithful port of the Lua source code, not making the 30 oracle tests
+pass.** The oracle tests are a verification tool, not the definition of correctness.
+The Lua source is the source of truth.
+
+This means:
+
+- **Port every code path** in the Lua section, even if no current oracle build exercises
+  it. If the Lua has an `if modDB:Flag(nil, "SomeRareKeystone")` branch, the Rust must
+  have it too — even if none of the 30 builds use that keystone.
+- **No dead code, no empty fallbacks.** If a function has a fallback comment like
+  "if not found in tree, use enchant text as-is" but the fallback block is empty, that's
+  a bug. Port the Lua's fallback behavior.
+- **No `let _ = variable;` suppressions** that hide unfinished work. If a field is parsed
+  (like `inc_effect`) it must be applied where the Lua applies it.
+- **The reference doc's "What Needs to Change" section is a minimum**, not a maximum. If
+  reading the Lua reveals additional code paths not mentioned in the reference doc, port
+  those too.
+- **Tests verify completeness, they don't define it.** After porting all Lua logic, run
+  the chunk test. If it passes, good. If it fails, you have a bug to fix. If it passes
+  but you skipped Lua code paths, you're not done.
+
 ### 8.1 One Chunk Per Session
 
 Each agent session works on exactly one chunk. The session follows this sequence:
 
 1. **Load** the chunk's annotated Lua reference from `docs/lua-reference/<chunk-id>.md`
-2. **Read** the current Rust code that the reference doc points to
-3. **Run chunk test** before starting — establish baseline
-4. **Implement** the changes — port the Lua logic into Rust, guided by annotations
-5. **Run chunk test** after — verify fields now pass
+2. **Read the Lua source directly** — open the actual Lua file(s) listed in the reference
+   doc and read the full section, not just the annotated excerpts. The reference doc may
+   have missed code paths.
+3. **Read** the current Rust code that the reference doc points to
+4. **Port all Lua logic** for this chunk's section into Rust. Every branch, every edge
+   case, every fallback. Use the reference doc for guidance on Lua semantics but trust
+   the Lua source when they disagree.
+5. **Run chunk test** — verify the port is correct against oracle builds
 6. **Run** `cargo test --workspace --exclude pob-wasm` — verify no regressions
 7. **Commit** with message: `parity({CHUNK-ID}): {description} — {N}/{M} fields across 30 builds`
 
@@ -305,6 +332,8 @@ Each agent session works on exactly one chunk. The session follows this sequence
   "Done" without test evidence is not done.
 - **Chunk test must pass before commit.** No deferring fixes to the next chunk.
 - **One chunk at a time.** Never ask an agent to do two chunks in one session.
+- **No skipped Lua code paths.** If the Lua has a branch that handles a rare case, the
+  Rust must handle it too. Do not skip code because "no oracle build tests this."
 
 ### 8.3 Failure Recovery
 
@@ -323,20 +352,32 @@ Because each chunk is small (one subsystem, 50-500 Lua lines):
 When starting a chunk, use this prompt structure:
 
 ```
-You are porting PoB calculations to Rust for parity. Work on chunk {CHUNK-ID}.
+You are porting PoB's Lua calculations to Rust. Work on chunk {CHUNK-ID}.
 
-1. Read docs/lua-reference/{CHUNK-ID}.md for the annotated Lua source and instructions
-2. Read the current Rust file(s) listed in the reference doc
-3. Run: CHUNK={CHUNK-ID} DATA_DIR=./data cargo test --test chunk_oracle -- --nocapture
-   to see current baseline
-4. Implement the changes described in the reference doc
-5. Run the chunk test again and iterate until all 30 builds pass for this chunk's fields
+THE LUA SOURCE IS THE SOURCE OF TRUTH, NOT THE TESTS. Your job is to faithfully
+port every code path in the Lua section — including branches no current test
+exercises. The oracle tests verify your port; they do not define completeness.
+
+1. Read docs/lua-reference/{CHUNK-ID}.md for annotated Lua source and instructions
+2. Open the actual Lua file(s) listed in the reference doc and read the FULL section
+   for this chunk. The reference doc may have missed code paths — port them anyway.
+3. Read the current Rust file(s) listed in the reference doc
+4. Port ALL Lua logic for this section into Rust. Every branch, every edge case,
+   every fallback, every flag check. If the Lua handles a rare keystone or a
+   conditional path, the Rust must handle it too.
+5. Run: CHUNK={CHUNK-ID} DATA_DIR=./data cargo test --test chunk_oracle -- --nocapture
+   to verify the port against oracle builds
 6. Run: cargo test --workspace --exclude pob-wasm
    to verify no regressions
 7. Commit your changes
 
-Do NOT use sub-agents for implementation. Do NOT claim completion without showing
-test output. The chunk test must pass before committing.
+Rules:
+- Do NOT use sub-agents for implementation
+- Do NOT claim completion without showing chunk test output
+- Do NOT skip Lua code paths because "no test exercises this"
+- Do NOT leave empty fallbacks, `let _ = var;` suppressions, or TODO comments
+- If you parse a value (like inc_effect), you MUST apply it where the Lua applies it
+- The chunk test must pass before committing
 ```
 
 ## 9. Eval_mod Stub Completion (SETUP-04)

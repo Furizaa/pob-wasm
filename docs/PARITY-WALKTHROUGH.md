@@ -230,24 +230,33 @@ and OFF chunks in any interleaved order, as long as Tier 3 is done.
 Replace `{CHUNK-ID}` with the chunk you're working on:
 
 ```
-You are porting PoB calculations to Rust for parity. Work on chunk {CHUNK-ID}.
+You are porting PoB's Lua calculations to Rust. Work on chunk {CHUNK-ID}.
 
-1. Read docs/lua-reference/{CHUNK-ID}.md for the annotated Lua source and instructions
+THE LUA SOURCE IS THE SOURCE OF TRUTH, NOT THE TESTS. Your job is to faithfully
+port every code path in the Lua section — including branches no current test
+exercises. The oracle tests verify your port; they do not define completeness.
+
+1. Read docs/lua-reference/{CHUNK-ID}.md for annotated Lua source and instructions
 2. Read docs/lua-reference/LUA-GOTCHAS.md for Lua-to-Rust translation patterns
-3. Read the current Rust file(s) listed in the reference doc
-4. Run baseline:
+3. Open the actual Lua file(s) listed in the reference doc and read the FULL section
+   for this chunk. The reference doc may have missed code paths — port them anyway.
+4. Read the current Rust file(s) listed in the reference doc
+5. Port ALL Lua logic for this section into Rust. Every branch, every edge case,
+   every fallback, every flag check. If the Lua handles a rare keystone or a
+   conditional path, the Rust must handle it too.
+6. Run chunk test to verify:
      CHUNK={CHUNK-ID} DATA_DIR=./data cargo test --test chunk_oracle -- --nocapture
-5. Implement the changes described in the reference doc
-6. Run the chunk test again and iterate until all 30 builds pass for this chunk's fields
 7. Run regression check:
      cargo test --workspace --exclude pob-wasm
 8. Work in a branch and create a PR with title: parity({CHUNK-ID}): <what you did>
-9. Open the PR and wait for CI to succeed
 
 Rules:
 - Do NOT use sub-agents for writing code
 - Do NOT claim completion without showing chunk test output
-- The chunk test must show 30/30 builds pass before committing
+- Do NOT skip Lua code paths because "no test exercises this"
+- Do NOT leave empty fallbacks, `let _ = var;` suppressions, or TODO comments
+- If you parse a value (like inc_effect), you MUST apply it where the Lua applies it
+- The chunk test must pass before committing
 - If you can't get all 30 passing, get as many as you can and note which builds fail and why
 ```
 
@@ -277,14 +286,21 @@ Then start a new session with a modified prompt:
 ```
 Continue work on chunk {CHUNK-ID}. The previous session got N/30 builds passing.
 
+THE LUA SOURCE IS THE SOURCE OF TRUTH. Port all code paths, not just the ones
+that make tests pass.
+
 Read docs/lua-reference/{CHUNK-ID}.md for context.
+Open the actual Lua file(s) and re-read the full section for this chunk.
 Run the chunk test to see current state:
   CHUNK={CHUNK-ID} DATA_DIR=./data cargo test --test chunk_oracle -- --nocapture
 
-Focus on the failing builds. For each failing build, look at which specific fields
-are wrong and trace the calculation back to the Lua source to find the discrepancy.
+Two things to check:
+1. Failing builds: look at which fields are wrong and trace back to the Lua source
+2. Skipped Lua code paths: re-read the Lua section and verify EVERY branch has a
+   Rust equivalent — even branches no current test exercises
 
-Do NOT use sub-agents. Show chunk test output before committing.
+Do NOT use sub-agents. Do NOT leave empty fallbacks or TODO comments.
+Show chunk test output before committing.
 ```
 
 ### After completing a chunk
