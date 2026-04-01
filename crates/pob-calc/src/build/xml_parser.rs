@@ -24,6 +24,7 @@ pub fn parse_xml(xml: &str) -> Result<Build, ParseError> {
     let mut current_item_id: Option<u32> = None;
     let mut current_item_text = String::new();
     let mut items: HashMap<u32, Item> = HashMap::new();
+    let mut in_spec_sockets = false; // true when parsing <Sockets> inside <Spec>
 
     let mut buf = Vec::new();
     loop {
@@ -158,7 +159,27 @@ pub fn parse_xml(xml: &str) -> Result<Build, ParseError> {
                             allocated_nodes,
                             class_id,
                             ascend_class_id,
+                            jewels: HashMap::new(),
                         };
+                    }
+                    "Sockets" => {
+                        // <Sockets> is a child element of <Spec> that maps
+                        // tree socket node IDs to socketed cluster jewel item IDs.
+                        in_spec_sockets = true;
+                    }
+                    "Socket" => {
+                        // <Socket nodeId="12345" itemId="11"/>
+                        // Only process if inside a <Sockets> block within <Spec>.
+                        if in_spec_sockets {
+                            if let (Some(node_id), Some(item_id)) = (
+                                attrs.get("nodeId").and_then(|v| v.parse::<u32>().ok()),
+                                attrs.get("itemId").and_then(|v| v.parse::<u32>().ok()),
+                            ) {
+                                if item_id > 0 {
+                                    passive_spec.jewels.insert(node_id, item_id);
+                                }
+                            }
+                        }
                     }
                     "Items" => {
                         active_item_set = attrs
@@ -226,6 +247,9 @@ pub fn parse_xml(xml: &str) -> Result<Build, ParseError> {
                 let end_name_bytes = e.name();
                 let name = std::str::from_utf8(end_name_bytes.as_ref()).unwrap_or("");
                 match name {
+                    "Sockets" => {
+                        in_spec_sockets = false;
+                    }
                     "Skill" => {
                         if let (Some(ref mut ss), Some(skill)) =
                             (&mut current_skill_set, current_skill.take())
@@ -702,5 +726,47 @@ Implicits: 0
         assert_eq!(item.rarity, ItemRarity::Unique);
         assert_eq!(item.name, "Goldrim");
         assert_eq!(item.base_type, "Leather Cap");
+    }
+}
+
+#[cfg(test)]
+mod socket_tests {
+    use super::*;
+
+    #[test]
+    fn parses_sockets_from_spec() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_0" bandit="None" className="Witch" ascendClassName="Elementalist" mainSocketGroup="1">
+  </Build>
+  <Skills activeSkillSet="1"><SkillSet id="1"/></Skills>
+  <Tree activeSpec="1">
+    <Spec treeVersion="3_13" nodes="21984,7960" classId="3" ascendClassId="2">
+      <Sockets>
+        <Socket nodeId="7960" itemId="8"/>
+        <Socket nodeId="21984" itemId="2"/>
+        <Socket nodeId="64583" itemId="9"/>
+        <Socket nodeId="0" itemId="0"/>
+      </Sockets>
+    </Spec>
+  </Tree>
+  <Items activeItemSet="1">
+    <ItemSet id="1"/>
+  </Items>
+  <Config/>
+</PathOfBuilding>"#;
+        let build = parse_xml(xml).unwrap();
+        assert_eq!(
+            build.passive_spec.jewels.len(),
+            3,
+            "Should have 3 non-zero jewels"
+        );
+        assert_eq!(build.passive_spec.jewels.get(&7960), Some(&8));
+        assert_eq!(build.passive_spec.jewels.get(&21984), Some(&2));
+        assert_eq!(build.passive_spec.jewels.get(&64583), Some(&9));
+        assert!(
+            !build.passive_spec.jewels.contains_key(&0),
+            "nodeId=0 with itemId=0 should not be stored"
+        );
     }
 }

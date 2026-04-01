@@ -14,6 +14,31 @@ pub enum NodeType {
     ClassStart,
 }
 
+/// Expansion jewel metadata for cluster jewel socket nodes.
+/// Set on nodes that can accept cluster jewels (Large/Medium/Small Jewel Sockets).
+#[derive(Debug, Clone, Default)]
+pub struct ExpansionJewelMeta {
+    /// 0 = Small, 1 = Medium, 2 = Large cluster jewel socket.
+    pub size: u32,
+    /// Ring position index within the parent passive tree orbit.
+    /// Used to compute subgraph node IDs in BuildSubgraph.
+    pub index: u32,
+    /// For Medium/Small sockets that are children of a larger socket:
+    /// the node ID of the parent socket.
+    pub parent: Option<u32>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct RawExpansionJewel {
+    #[serde(default)]
+    size: u32,
+    #[serde(default)]
+    index: u32,
+    /// Parent socket node ID (for Medium/Small sockets nested in a larger subgraph).
+    #[serde(default)]
+    parent: Option<u32>,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 struct RawNode {
     id: u32,
@@ -42,6 +67,8 @@ struct RawNode {
     icon: String,
     #[serde(default)]
     skill_points_granted: i32,
+    #[serde(default)]
+    expansion_jewel: Option<RawExpansionJewel>,
 }
 
 impl RawNode {
@@ -82,6 +109,9 @@ pub struct PassiveNode {
     pub skill_points_granted: i32,
     /// Class start index (0=Scion, 1=Marauder, etc.) if this is a class start node
     pub class_start_index: Option<u32>,
+    /// For cluster jewel socket nodes: metadata about the expansion jewel slot.
+    /// `None` for regular passive nodes.
+    pub expansion_jewel: Option<ExpansionJewelMeta>,
 }
 
 /// Per-class base attributes from the passive tree data.
@@ -125,6 +155,11 @@ impl PassiveTree {
             .into_values()
             .map(|raw| {
                 let node_type = raw.node_type();
+                let expansion_jewel = raw.expansion_jewel.map(|ej| ExpansionJewelMeta {
+                    size: ej.size,
+                    index: ej.index,
+                    parent: ej.parent,
+                });
                 let node = PassiveNode {
                     id: raw.id,
                     name: raw.name,
@@ -135,6 +170,7 @@ impl PassiveTree {
                     icon: raw.icon,
                     skill_points_granted: raw.skill_points_granted,
                     class_start_index: raw.class_start_index,
+                    expansion_jewel,
                 };
                 (raw.id, node)
             })

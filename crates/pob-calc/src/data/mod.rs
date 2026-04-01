@@ -1,4 +1,5 @@
 pub mod bases;
+pub mod cluster_jewels;
 pub mod gems;
 pub mod misc;
 pub mod uniques;

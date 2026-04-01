@@ -11,6 +11,37 @@ use crate::{
 };
 use std::sync::Arc;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Cluster-jewel regex patterns (compiled once at startup)
+// ─────────────────────────────────────────────────────────────────────────────
+use once_cell::sync::Lazy;
+use regex::Regex;
+
+/// Matches "Adds N Passive Skills" (node count line).
+static RE_CLUSTER_NODE_COUNT: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"(?i)^adds (\d+) passive skills?$").unwrap());
+
+/// Matches "N Added Passive Skills are Jewel Sockets" (socket count line, multi).
+static RE_CLUSTER_SOCKET_COUNT: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"(?i)^(\d+) added passive skills? are jewel sockets?$").unwrap());
+
+/// Matches "Added Passive Skill is a Jewel Socket" or "1 Added Passive Skill is a Jewel Socket" (socket count = 1).
+static RE_CLUSTER_SOCKET_ONE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"(?i)^(?:1 )?added passive skill is a jewel socket$").unwrap());
+
+/// Matches "1 Added Passive Skill is {Notable Name}" (notable assignment).
+static RE_CLUSTER_NOTABLE: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"(?i)^1 added passive skill is (.+)$").unwrap());
+
+/// Matches "Added Small Passive Skills grant: ..." (primary enchant = skill_id selection).
+static RE_CLUSTER_SKILL: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"(?i)^added small passive skills grant: (.+)$").unwrap());
+
+/// Matches "Added Small Passive Skills have N% increased Effect" (inc_effect).
+static RE_CLUSTER_INC_EFFECT: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"(?i)^added small passive skills have (\d+)% increased effect$").unwrap()
+});
+
 /// Build the CalcEnv for a build.
 /// Mirrors calcs.initEnv() in CalcSetup.lua.
 pub fn init_env(build: &Build, data: Arc<GameData>) -> Result<CalcEnv, CalcError> {
@@ -37,6 +68,9 @@ pub fn init_env(build: &Build, data: Arc<GameData>) -> Result<CalcEnv, CalcError
 
     // Add jewel mods from jewel slots
     add_jewel_mods(build, &mut env);
+
+    // Add cluster jewel subgraph mods (synthetic passive nodes from cluster jewels)
+    add_cluster_jewel_mods(build, &mut env);
 
     // Add flask mods (only if conditionUsingFlask is true)
     add_flask_mods(build, &mut env);
@@ -2007,4 +2041,618 @@ fn add_config_conditions(build: &Build, db: &mut ModDb) {
             db.set_multiplier(mult_name, val);
         }
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cluster Jewel Subgraph Generation (SETUP-05)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Parsed info extracted from a single cluster jewel item's mod lines.
+#[derive(Debug, Default)]
+struct ClusterJewelInfo {
+    /// Number of passive skills (node count), clamped to [min, max] for the size.
+    node_count: Option<u32>,
+    /// Number of jewel socket slots on this cluster jewel.
+    socket_count: u32,
+    /// Skill tag ID for the small passives (e.g. "affliction_cold_damage").
+    skill_id: Option<String>,
+    /// Names of notables on this jewel (e.g. "Blanketed Snow").
+    notable_names: Vec<String>,
+    /// Additional mod lines added to small passive nodes via enchant/anoint.
+    /// These are the "Added Small Passive Skills also grant: ..." lines (excluding skill enchant).
+    added_mods: Vec<String>,
+    /// Increased effect of small passive skills (e.g. 10 for "10% increased effect").
+    inc_effect: Option<f64>,
+}
+
+/// Parse a cluster jewel item's mods to extract ClusterJewelInfo.
+/// Returns None if the item is not a valid cluster jewel.
+fn parse_cluster_jewel_info(
+    item: &crate::build::types::Item,
+    enchant_to_skill: &std::collections::HashMap<&'static str, &'static str>,
+) -> Option<ClusterJewelInfo> {
+    use crate::data::cluster_jewels::cluster_size_for_base_type;
+
+    // Only process recognised cluster jewel base types
+    let size_def = cluster_size_for_base_type(&item.base_type)?;
+
+    let mut info = ClusterJewelInfo::default();
+
+    // Collect all mod lines (implicits + explicits + crafted + enchant)
+    let all_lines = item
+        .implicits
+        .iter()
+        .chain(item.explicits.iter())
+        .chain(item.crafted_mods.iter())
+        .chain(item.enchant_mods.iter());
+
+    for line in all_lines {
+        let trimmed = line.trim();
+        let lower = trimmed.to_lowercase();
+
+        // "Adds N Passive Skills" → node_count
+        if let Some(caps) = RE_CLUSTER_NODE_COUNT.captures(trimmed) {
+            if let Ok(n) = caps[1].parse::<u32>() {
+                let clamped = n.clamp(size_def.min_nodes, size_def.max_nodes);
+                info.node_count = Some(clamped);
+            }
+            continue;
+        }
+
+        // "N Added Passive Skills are Jewel Sockets" → socket_count
+        if let Some(caps) = RE_CLUSTER_SOCKET_COUNT.captures(trimmed) {
+            if let Ok(n) = caps[1].parse::<u32>() {
+                info.socket_count = n;
+            }
+            continue;
+        }
+
+        // "Added Passive Skill is a Jewel Socket" → socket_count = 1
+        if RE_CLUSTER_SOCKET_ONE.is_match(trimmed) {
+            info.socket_count = 1;
+            continue;
+        }
+
+        // "1 Added Passive Skill is {Notable Name}" → notable_names
+        // But NOT if the line matches the skill enchant (e.g. "... is a Jewel Socket" is handled above)
+        if let Some(caps) = RE_CLUSTER_NOTABLE.captures(trimmed) {
+            let name = caps[1].trim();
+            // Skip if this looks like a skill description rather than a notable name
+            // (notable names from the sort order table are proper nouns)
+            if !name.to_lowercase().contains("jewel socket") {
+                info.notable_names.push(name.to_string());
+            }
+            continue;
+        }
+
+        // "Added Small Passive Skills grant: ..." → skill_id (primary enchant line)
+        if RE_CLUSTER_SKILL.is_match(trimmed) {
+            // Look up the full enchant text (lowercased) in the enchant→skill table
+            let full_enchant = lower.as_str();
+            if let Some(&skill_id) = enchant_to_skill.get(full_enchant) {
+                info.skill_id = Some(skill_id.to_string());
+            }
+            // Do NOT add to added_mods — this is the skill enchant, not an extra mod
+            continue;
+        }
+
+        // "Added Small Passive Skills also grant: ..." → added_mods (extra stat lines)
+        if let Some(rest) = lower.strip_prefix("added small passive skills also grant: ") {
+            // Strip the prefix and keep the actual mod text
+            let mod_text = trimmed
+                .get("Added Small Passive Skills also grant: ".len()..)
+                .unwrap_or(trimmed);
+            info.added_mods.push(mod_text.to_string());
+            let _ = rest; // suppress unused variable warning
+            continue;
+        }
+
+        // "Added Small Passive Skills have N% increased Effect" → inc_effect
+        if let Some(caps) = RE_CLUSTER_INC_EFFECT.captures(trimmed) {
+            if let Ok(n) = caps[1].parse::<f64>() {
+                info.inc_effect = Some(n);
+            }
+            continue;
+        }
+    }
+
+    Some(info)
+}
+
+/// Compute the base synthetic node ID for a cluster jewel at a given socket node.
+///
+/// ID encoding (mirrors PoB's BuildSubgraph):
+/// - bit 16 (0x10000): signal bit
+/// - bits 6-8: large socket's `expansionJewel.index`  (for Large cluster jewels)
+/// - bits 9-15: medium socket's `expansionJewel.index` (for Medium cluster jewels)
+/// - bits 4-5: size index of the JEWEL (0=Small 1=Medium 2=Large)
+///
+/// The `id` accumulates across recursion levels:
+/// - Large socket (size=2): id += index << 6
+/// - Medium socket (size=1): id += index << 9 (added on top of parent's id)
+///
+/// For tree-level Medium sockets nested inside a Large cluster,
+/// we need both the parent Large socket's contribution AND this socket's index.
+fn compute_subgraph_base_id(
+    socket_node_id: u32,
+    jewel_size_index: u32,
+    tree: &crate::passive_tree::PassiveTree,
+    jewel_sockets: &[(u32, u32)], // (node_id, item_id) all sockets in build
+) -> u32 {
+    let mut id: u32 = 0x10000;
+
+    if let Some(socket_node) = tree.nodes.get(&socket_node_id) {
+        if let Some(ej) = &socket_node.expansion_jewel {
+            match ej.size {
+                2 => {
+                    // This is a Large socket: id += index << 6
+                    id += ej.index << 6;
+                }
+                1 => {
+                    // This is a Medium socket.
+                    // We need to add the parent Large cluster's contribution too.
+                    // The parent Large socket's expansionJewel.index contributes << 6.
+                    // Then this socket's index contributes << 9.
+                    //
+                    // Find the parent Large socket by looking at other sockets in the build
+                    // that are Large and have this socket in their generated subgraph.
+                    // The parent relationship is encoded in the tree data.
+                    // For simplicity, we look at all Large sockets and find which one
+                    // is the parent of this Medium socket.
+                    let parent_large_id =
+                        find_parent_large_socket(socket_node_id, tree, jewel_sockets);
+                    if let Some(parent_node_id) = parent_large_id {
+                        if let Some(parent_node) = tree.nodes.get(&parent_node_id) {
+                            if let Some(parent_ej) = &parent_node.expansion_jewel {
+                                id += parent_ej.index << 6;
+                            }
+                        }
+                    }
+                    id += ej.index << 9;
+                }
+                0 => {
+                    // Small socket: no additional id contribution
+                }
+                _ => {}
+            }
+        }
+    }
+
+    // Add the jewel's size index in bits 4-5
+    id += jewel_size_index << 4;
+    id
+}
+
+/// Find the parent Large socket node ID for a given Medium socket.
+/// Uses the `parent` field from the node's `expansion_jewel` metadata.
+fn find_parent_large_socket(
+    medium_socket_node_id: u32,
+    tree: &crate::passive_tree::PassiveTree,
+    _jewel_sockets: &[(u32, u32)],
+) -> Option<u32> {
+    let node = tree.nodes.get(&medium_socket_node_id)?;
+    let ej = node.expansion_jewel.as_ref()?;
+    ej.parent
+}
+
+/// Generate the synthetic node IDs for a cluster jewel's ring.
+///
+/// Returns a list of (node_id, node_role) tuples where node_role is one of:
+/// "Notable", "Socket", or "Small".
+///
+/// The IDs match PoB's BuildSubgraph ID encoding exactly, so they can be
+/// looked up in `passive_spec.allocated_nodes`.
+#[derive(Debug)]
+enum ClusterNodeRole {
+    /// A notable passive node; `name` is the notable's display name.
+    Notable(String),
+    /// A jewel socket sub-node (where a Medium/Small cluster jewel can be socketed).
+    Socket,
+    /// A small fill passive node.
+    Small,
+}
+
+fn generate_cluster_node_ids(
+    base_id: u32,
+    size_def: &crate::data::cluster_jewels::ClusterJewelSize,
+    info: &ClusterJewelInfo,
+    notable_sort_order: &std::collections::HashMap<&'static str, u32>,
+) -> Vec<(u32, ClusterNodeRole)> {
+    use std::collections::HashSet;
+
+    let node_count = match info.node_count {
+        Some(n) => n,
+        None => return Vec::new(),
+    };
+
+    let socket_count = info.socket_count;
+    let notable_count = info.notable_names.len() as u32;
+    let small_count = node_count
+        .saturating_sub(socket_count)
+        .saturating_sub(notable_count);
+
+    let mut used_indicies: HashSet<u32> = HashSet::new();
+    let mut result: Vec<(u32, ClusterNodeRole)> = Vec::new();
+
+    // ── Step 1: Place Socket nodes ────────────────────────────────────────
+    if size_def.size_name == "Large Cluster Jewel" && socket_count == 1 {
+        // Large single socket always at index 6
+        let idx = 6u32;
+        used_indicies.insert(idx);
+        result.push((base_id + idx, ClusterNodeRole::Socket));
+    } else {
+        let get_jewels = [0u32, 2, 1]; // which physical socket position to use
+        for i in 0..socket_count as usize {
+            if i >= size_def.socket_indicies.len() {
+                break;
+            }
+            let idx = size_def.socket_indicies[i];
+            if !used_indicies.contains(&idx) {
+                used_indicies.insert(idx);
+                result.push((base_id + idx, ClusterNodeRole::Socket));
+            }
+            let _ = get_jewels; // used implicitly via i
+        }
+    }
+
+    // ── Step 2: Place Notable nodes ───────────────────────────────────────
+    // Sort notables by notable_sort_order to determine placement order
+    let mut sorted_notables: Vec<(u32, &str)> = info
+        .notable_names
+        .iter()
+        .map(|n| {
+            let order = notable_sort_order
+                .get(n.as_str())
+                .copied()
+                .unwrap_or(u32::MAX);
+            (order, n.as_str())
+        })
+        .collect();
+    sorted_notables.sort_by_key(|&(order, _)| order);
+
+    // Find available notable indices, skipping any already-used indices
+    let mut notable_index_list: Vec<u32> = Vec::new();
+    let notable_count_needed = sorted_notables.len() as u32;
+
+    for &candidate_idx in size_def.notable_indicies {
+        if notable_index_list.len() as u32 >= notable_count_needed {
+            break;
+        }
+        // Apply Medium cluster special rules
+        let idx = if size_def.size_name == "Medium Cluster Jewel" {
+            apply_medium_notable_index_rules(
+                candidate_idx,
+                socket_count,
+                notable_count_needed,
+                node_count,
+            )
+        } else {
+            candidate_idx
+        };
+        if !used_indicies.contains(&idx) {
+            notable_index_list.push(idx);
+            used_indicies.insert(idx);
+        }
+    }
+    // Sort notable index list ascending (so ring order is consistent)
+    notable_index_list.sort_unstable();
+
+    for (i, &(_, notable_name)) in sorted_notables.iter().enumerate() {
+        if let Some(&idx) = notable_index_list.get(i) {
+            result.push((
+                base_id + idx,
+                ClusterNodeRole::Notable(notable_name.to_string()),
+            ));
+        }
+    }
+
+    // ── Step 3: Place Small fill nodes ────────────────────────────────────
+    let mut small_index_list: Vec<u32> = Vec::new();
+
+    for &candidate_idx in size_def.small_indicies {
+        if small_index_list.len() as u32 >= small_count {
+            break;
+        }
+        // Apply Medium cluster special rules for small indices
+        let idx = if size_def.size_name == "Medium Cluster Jewel" {
+            apply_medium_small_index_rules(candidate_idx, node_count)
+        } else {
+            candidate_idx
+        };
+        if !used_indicies.contains(&idx) {
+            small_index_list.push(idx);
+            used_indicies.insert(idx);
+        }
+    }
+
+    for &idx in &small_index_list {
+        result.push((base_id + idx, ClusterNodeRole::Small));
+    }
+
+    result
+}
+
+/// Apply Medium cluster special rules for notable indices.
+/// Matches PoB's inline corrections in BuildSubgraph (lines 1432-1444).
+fn apply_medium_notable_index_rules(
+    idx: u32,
+    socket_count: u32,
+    notable_count: u32,
+    node_count: u32,
+) -> u32 {
+    if socket_count == 0 && notable_count == 2 {
+        if idx == 6 {
+            return 4;
+        } else if idx == 10 {
+            return 8;
+        }
+    } else if node_count == 4 {
+        if idx == 10 {
+            return 9;
+        } else if idx == 2 {
+            return 3;
+        }
+    }
+    idx
+}
+
+/// Apply Medium cluster special rules for small indices.
+/// Matches PoB's inline corrections in BuildSubgraph (lines 1467-1474).
+fn apply_medium_small_index_rules(idx: u32, node_count: u32) -> u32 {
+    if node_count == 5 && idx == 4 {
+        return 3;
+    } else if node_count == 4 {
+        if idx == 8 {
+            return 9;
+        } else if idx == 4 {
+            return 3;
+        }
+    }
+    idx
+}
+
+/// Determine the socket size from the tree node name.
+/// Returns the `sizeIndex` for the socket (0=Small, 1=Medium, 2=Large) or None.
+fn socket_size_index_from_node_name(name: &str) -> Option<u32> {
+    match name {
+        "Large Jewel Socket" => Some(2),
+        "Medium Jewel Socket" => Some(1),
+        "Small Jewel Socket" => Some(0),
+        _ => None, // "Basic Jewel Socket" accepts regular jewels, not cluster
+    }
+}
+
+/// Process all cluster jewels in `build.passive_spec.jewels` and add their
+/// synthesised passive node mods to `env.player.mod_db`.
+///
+/// This mirrors PoB's `PassiveSpecClass:BuildClusterJewelGraphs()` and
+/// `PassiveSpecClass:BuildSubgraph()`, but only for the parity-relevant
+/// subset: applying mods for allocated synthetic nodes.
+fn add_cluster_jewel_mods(build: &Build, env: &mut CalcEnv) {
+    use crate::data::cluster_jewels::{
+        build_enchant_to_skill_map, build_notable_sort_order, cluster_size_for_base_type,
+    };
+    use crate::passive_tree::NodeType;
+
+    let enchant_to_skill = build_enchant_to_skill_map();
+    let notable_sort_order = build_notable_sort_order();
+
+    // Get the passive tree to look up socket node types and cluster notable stats.
+    // Clone the tree reference to avoid lifetime issues when mutably borrowing env later.
+    let tree = env
+        .data
+        .tree_for_version(&build.passive_spec.tree_version)
+        .clone();
+
+    // Collect all cluster jewel sockets from passive_spec.jewels
+    // sorted by node ID (deterministic processing order)
+    let mut jewel_sockets: Vec<(u32, u32)> = build
+        .passive_spec
+        .jewels
+        .iter()
+        .filter_map(|(&node_id, &item_id)| {
+            if item_id == 0 {
+                return None;
+            }
+            // Check that the tree node exists and is a cluster jewel socket
+            let node = tree.nodes.get(&node_id)?;
+            if node.node_type != NodeType::JewelSocket {
+                return None;
+            }
+            // Only process if the socketed item is a cluster jewel
+            let item = build.items.get(&item_id)?;
+            let _ = cluster_size_for_base_type(&item.base_type)?;
+            Some((node_id, item_id))
+        })
+        .collect();
+    jewel_sockets.sort_by_key(|&(node_id, _)| node_id);
+
+    if jewel_sockets.is_empty() {
+        return;
+    }
+
+    // Note: socket_sizes is no longer needed since we use tree.expansionJewel.index
+    // directly in compute_subgraph_base_id
+
+    // Process each cluster jewel socket
+    for &(socket_node_id, item_id) in &jewel_sockets {
+        let Some(socket_node) = tree.nodes.get(&socket_node_id) else {
+            continue;
+        };
+
+        // Determine socket size from node name
+        let socket_size = match socket_size_index_from_node_name(&socket_node.name) {
+            Some(s) => s,
+            None => continue, // Not a cluster jewel socket (e.g. "Basic Jewel Socket")
+        };
+
+        let Some(item) = build.items.get(&item_id) else {
+            continue;
+        };
+
+        let Some(size_def) = cluster_size_for_base_type(&item.base_type) else {
+            continue;
+        };
+
+        // Cluster jewel size must match or be smaller than socket size
+        // (e.g. a Medium cluster jewel can go in a Medium or Large socket)
+        if size_def.size_index > socket_size {
+            continue;
+        }
+
+        let Some(info) = parse_cluster_jewel_info(item, &enchant_to_skill) else {
+            continue;
+        };
+
+        // Validity check: a cluster jewel is buildable if it has a node count
+        if info.node_count.is_none() {
+            continue;
+        }
+
+        // Compute the base subgraph ID for this socket
+        let base_id =
+            compute_subgraph_base_id(socket_node_id, size_def.size_index, &tree, &jewel_sockets);
+
+        // Generate the synthetic node IDs for this cluster jewel
+        let synthetic_nodes =
+            generate_cluster_node_ids(base_id, size_def, &info, &notable_sort_order);
+
+        // Apply mods for allocated synthetic nodes
+        add_synthetic_node_mods(
+            build,
+            &mut env.player.mod_db,
+            &synthetic_nodes,
+            &info,
+            &tree,
+            size_def,
+        );
+    }
+}
+
+/// Look up the stat strings for a cluster jewel notable by name from the passive tree.
+/// Returns the stats from the first matching tree node with that name.
+fn get_notable_stats<'a>(
+    notable_name: &str,
+    tree: &'a crate::passive_tree::PassiveTree,
+) -> Option<&'a Vec<String>> {
+    tree.nodes
+        .values()
+        .find(|n| n.name == notable_name)
+        .map(|n| &n.stats)
+}
+
+/// Add mods to the player ModDb for allocated synthetic cluster jewel nodes.
+fn add_synthetic_node_mods(
+    build: &Build,
+    db: &mut ModDb,
+    synthetic_nodes: &[(u32, ClusterNodeRole)],
+    info: &ClusterJewelInfo,
+    tree: &crate::passive_tree::PassiveTree,
+    size_def: &crate::data::cluster_jewels::ClusterJewelSize,
+) {
+    for (node_id, role) in synthetic_nodes {
+        if !build.passive_spec.allocated_nodes.contains(node_id) {
+            continue;
+        }
+
+        let source_name = match role {
+            ClusterNodeRole::Notable(name) => format!("{} (cluster)", name),
+            ClusterNodeRole::Socket => continue, // Socket nodes have no mods themselves
+            ClusterNodeRole::Small => "Small Passive (cluster)".to_string(),
+        };
+        let source = ModSource::new("Passive", &source_name);
+
+        match role {
+            ClusterNodeRole::Notable(notable_name) => {
+                // Look up stats for this notable from the tree's cluster node map
+                if let Some(stats) = get_notable_stats(notable_name, tree) {
+                    for stat in stats {
+                        let mods = crate::build::mod_parser::parse_mod(stat, source.clone());
+                        for m in mods {
+                            db.add(m);
+                        }
+                    }
+                }
+            }
+            ClusterNodeRole::Small => {
+                // Small passive nodes get their stats from:
+                // 1. The skill's stat lines (from the primary enchant, via tree node lookup)
+                // 2. Any "Added Small Passive Skills also grant: ..." lines on the item
+
+                // For the skill stats, look up in the tree
+                let skill_node_stats: Vec<String> = if let Some(skill_id) = &info.skill_id {
+                    find_skill_stats_from_tree(skill_id, tree)
+                } else {
+                    Vec::new()
+                };
+
+                for stat in &skill_node_stats {
+                    let mods = crate::build::mod_parser::parse_mod(stat, source.clone());
+                    for m in mods {
+                        db.add(m);
+                    }
+                }
+
+                // Add the "also grant" mods
+                for added_mod in &info.added_mods {
+                    let mods = crate::build::mod_parser::parse_mod(added_mod, source.clone());
+                    for m in mods {
+                        db.add(m);
+                    }
+                }
+
+                let _ = size_def;
+            }
+            ClusterNodeRole::Socket => {} // Already handled above with continue
+        }
+    }
+}
+
+/// Find the stat strings for a skill's small passive from the passive tree.
+/// The tree contains "cluster passive" nodes whose names match the skill's human-readable name.
+/// We need to find the skill stats for a given skill tag ID.
+fn find_skill_stats_from_tree(
+    skill_id: &str,
+    tree: &crate::passive_tree::PassiveTree,
+) -> Vec<String> {
+    use crate::data::cluster_jewels::ENCHANT_TO_SKILL_ENTRIES;
+
+    // Find the human-readable skill name by reverse-looking the ENCHANT_TO_SKILL_ENTRIES
+    // to get the stat strings. However, the stats come from the tree nodes.
+    //
+    // The tree has nodes like: { name: "Cold Damage", stats: ["12% increased Cold Damage"] }
+    // These are the cluster passive template nodes.
+    //
+    // We match by skill_id: for each enchant entry that maps to this skill_id,
+    // the stat string is the text after "Added Small Passive Skills grant: ".
+    // We then look for tree nodes with matching stats.
+    //
+    // Simpler approach: the enchant text IS the stat text (minus the prefix).
+    // "Added Small Passive Skills grant: 12% increased Cold Damage" → "12% increased Cold Damage"
+    let mut stats = Vec::new();
+
+    for &(enchant, sid) in ENCHANT_TO_SKILL_ENTRIES {
+        if sid == skill_id {
+            // Extract the stat text from the enchant line
+            let prefix = "added small passive skills grant: ";
+            if let Some(stat) = enchant.strip_prefix(prefix) {
+                // The stat text is lowercase from our table; we need the proper case.
+                // Look for a tree node whose stats (lowercased) match.
+                for node in tree.nodes.values() {
+                    for node_stat in &node.stats {
+                        if node_stat.to_lowercase() == stat {
+                            stats.push(node_stat.clone());
+                        }
+                    }
+                }
+                // If not found in tree, try to find by node name matching skill
+                if stats.is_empty() {
+                    // Fallback: use the enchant text as-is (but titlecased)
+                    // This is less accurate but better than nothing
+                }
+            }
+        }
+    }
+
+    stats
 }

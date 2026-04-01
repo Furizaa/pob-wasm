@@ -23,6 +23,10 @@ pub struct PassiveSpec {
     pub allocated_nodes: HashSet<u32>,
     pub class_id: u32,
     pub ascend_class_id: u32,
+    /// Maps tree socket node ID → item ID for cluster jewels.
+    /// Populated from `<Sockets><Socket nodeId="..." itemId="..."/></Sockets>`
+    /// inside `<Spec>` in the PoB XML.
+    pub jewels: HashMap<u32, u32>,
 }
 
 #[derive(Debug, Clone)]
