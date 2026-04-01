@@ -93,6 +93,7 @@ Each reference doc covers one chunk. Do them in dependency order. Pick the first
 chunk ID from this list that doesn't have a reference doc yet:
 
 ```
+SETUP-05-cluster-jewels
 PERF-01-attributes
 PERF-02-life-mana-es
 PERF-03-charges
@@ -178,7 +179,10 @@ in the tier list are `PASS`).
 Work top to bottom. A chunk can only be worked on when everything above it passes:
 
 ```
-Tier 1 (do first):
+Tier 0 (do first — no output fields, but everything depends on these):
+  SETUP-05-cluster-jewels
+
+Tier 1 (needs Tier 0):
   PERF-01-attributes
   PERF-02-life-mana-es
   PERF-03-charges
@@ -237,7 +241,8 @@ You are porting PoB calculations to Rust for parity. Work on chunk {CHUNK-ID}.
 6. Run the chunk test again and iterate until all 30 builds pass for this chunk's fields
 7. Run regression check:
      cargo test --workspace --exclude pob-wasm
-8. Commit with message: parity({CHUNK-ID}): <what you did>
+8. Work in a branch and create a PR with title: parity({CHUNK-ID}): <what you did>
+9. Open the PR and wait for CI to succeed
 
 Rules:
 - Do NOT use sub-agents for writing code
@@ -249,6 +254,7 @@ Rules:
 ### If the session crashes mid-chunk
 
 Start a new session with the exact same prompt. The agent will:
+
 1. Read the reference doc (knows what to do)
 2. Run the chunk test (sees current state)
 3. Continue from wherever the previous session left off

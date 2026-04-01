@@ -15,6 +15,13 @@ pub fn fields_for_chunk(chunk: &str) -> Option<&'static [&'static str]> {
         // SETUP-01 through SETUP-04 don't produce output fields directly.
         // They populate the ModDb which downstream chunks query.
 
+        // SETUP-05: Cluster jewel subgraph generation. Cluster jewels generate
+        // dynamic sub-tree nodes (large/medium/small) with notables and small
+        // passives. Without this, builds using cluster jewels will fail parity
+        // checks in every downstream chunk. No direct output fields — verified
+        // by re-running PERF-01-attributes which should then pass 30/30 builds.
+        "SETUP-05-cluster-jewels" => &[],
+
         // ── Tier 1: Attributes & Pools (CalcPerform early) ──
         "PERF-01-attributes" => &[
             "Str",
@@ -406,6 +413,7 @@ pub fn fields_for_chunk(chunk: &str) -> Option<&'static [&'static str]> {
 /// Returns all known chunk IDs in dependency order.
 pub fn all_chunk_ids() -> &'static [&'static str] {
     &[
+        "SETUP-05-cluster-jewels",
         "PERF-01-attributes",
         "PERF-02-life-mana-es",
         "PERF-03-charges",

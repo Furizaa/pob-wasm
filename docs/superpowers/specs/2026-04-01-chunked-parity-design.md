@@ -100,6 +100,7 @@ SETUP-01  Item mod parsing & slot assignment                  setup.rs
 SETUP-02  Support gem matching & active skill construction    active_skill.rs
 SETUP-03  Flask, jewel, & aura/curse buff setup               setup.rs
 SETUP-04  eval_mod stub completion (5 tag types)              eval_mod.rs
+SETUP-05  Cluster jewel subgraph generation                   passive_tree/, setup.rs
 
 PERF-01   Attributes (Str/Dex/Int/Omni)                      perform.rs
 PERF-02   Life/Mana/ES pools                                  perform.rs
@@ -135,8 +136,17 @@ AGG-01    FullDPS & multi-skill aggregation                   calcs.rs
 TAIL-01+  Edge cases, special uniques, minion actors          (various)
 ```
 
-Total: ~30 chunks, plus a variable number of TAIL chunks for edge cases discovered
+Total: ~31 chunks, plus a variable number of TAIL chunks for edge cases discovered
 during execution.
+
+**Note on SETUP-05 (cluster jewels):** Cluster jewels generate a dynamic sub-tree
+of passive nodes (large/medium/small clusters with notables and small passives).
+These synthetic nodes contribute attribute bonuses, damage mods, and other stats
+that affect any build using cluster jewels. Without this chunk, builds with cluster
+jewels will fail parity checks in every downstream chunk. Two of the 30 oracle
+builds (`realworld_cluster_jewel`, `realworld_coc_trigger`) are known to fail
+PERF-01 due to missing cluster jewel attribute bonuses. SETUP-05 must be completed
+before all 30 builds can pass Tier 1+ chunks.
 
 ## 6. Annotated Lua Reference Docs
 
@@ -449,6 +459,7 @@ docs/
     SETUP-02-support-gems.md
     SETUP-03-flask-jewel-buff.md
     SETUP-04-eval-mod-stubs.md
+    SETUP-05-cluster-jewels.md
     PERF-01-attributes.md
     PERF-02-life-mana-es.md
     ...                               # ~30 total chunk references
@@ -483,7 +494,8 @@ crates/pob-calc/src/
   calc/mirages.rs                     # Chunk MIR-01
   calc/calcs.rs                       # Chunk AGG-01
   calc/active_skill.rs                # Chunk SETUP-02
-  calc/setup.rs                       # Chunks SETUP-01, SETUP-03
+  calc/setup.rs                       # Chunks SETUP-01, SETUP-03, SETUP-05
+  passive_tree/mod.rs                 # Chunk SETUP-05
   mod_db/eval_mod.rs                  # Chunk SETUP-04
 ```
 
