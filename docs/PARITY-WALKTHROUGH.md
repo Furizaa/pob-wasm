@@ -93,8 +93,18 @@ Each reference doc covers one chunk. Do them in dependency order. Pick the first
 chunk ID from this list that doesn't have a reference doc yet:
 
 ```
-SETUP-05-cluster-jewels
+SETUP-05-cluster-jewels         (done)
 SETUP-06-timeless-jewels
+SETUP-07-anointments            HIGH — 4 oracle builds affected
+SETUP-08-radius-jewels          HIGH — Thread of Hope in coc_trigger
+SETUP-09-mastery-selections     MEDIUM — no oracle builds yet (pre-3.16 trees)
+SETUP-10-keystone-merging       MEDIUM — keystone-granting uniques
+SETUP-11-item-conditions        MEDIUM — per-shaper-item multipliers etc.
+SETUP-12-bandit-pantheon        LOW — all oracle builds use "None"
+SETUP-13-buff-mode              LOW — oracle assumes EFFECTIVE mode
+SETUP-14-tattoo-overrides       LOW — no oracle builds
+SETUP-15-forbidden-flesh-flame  LOW — no oracle builds, combine with SETUP-07
+SETUP-16-special-uniques        LOW — no oracle builds
 PERF-01-attributes
 PERF-02-life-mana-es
 PERF-03-charges
@@ -180,9 +190,23 @@ in the tier list are `PASS`).
 Work top to bottom. A chunk can only be worked on when everything above it passes:
 
 ```
-Tier 0 (do first — no output fields, but everything depends on these):
-  SETUP-05-cluster-jewels
+Tier 0 — HIGH priority (do first, affect oracle builds):
+  SETUP-05-cluster-jewels         (done)
   SETUP-06-timeless-jewels
+  SETUP-07-anointments
+  SETUP-08-radius-jewels
+
+Tier 0 — MEDIUM priority (no oracle builds fail yet, but needed for completeness):
+  SETUP-09-mastery-selections
+  SETUP-10-keystone-merging
+  SETUP-11-item-conditions
+
+Tier 0 — LOW priority (all oracle builds use "None"/default, add when needed):
+  SETUP-12-bandit-pantheon
+  SETUP-13-buff-mode
+  SETUP-14-tattoo-overrides
+  SETUP-15-forbidden-flesh-flame
+  SETUP-16-special-uniques
 
 Tier 1 (needs Tier 0):
   PERF-01-attributes

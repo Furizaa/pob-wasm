@@ -29,6 +29,56 @@ pub fn fields_for_chunk(chunk: &str) -> Option<&'static [&'static str]> {
         // output fields — verified by PERF-01-attributes passing all builds.
         "SETUP-06-timeless-jewels" => &[],
 
+        // SETUP-07: Anointments & granted passives. Items with "Allocates X" grant
+        // notable passives. Mod parser must capture the passive name (currently
+        // stubbed as TODO). CalcSetup.lua lines 1230-1239 look up the notable and
+        // add it to allocNodes. Affects 4 oracle builds. HIGH PRIORITY.
+        "SETUP-07-anointments" => &[],
+
+        // SETUP-08: Radius jewel framework. The two-pass system for Thread of Hope,
+        // Intuitive Leap, Impossible Escape, passive effect scaling, and
+        // PassiveSkillHasNoEffect. CalcSetup.lua lines 113-210. No radius jewel
+        // processing exists in Rust. Affects realworld_coc_trigger. HIGH PRIORITY.
+        "SETUP-08-radius-jewels" => &[],
+
+        // SETUP-09: Mastery selections. 3.16+ tree feature. Mastery nodes have
+        // stats replaced by player-selected effect. Stored as masteryEffects on
+        // <Spec>. XML parser does not parse this. No oracle builds use masteries
+        // (all pre-3.16 trees). MEDIUM PRIORITY.
+        "SETUP-09-mastery-selections" => &[],
+
+        // SETUP-10: Keystone merging for non-tree grants. Keystones granted by
+        // items via "Keystone" list mod need mergeKeystones() lookup in
+        // tree.keystoneMap. CalcSetup.lua / ModTools.lua lines 226-237. MEDIUM.
+        "SETUP-10-keystone-merging" => &[],
+
+        // SETUP-11: Item condition & multiplier tracking. Item rarity counts,
+        // influence multipliers (ShaperItem, ElderItem), socket counts. CalcSetup.lua
+        // lines 1132-1210. Needed for "per shaper item" type mods. MEDIUM.
+        "SETUP-11-item-conditions" => &[],
+
+        // SETUP-12: Bandit & Pantheon mods. CalcSetup.lua lines 531-553. All oracle
+        // builds use bandit=None and pantheon=None. LOW PRIORITY.
+        "SETUP-12-bandit-pantheon" => &[],
+
+        // SETUP-13: Buff mode conditions. CalcSetup.lua lines 444-467. Sets
+        // mode_buffs/mode_combat/mode_effective. Oracle assumes EFFECTIVE. LOW.
+        "SETUP-13-buff-mode" => &[],
+
+        // SETUP-14: Tattoo / hash overrides. Replace allocated passive nodes with
+        // alternative effects via <Overrides> XML. No oracle builds. LOW.
+        "SETUP-14-tattoo-overrides" => &[],
+
+        // SETUP-15: Forbidden Flesh/Flame. Two matching jewels grant an ascendancy
+        // notable. CalcSetup.lua lines 1242-1258. Shares mechanism with SETUP-07.
+        // No oracle builds. LOW — combine with SETUP-07 when implementing.
+        "SETUP-15-forbidden-flesh-flame" => &[],
+
+        // SETUP-16: Special unique item handling. Necromantic Aegis, Energy Blade,
+        // The Iron Mass, Dancing Dervish, Kalandra's Touch, Widowhail, The Adorned.
+        // No oracle builds. LOW — add per-unique as needed.
+        "SETUP-16-special-uniques" => &[],
+
         // ── Tier 1: Attributes & Pools (CalcPerform early) ──
         "PERF-01-attributes" => &[
             "Str",
@@ -422,6 +472,16 @@ pub fn all_chunk_ids() -> &'static [&'static str] {
     &[
         "SETUP-05-cluster-jewels",
         "SETUP-06-timeless-jewels",
+        "SETUP-07-anointments",
+        "SETUP-08-radius-jewels",
+        "SETUP-09-mastery-selections",
+        "SETUP-10-keystone-merging",
+        "SETUP-11-item-conditions",
+        "SETUP-12-bandit-pantheon",
+        "SETUP-13-buff-mode",
+        "SETUP-14-tattoo-overrides",
+        "SETUP-15-forbidden-flesh-flame",
+        "SETUP-16-special-uniques",
         "PERF-01-attributes",
         "PERF-02-life-mana-es",
         "PERF-03-charges",

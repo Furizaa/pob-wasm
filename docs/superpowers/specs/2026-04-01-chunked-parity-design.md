@@ -102,6 +102,16 @@ SETUP-03  Flask, jewel, & aura/curse buff setup               setup.rs
 SETUP-04  eval_mod stub completion (5 tag types)              eval_mod.rs
 SETUP-05  Cluster jewel subgraph generation                   passive_tree/, setup.rs
 SETUP-06  Timeless jewel node replacement                     passive_tree/, setup.rs
+SETUP-07  Anointments & granted passives                      setup.rs, mod_parser
+SETUP-08  Radius jewel framework (Thread of Hope et al.)      setup.rs, passive_tree/
+SETUP-09  Mastery selections                                  xml_parser, passive_tree/, setup.rs
+SETUP-10  Keystone merging (non-tree grants)                  setup.rs
+SETUP-11  Item condition & multiplier tracking                setup.rs
+SETUP-12  Bandit & Pantheon mods                              setup.rs
+SETUP-13  Buff mode conditions                                setup.rs, env.rs
+SETUP-14  Tattoo / hash overrides                             xml_parser, passive_tree/, setup.rs
+SETUP-15  Forbidden Flesh/Flame (granted ascendancy)          setup.rs, mod_parser
+SETUP-16  Special unique item handling                        setup.rs
 
 PERF-01   Attributes (Str/Dex/Int/Omni)                      perform.rs
 PERF-02   Life/Mana/ES pools                                  perform.rs
@@ -137,27 +147,75 @@ AGG-01    FullDPS & multi-skill aggregation                   calcs.rs
 TAIL-01+  Edge cases, special uniques, minion actors          (various)
 ```
 
-Total: ~32 chunks, plus a variable number of TAIL chunks for edge cases discovered
+Total: ~42 chunks, plus a variable number of TAIL chunks for edge cases discovered
 during execution.
 
-**Note on SETUP-05 (cluster jewels):** Cluster jewels generate a dynamic sub-tree
-of passive nodes (large/medium/small clusters with notables and small passives).
-These synthetic nodes contribute attribute bonuses, damage mods, and other stats
-that affect any build using cluster jewels. Without this chunk, builds with cluster
-jewels will fail parity checks in every downstream chunk. Two of the 30 oracle
-builds (`realworld_cluster_jewel`, `realworld_coc_trigger`) are known to fail
-PERF-01 due to missing cluster jewel attribute bonuses. SETUP-05 must be completed
-before all 30 builds can pass Tier 1+ chunks.
+### 5.2 SETUP Chunk Details
 
-**Note on SETUP-06 (timeless jewels):** Timeless jewels (Glorious Vanity, Lethal
-Pride, Brutal Restraint, Militant Faith, Elegant Hubris) replace passive tree nodes
-within their radius using seed-based lookup tables (LUTs). The Lua implementation
-in `PassiveSpec.lua` (lines ~1120-1280) handles 6 jewel types, each with different
-replacement logic: full node replacement, stat addition, and keystone conversion.
-Without this chunk, `realworld_timeless_jewel` will fail every downstream chunk
-because the build's passive tree has fundamentally different nodes than what the
-engine computes. SETUP-06 must be completed alongside SETUP-05 before Tier 1+
-chunks can pass all builds.
+**SETUP-05 (cluster jewels):** Cluster jewels generate a dynamic sub-tree of
+passive nodes (large/medium/small clusters with notables and small passives).
+Without this, builds with cluster jewels fail all downstream chunks. Affects 2
+oracle builds (`realworld_cluster_jewel`, `realworld_coc_trigger`).
+**Status: IMPLEMENTED.**
+
+**SETUP-06 (timeless jewels):** Timeless jewels (Glorious Vanity, Lethal Pride,
+Brutal Restraint, Militant Faith, Elegant Hubris) replace passive tree nodes
+within their radius using seed-based LUTs. 6 jewel types with different
+replacement logic. Affects `realworld_timeless_jewel`.
+
+**SETUP-07 (anointments):** Items with "Allocates X" (amulet anointments) grant
+notable passives. CalcSetup.lua lines 1230-1239 look up the notable by name
+from the tree's `notableMap` and add it to `allocNodes`. The mod parser currently
+stubs `GrantedPassive` with `ModValue::Number(0.0) /* TODO */` — the passive
+name is discarded. Affects 4 oracle builds (bow_deadeye, wand_occultist,
+coc_trigger, phys_melee_slayer). **HIGH PRIORITY.**
+
+**SETUP-08 (radius jewel framework):** The two-pass radius jewel system
+(`buildModListForNode` + `buildModListForNodeList` + `radiusJewelList`) in
+CalcSetup.lua lines 113-210. Handles Thread of Hope (unallocated node access),
+Intuitive Leap (allocation without pathing), Impossible Escape (keystone
+allocation), passive effect scaling (`PassiveSkillEffect`), and
+`PassiveSkillHasNoEffect` suppression. No radius jewel processing exists in
+Rust. Affects `realworld_coc_trigger` (Thread of Hope). **HIGH PRIORITY.**
+
+**SETUP-09 (mastery selections):** Mastery nodes (3.16+) have their generic
+stats replaced by a player-selected mastery effect. Stored as `masteryEffects`
+attribute on `<Spec>`. XML parser does not parse this; `PassiveSpec` has no
+`mastery_selections` field. No oracle builds use masteries (all pre-3.16 trees),
+but any modern build would break. **MEDIUM PRIORITY — blocked until oracle
+builds updated.**
+
+**SETUP-10 (keystone merging):** Keystones granted by items (not tree allocation)
+need `mergeKeystones()` from ModTools.lua lines 226-237. Finds `Keystone` list
+mods in modDB, looks up the keystone by name in `tree.keystoneMap`, adds its
+mods. Affects builds with keystone-granting uniques. **MEDIUM PRIORITY.**
+
+**SETUP-11 (item condition tracking):** CalcSetup.lua lines 1132-1210 tracks
+item rarity counts (UniqueItem, RareItem multipliers), influence multipliers
+(ShaperItem, ElderItem), item type conditions, socket counts, empty socket
+colors. Needed for mods referencing "per shaper item equipped" etc.
+**MEDIUM PRIORITY.**
+
+**SETUP-12 (bandit & pantheon):** Bandit mods (CalcSetup.lua 531-540) and
+Pantheon mods (542-553). All oracle builds use bandit=None and pantheon=None.
+Simple to implement. **LOW PRIORITY.**
+
+**SETUP-13 (buff mode):** CalcSetup.lua lines 444-467. Sets `env.mode_buffs`,
+`env.mode_combat`, `env.mode_effective` which gate conditional mods. Oracle
+builds assume EFFECTIVE mode. **LOW PRIORITY.**
+
+**SETUP-14 (tattoo / hash overrides):** Tattoos replace allocated passive nodes.
+Stored as `<Overrides>` XML elements inside `<Spec>`. PassiveSpec.lua lines
+83, 117-173. No oracle builds use tattoos. **LOW PRIORITY.**
+
+**SETUP-15 (Forbidden Flesh/Flame):** Two matching jewels grant an ascendancy
+notable. CalcSetup.lua lines 1242-1258. Shares mechanism with SETUP-07
+(granted passives). No oracle builds. **LOW PRIORITY — combine with SETUP-07.**
+
+**SETUP-16 (special unique items):** ~7 unique items with custom CalcSetup
+handling: Necromantic Aegis, Energy Blade, The Iron Mass, Dancing Dervish,
+Kalandra's Touch, Widowhail, The Adorned. No oracle builds use any of these.
+**LOW PRIORITY — add per-unique as needed.**
 
 ## 6. Annotated Lua Reference Docs
 
@@ -513,6 +571,16 @@ docs/
     SETUP-04-eval-mod-stubs.md
     SETUP-05-cluster-jewels.md
     SETUP-06-timeless-jewels.md
+    SETUP-07-anointments.md
+    SETUP-08-radius-jewels.md
+    SETUP-09-mastery-selections.md
+    SETUP-10-keystone-merging.md
+    SETUP-11-item-conditions.md
+    SETUP-12-bandit-pantheon.md
+    SETUP-13-buff-mode.md
+    SETUP-14-tattoo-overrides.md
+    SETUP-15-forbidden-flesh-flame.md
+    SETUP-16-special-uniques.md
     PERF-01-attributes.md
     PERF-02-life-mana-es.md
     ...                               # ~30 total chunk references
@@ -547,8 +615,10 @@ crates/pob-calc/src/
   calc/mirages.rs                     # Chunk MIR-01
   calc/calcs.rs                       # Chunk AGG-01
   calc/active_skill.rs                # Chunk SETUP-02
-  calc/setup.rs                       # Chunks SETUP-01, SETUP-03, SETUP-05, SETUP-06
-  passive_tree/mod.rs                 # Chunks SETUP-05, SETUP-06
+  calc/setup.rs                       # Chunks SETUP-01, -03, -05 through -16
+  passive_tree/mod.rs                 # Chunks SETUP-05, -06, -08, -09, -14
+  calc/env.rs                         # Chunk SETUP-13
+  build/mod_parser.rs                 # Chunks SETUP-07, SETUP-15
   mod_db/eval_mod.rs                  # Chunk SETUP-04
 ```
 
