@@ -22,6 +22,13 @@ pub fn fields_for_chunk(chunk: &str) -> Option<&'static [&'static str]> {
         // by re-running PERF-01-attributes which should then pass 30/30 builds.
         "SETUP-05-cluster-jewels" => &[],
 
+        // SETUP-06: Timeless jewel node replacement. Timeless jewels (Glorious Vanity,
+        // Lethal Pride, Brutal Restraint, Militant Faith, Elegant Hubris) replace
+        // passive nodes within their radius using seed-based lookup tables. Without
+        // this, realworld_timeless_jewel will fail every downstream chunk. No direct
+        // output fields — verified by PERF-01-attributes passing all builds.
+        "SETUP-06-timeless-jewels" => &[],
+
         // ── Tier 1: Attributes & Pools (CalcPerform early) ──
         "PERF-01-attributes" => &[
             "Str",
@@ -414,6 +421,7 @@ pub fn fields_for_chunk(chunk: &str) -> Option<&'static [&'static str]> {
 pub fn all_chunk_ids() -> &'static [&'static str] {
     &[
         "SETUP-05-cluster-jewels",
+        "SETUP-06-timeless-jewels",
         "PERF-01-attributes",
         "PERF-02-life-mana-es",
         "PERF-03-charges",

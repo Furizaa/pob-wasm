@@ -94,6 +94,7 @@ chunk ID from this list that doesn't have a reference doc yet:
 
 ```
 SETUP-05-cluster-jewels
+SETUP-06-timeless-jewels
 PERF-01-attributes
 PERF-02-life-mana-es
 PERF-03-charges
@@ -181,6 +182,7 @@ Work top to bottom. A chunk can only be worked on when everything above it passe
 ```
 Tier 0 (do first — no output fields, but everything depends on these):
   SETUP-05-cluster-jewels
+  SETUP-06-timeless-jewels
 
 Tier 1 (needs Tier 0):
   PERF-01-attributes
