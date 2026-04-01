@@ -75,7 +75,14 @@ fn compare_value(actual: &serde_json::Value, expected: &serde_json::Value) -> bo
 
 #[test]
 fn parity_report() {
-    let data = load_game_data().expect("DATA_DIR must be set and contain valid game data");
+    let data = match load_game_data() {
+        Some(d) => d,
+        None => {
+            println!("DATA_DIR not set or invalid — skipping parity report.");
+            println!("Usage: DATA_DIR=./data cargo test --test parity_report -- --nocapture");
+            return;
+        }
+    };
 
     let build_names = field_groups::realworld_build_names();
     assert!(!build_names.is_empty(), "No realworld builds found");

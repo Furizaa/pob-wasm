@@ -136,21 +136,67 @@ pub fn eval_mod(
             ModTag::GlobalEffect { .. } => {
                 // Metadata only — no gating or scaling
             }
-            // Phase 3 stubs — tags stored correctly, evaluation deferred to Phase 4+
-            ModTag::SkillName { .. } => {
-                // TODO(phase4): check against cfg.skill_name
+            ModTag::SkillName { name } => {
+                // Mod only applies if the active skill's name matches.
+                // PoB: checks cfg.skillName against tag.skillName.
+                // If no cfg is provided, the mod does not apply.
+                match cfg {
+                    Some(c) => {
+                        let skill_name = c.skill_name.as_deref().unwrap_or("");
+                        if !skill_name.eq_ignore_ascii_case(name) {
+                            return None;
+                        }
+                    }
+                    None => return None,
+                }
             }
-            ModTag::SkillId { .. } => {
-                // TODO(phase4): check against cfg.skill_id
+            ModTag::SkillId { id } => {
+                // Mod only applies if the active skill's gem ID matches.
+                match cfg {
+                    Some(c) => {
+                        let skill_id = c.skill_id.as_deref().unwrap_or("");
+                        if !skill_id.eq_ignore_ascii_case(id) {
+                            return None;
+                        }
+                    }
+                    None => return None,
+                }
             }
-            ModTag::SkillPart { .. } => {
-                // TODO(phase4): check against cfg.skill_part
+            ModTag::SkillPart { part } => {
+                // Mod only applies to a specific skill part (e.g., part 1 vs part 2 of a skill).
+                match cfg {
+                    Some(c) => {
+                        let current_part = c.skill_part.unwrap_or(1);
+                        if current_part != *part {
+                            return None;
+                        }
+                    }
+                    None => return None,
+                }
             }
-            ModTag::SocketedIn { .. } => {
-                // TODO(phase4): check against item socket context
+            ModTag::SocketedIn { slot_name } => {
+                // Mod only applies to gems socketed in a specific item slot.
+                match cfg {
+                    Some(c) => {
+                        let cfg_slot = c.slot_name.as_deref().unwrap_or("");
+                        if !cfg_slot.eq_ignore_ascii_case(slot_name) {
+                            return None;
+                        }
+                    }
+                    None => return None,
+                }
             }
-            ModTag::ItemCondition { .. } => {
-                // TODO(phase4): check against item condition context
+            ModTag::ItemCondition { var, neg } => {
+                // Check a condition on an equipped item's properties.
+                // For now, check if the variable exists as a condition in the modDB.
+                // Full item property lookup requires item context which may not be
+                // available in all query paths. This implementation handles the common
+                // case where item conditions are pre-computed as modDB conditions
+                // during setup.
+                let met = mod_db.conditions.get(var).copied().unwrap_or(false);
+                if met == *neg {
+                    return None;
+                }
             }
         }
     }
@@ -547,7 +593,7 @@ mod tests {
     }
 
     #[test]
-    fn eval_skill_name_tag_stubbed_passes() {
+    fn eval_skill_name_tag_filters_when_no_cfg() {
         let m = Mod {
             name: "Damage".into(),
             mod_type: ModType::Inc,
@@ -557,81 +603,178 @@ mod tests {
             tags: vec![ModTag::SkillName {
                 name: "Fireball".into(),
             }],
-            source: ModSource::new("Test", "test"),
+            source: ModSource::new("test", "test"),
         };
         let db = ModDb::new();
         let output = OutputTable::new();
-        assert_eq!(eval_mod(&m, None, &db, &output), Some(10.0));
+        // No cfg → mod should NOT apply
+        assert!(eval_mod(&m, None, &db, &output).is_none());
     }
 
     #[test]
-    fn eval_skill_id_tag_stubbed_passes() {
+    fn eval_skill_name_tag_passes_matching_skill() {
         let m = Mod {
             name: "Damage".into(),
             mod_type: ModType::Inc,
-            value: ModValue::Number(5.0),
+            value: ModValue::Number(10.0),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            tags: vec![ModTag::SkillName {
+                name: "Fireball".into(),
+            }],
+            source: ModSource::new("test", "test"),
+        };
+        let db = ModDb::new();
+        let output = OutputTable::new();
+        let cfg = SkillCfg {
+            skill_name: Some("Fireball".into()),
+            ..Default::default()
+        };
+        assert_eq!(eval_mod(&m, Some(&cfg), &db, &output), Some(10.0));
+    }
+
+    #[test]
+    fn eval_skill_name_tag_rejects_non_matching_skill() {
+        let m = Mod {
+            name: "Damage".into(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(10.0),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            tags: vec![ModTag::SkillName {
+                name: "Fireball".into(),
+            }],
+            source: ModSource::new("test", "test"),
+        };
+        let db = ModDb::new();
+        let output = OutputTable::new();
+        let cfg = SkillCfg {
+            skill_name: Some("Arc".into()),
+            ..Default::default()
+        };
+        assert!(eval_mod(&m, Some(&cfg), &db, &output).is_none());
+    }
+
+    #[test]
+    fn eval_skill_id_tag_filters_correctly() {
+        let m = Mod {
+            name: "Damage".into(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(15.0),
             flags: ModFlags::NONE,
             keyword_flags: KeywordFlags::NONE,
             tags: vec![ModTag::SkillId {
-                id: "Fireball".into(),
+                id: "FireballGem".into(),
             }],
-            source: ModSource::new("Test", "test"),
+            source: ModSource::new("test", "test"),
         };
         let db = ModDb::new();
         let output = OutputTable::new();
-        assert_eq!(eval_mod(&m, None, &db, &output), Some(5.0));
+        // No cfg → excluded
+        assert!(eval_mod(&m, None, &db, &output).is_none());
+        // Matching ID → passes
+        let cfg = SkillCfg {
+            skill_id: Some("FireballGem".into()),
+            ..Default::default()
+        };
+        assert_eq!(eval_mod(&m, Some(&cfg), &db, &output), Some(15.0));
+        // Non-matching ID → excluded
+        let cfg2 = SkillCfg {
+            skill_id: Some("ArcGem".into()),
+            ..Default::default()
+        };
+        assert!(eval_mod(&m, Some(&cfg2), &db, &output).is_none());
     }
 
     #[test]
-    fn eval_socketed_in_tag_stubbed_passes() {
+    fn eval_skill_part_tag_filters_correctly() {
         let m = Mod {
-            name: "Level".into(),
-            mod_type: ModType::Base,
-            value: ModValue::Number(1.0),
+            name: "Damage".into(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(20.0),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            tags: vec![ModTag::SkillPart { part: 2 }],
+            source: ModSource::new("test", "test"),
+        };
+        let db = ModDb::new();
+        let output = OutputTable::new();
+        // No cfg → excluded
+        assert!(eval_mod(&m, None, &db, &output).is_none());
+        // Part 1 (default) → excluded
+        let cfg1 = SkillCfg {
+            skill_part: Some(1),
+            ..Default::default()
+        };
+        assert!(eval_mod(&m, Some(&cfg1), &db, &output).is_none());
+        // Part 2 → passes
+        let cfg2 = SkillCfg {
+            skill_part: Some(2),
+            ..Default::default()
+        };
+        assert_eq!(eval_mod(&m, Some(&cfg2), &db, &output), Some(20.0));
+    }
+
+    #[test]
+    fn eval_socketed_in_tag_filters_correctly() {
+        let m = Mod {
+            name: "Damage".into(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(25.0),
             flags: ModFlags::NONE,
             keyword_flags: KeywordFlags::NONE,
             tags: vec![ModTag::SocketedIn {
-                slot_name: "Body Armour".into(),
+                slot_name: "Weapon 1".into(),
             }],
-            source: ModSource::new("Test", "test"),
+            source: ModSource::new("test", "test"),
         };
         let db = ModDb::new();
         let output = OutputTable::new();
-        assert_eq!(eval_mod(&m, None, &db, &output), Some(1.0));
+        // No cfg → excluded
+        assert!(eval_mod(&m, None, &db, &output).is_none());
+        // Matching slot → passes
+        let cfg = SkillCfg {
+            slot_name: Some("Weapon 1".into()),
+            ..Default::default()
+        };
+        assert_eq!(eval_mod(&m, Some(&cfg), &db, &output), Some(25.0));
+        // Non-matching slot → excluded
+        let cfg2 = SkillCfg {
+            slot_name: Some("Helmet".into()),
+            ..Default::default()
+        };
+        assert!(eval_mod(&m, Some(&cfg2), &db, &output).is_none());
     }
 
     #[test]
-    fn eval_item_condition_tag_stubbed_passes() {
+    fn eval_item_condition_tag_filters_correctly() {
         let m = Mod {
-            name: "Armour".into(),
+            name: "Damage".into(),
             mod_type: ModType::Inc,
-            value: ModValue::Number(20.0),
+            value: ModValue::Number(30.0),
             flags: ModFlags::NONE,
             keyword_flags: KeywordFlags::NONE,
             tags: vec![ModTag::ItemCondition {
                 var: "UsingShield".into(),
                 neg: false,
             }],
-            source: ModSource::new("Test", "test"),
+            source: ModSource::new("test", "test"),
         };
-        let db = ModDb::new();
+        let mut db = ModDb::new();
         let output = OutputTable::new();
-        assert_eq!(eval_mod(&m, None, &db, &output), Some(20.0));
-    }
-
-    #[test]
-    fn eval_skill_part_tag_stubbed_passes() {
-        let m = Mod {
-            name: "Damage".into(),
-            mod_type: ModType::More,
-            value: ModValue::Number(30.0),
-            flags: ModFlags::NONE,
-            keyword_flags: KeywordFlags::NONE,
-            tags: vec![ModTag::SkillPart { part: 1 }],
-            source: ModSource::new("Test", "test"),
-        };
-        let db = ModDb::new();
-        let output = OutputTable::new();
+        // Condition not set → excluded
+        assert!(eval_mod(&m, None, &db, &output).is_none());
+        // Condition set to true → passes
+        db.set_condition("UsingShield", true);
         assert_eq!(eval_mod(&m, None, &db, &output), Some(30.0));
+        // Negated version
+        let m_neg = Mod {
+            tags: vec![ModTag::ItemCondition {
+                var: "UsingShield".into(),
+                neg: true,
+            }],
+            ..m.clone()
+        };
+        assert!(eval_mod(&m_neg, None, &db, &output).is_none());
     }
 }
