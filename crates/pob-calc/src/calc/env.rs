@@ -191,6 +191,20 @@ pub enum CalcMode {
     Calculator,
 }
 
+/// A single entry in the requirements table.
+/// Mirrors one entry in PoB's `env.requirementsTable`.
+#[derive(Debug, Clone)]
+pub struct RequirementEntry {
+    /// Strength requirement (0 if none)
+    pub str_req: f64,
+    /// Dexterity requirement (0 if none)
+    pub dex_req: f64,
+    /// Intelligence requirement (0 if none)
+    pub int_req: f64,
+    /// Human-readable source name for display
+    pub source_name: String,
+}
+
 /// The full calculation environment for one pass.
 /// Mirrors POB's `env` table from CalcSetup.lua.
 pub struct CalcEnv {
@@ -198,6 +212,8 @@ pub struct CalcEnv {
     pub enemy: Actor,
     pub mode: CalcMode,
     pub data: Arc<GameData>,
+    /// Item and gem attribute requirements. Populated during setup.
+    pub requirements_table: Vec<RequirementEntry>,
 }
 
 /// Get a numeric output value, returning 0.0 if absent or not a number.
@@ -221,6 +237,7 @@ impl CalcEnv {
             enemy: Actor::new(enemy_mod_db),
             mode: CalcMode::Normal,
             data,
+            requirements_table: Vec::new(),
         }
     }
 }

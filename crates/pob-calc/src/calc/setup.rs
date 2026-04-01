@@ -44,6 +44,9 @@ pub fn init_env(build: &Build, data: Arc<GameData>) -> Result<CalcEnv, CalcError
     // Initialize enemy ModDb
     init_enemy_db(build, &mut env.enemy.mod_db, &env.data.clone());
 
+    // Build attribute requirements table
+    build_requirements_table(build, &mut env);
+
     Ok(env)
 }
 
@@ -278,9 +281,16 @@ fn add_class_base_stats(build: &Build, db: &mut ModDb, _data: &GameData) {
 }
 
 fn add_passive_mods(build: &Build, db: &mut ModDb, data: &GameData) {
-    for &node_id in &build.passive_spec.allocated_nodes {
-        let Some(node) = data.passive_tree.nodes.get(&node_id) else {
-            // Node not found in tree data — skip silently
+    // Use the version-specific tree if available, otherwise fall back to default.
+    let tree = data.tree_for_version(&build.passive_spec.tree_version);
+
+    // Find nodes that are reachable from a start node through the allocated node graph.
+    // This mirrors PoB's BuildAllDependsAndPaths pruning: nodes not connected to a
+    // class/ascendancy start are orphans and should not contribute mods.
+    let reachable = connected_passive_nodes(build, tree);
+
+    for &node_id in &reachable {
+        let Some(node) = tree.nodes.get(&node_id) else {
             continue;
         };
         let source = ModSource::new("Passive", &node.name);
@@ -293,9 +303,371 @@ fn add_passive_mods(build: &Build, db: &mut ModDb, data: &GameData) {
     }
 }
 
+/// Compute the set of passive node IDs that are reachable from a class or
+/// ascendancy start node, traversing only through the allocated node set.
+///
+/// Mirrors PoB's `BuildAllDependsAndPaths` which prunes "orphan" nodes —
+/// allocated nodes that can't be traced back to the character's start.
+fn connected_passive_nodes(
+    build: &Build,
+    tree: &crate::passive_tree::PassiveTree,
+) -> std::collections::HashSet<u32> {
+    use std::collections::{HashSet, VecDeque};
+
+    let allocated: HashSet<u32> = build.passive_spec.allocated_nodes.iter().copied().collect();
+
+    if allocated.is_empty() {
+        return HashSet::new();
+    }
+
+    // Build bidirectional adjacency restricted to allocated nodes (using tree out links)
+    let mut adj: std::collections::HashMap<u32, Vec<u32>> = std::collections::HashMap::new();
+    for &nid in &allocated {
+        if let Some(node) = tree.nodes.get(&nid) {
+            for &linked in &node.linked_ids {
+                if allocated.contains(&linked) {
+                    adj.entry(nid).or_default().push(linked);
+                    adj.entry(linked).or_default().push(nid);
+                }
+            }
+        }
+    }
+
+    // Find start nodes: class start nodes and ascendancy start nodes in the tree
+    // that are in the allocated set OR are the expected class/ascendancy starts.
+    use crate::passive_tree::NodeType;
+    let mut start_ids: HashSet<u32> = HashSet::new();
+    for (&nid, node) in &tree.nodes {
+        if matches!(
+            node.node_type,
+            NodeType::ClassStart | NodeType::AscendancyStart
+        ) {
+            start_ids.insert(nid);
+        }
+    }
+
+    // BFS from all start nodes that are in the allocated set
+    let mut reachable: HashSet<u32> = HashSet::new();
+    let mut queue: VecDeque<u32> = VecDeque::new();
+
+    for &nid in &start_ids {
+        if allocated.contains(&nid) {
+            reachable.insert(nid);
+            queue.push_back(nid);
+        }
+    }
+
+    while let Some(curr) = queue.pop_front() {
+        if let Some(neighbors) = adj.get(&curr) {
+            for &next in neighbors {
+                if !reachable.contains(&next) {
+                    reachable.insert(next);
+                    queue.push_back(next);
+                }
+            }
+        }
+    }
+
+    // If there are no start nodes in the tree data at all (e.g. test builds with minimal trees),
+    // fall back to applying all allocated nodes. This allows unit tests with custom trees to work.
+    if start_ids.is_empty() {
+        return allocated;
+    }
+
+    // If no start nodes are in the allocated set, the build's passive nodes are disconnected
+    // (orphaned). Don't apply any passive mods in this case.
+    // This matches PoB's BuildAllDependsAndPaths behavior which prunes orphaned nodes.
+    reachable
+}
+
+/// Normalize a gem skill ID from the build XML to match our gems.json keys.
+/// PoB uses legacy/different skill IDs in old builds (e.g. "SparkProjectile", "HatredAura").
+/// This function maps those to the current gem IDs used in our data.
+fn normalize_gem_skill_id(skill_id: &str) -> &str {
+    // Explicit mappings for known legacy IDs from old PoB builds.
+    // Maps old skill IDs used in build XML files to current skill IDs in our data.
+    match skill_id {
+        // Active skill renames
+        "SparkProjectile" => "Spark",
+        "AccuracyAndCritsAura" => "Precision",
+        "NewPhaseRun" => "PhaseRun",
+        "NewShieldCharge" => "ShieldCharge",
+        "BladestormSandstorm" => "BloodAndSand",
+        "AncestralWarchief" => "AncestralProtector",
+        "VaalAncestralWarchief" => "AncestralProtector",
+        // Aura skill renames (removed "Aura" suffix in newer PoB)
+        "HatredAura" => "Hatred",
+        "AngerAura" => "Anger",
+        "WrathAura" => "Wrath",
+        "DamageOverTimeAura" => "Malevolence",
+        "PhysicalDamageAura" => "Pride",
+        "SpellDamageAura" => "Zealotry",
+        "FlammabilityAura" => "Flammability",
+        "FlamabilityAura" => "Flammability",
+        "PurityOfFireAura" => "PurityOfFire",
+        // Support gem renames
+        "SupportPenetration" => "SupportLightningPenetration",
+        "SupportFasterAttack" => "SupportFasterAttacks",
+        "SupportRapidDecay" => "SupportSwiftAffliction",
+        "SupportCastOnDamageTaken" => "SupportCastWhenDamageTaken",
+        "SupportCastOnCritPlus" => "SupportCastOnCriticalStrike",
+        "SupportBrutalityPlus" => "SupportBrutality",
+        "SupportControlledDestructionPlus" => "SupportControlledDestruction",
+        "SupportGreaterMultipleProjectilesPlus" => "SupportGreaterMultipleProjectiles",
+        "SupportMeleePhysicalDamagePlus" => "SupportMeleePhysicalDamage",
+        "SupportViciousProjectilesPlus" => "SupportViciousProjectiles",
+        "SupportVoidManipulationPlus" => "SupportVoidManipulation",
+        "SupportMultipleTotem" => "SupportMultipleTotems",
+        "SupportMultiTotem" => "SupportMultipleTotems",
+        "SupportRangedAttackTotem" => "SupportMultipleTotems",
+        "SupportGemMirageArcher" => "SupportMirageArcher",
+        "SupportTrinitySupportGem" => "SupportTrinity",
+        "SupportSlowProjectile" => "SupportSlowerProjectiles",
+        "SupportWeaponElementalDamage" => "SupportElementalDamageWithAttacks",
+        "SupportIncreasedDuration" => "SupportMoreDuration",
+        "SupportIgniteChance" => "SupportIgniteProliferation",
+        "SupportPowerChargeOnCrit" => "SupportPowerChargeOnCritical",
+        "SupportChaosAttacks" => "SupportWitheringTouch",
+        "SupportMeleeDamageOnFullLife" => "SupportDamageOnFullLife",
+        "SupportRemoteMine" => "SupportBlastchainMine",
+        "SupportDamageAgainstChilled" => "SupportHypothermia",
+        "SupportStormBarrier" => "SupportInfusedChannelling",
+        "SupportAdditionalXP" => "SupportEnlighten",
+        "SupportAdditionalLevel" => "SupportEmpower",
+        "SupportAdditionalCooldown" => "SupportSecondWind",
+        "RainOfSpores" => "ToxicRain",
+        "BloodSandStance" => "BloodAndSand",
+        "BloodSandArmour" => "FleshAndStone",
+        "BloodSpears" => "Perforate",
+        "ChargedAttack" => "BladeFlurry",
+        "HiddenBlade" => "EtherealKnives",
+        "IceStrike" => "FrostBlades",
+        "PuresteelBanner" => "DreadBanner",
+        "ConduitSigil" => "ArmageddonBrand",
+        "FrostBoltNova" => "FrostBolt",
+        "QuickDodge" => "Dash",
+        // Default: return as-is
+        other => other,
+    }
+}
+
+/// Build the requirements table for attribute requirements computation.
+/// Mirrors PoB's requirementsTable construction in CalcSetup.lua.
+/// Populates env.requirements_table with one entry per equipped item/gem that has attr requirements.
+fn build_requirements_table(build: &Build, env: &mut CalcEnv) {
+    use crate::calc::env::RequirementEntry;
+
+    let item_set = match build.item_sets.get(build.active_item_set) {
+        Some(set) => set,
+        None => return,
+    };
+
+    // 1. Item requirements
+    for (slot_name, &item_id) in &item_set.slots {
+        let slot = match ItemSlot::from_str(slot_name) {
+            Some(s) => s,
+            None => continue,
+        };
+
+        // Skip flask and jewel slots for requirements
+        if slot.is_flask() || slot.is_jewel() {
+            continue;
+        }
+
+        let item = match build.items.get(&item_id) {
+            Some(i) => i,
+            None => continue,
+        };
+
+        // Resolve item requirements from base type
+        let mut resolved_item = item.clone();
+        crate::build::item_resolver::resolve_item_base(&mut resolved_item, &env.data.bases);
+
+        let base_req = &resolved_item.requirements;
+        let mut str_req = base_req.str_req as f64;
+        let mut dex_req = base_req.dex_req as f64;
+        let mut int_req = base_req.int_req as f64;
+
+        // Apply item-local requirement mods (e.g. "+257 Intelligence Requirement" on Cospri's Malice).
+        // These are parsed as BASE mods on StrRequirement, DexRequirement, IntRequirement.
+        let req_src = crate::mod_db::types::ModSource::new("Item", &resolved_item.name);
+        let mut local_db = crate::mod_db::ModDb::new();
+        for mod_lines in resolved_item
+            .implicits
+            .iter()
+            .chain(resolved_item.explicits.iter())
+        {
+            let mods = crate::build::mod_parser::parse_mod(mod_lines, req_src.clone());
+            for m in mods {
+                local_db.add(m);
+            }
+        }
+        let empty_output = std::collections::HashMap::new();
+        let str_req_mod = local_db.sum_cfg(
+            crate::mod_db::types::ModType::Base,
+            "StrRequirement",
+            None,
+            &empty_output,
+        );
+        let dex_req_mod = local_db.sum_cfg(
+            crate::mod_db::types::ModType::Base,
+            "DexRequirement",
+            None,
+            &empty_output,
+        );
+        let int_req_mod = local_db.sum_cfg(
+            crate::mod_db::types::ModType::Base,
+            "IntRequirement",
+            None,
+            &empty_output,
+        );
+        str_req += str_req_mod;
+        dex_req += dex_req_mod;
+        int_req += int_req_mod;
+
+        if str_req > 0.0 || dex_req > 0.0 || int_req > 0.0 {
+            env.requirements_table.push(RequirementEntry {
+                str_req,
+                dex_req,
+                int_req,
+                source_name: format!("{} ({})", resolved_item.name, slot_name),
+            });
+        }
+    }
+
+    // 2. Gem requirements from equipped skill slots
+    // Only process gems in equipped item slots (not unequipped)
+    // Use the active skill set
+    let active_skill_set = build
+        .skill_sets
+        .get(build.active_skill_set)
+        .or_else(|| build.skill_sets.first());
+    let skills: &[crate::build::types::Skill] = match active_skill_set {
+        Some(ss) => &ss.skills,
+        None => &[],
+    };
+
+    for skill in skills {
+        // Only process gems that are in an equipped slot
+        let slot_name = skill.slot.clone();
+
+        if !skill.enabled {
+            continue;
+        }
+
+        // Check that the slot is equipped
+        let is_equipped = item_set.slots.contains_key(&slot_name);
+        if !is_equipped {
+            continue;
+        }
+
+        for gem in &skill.gems {
+            if !gem.enabled {
+                continue;
+            }
+
+            // Look up gem data (with fallback normalization for legacy skill IDs)
+            let resolved_skill_id = normalize_gem_skill_id(&gem.skill_id);
+            let gem_data = match env.data.gems.get(resolved_skill_id) {
+                Some(d) => d,
+                None => continue,
+            };
+
+            // Compute attribute requirement from gem color and level requirement
+            let gem_level = gem.level as usize;
+            let level_req = gem_data
+                .levels
+                .iter()
+                .find(|l| l.level as usize == gem_level)
+                .map(|l| l.level_requirement)
+                .unwrap_or(1);
+
+            if level_req == 0 {
+                continue;
+            }
+
+            // Determine multipliers from gem requirements data (or fallback to color)
+            let (req_str_multi, req_dex_multi, req_int_multi) =
+                gem_requirements(resolved_skill_id, gem_data, &env.data.gem_reqs);
+
+            let stat_type = if gem_data.is_support {
+                0.5_f64
+            } else {
+                0.7_f64
+            };
+
+            let str_req = if req_str_multi > 0 {
+                compute_gem_attr_req(level_req as f64, req_str_multi as f64, stat_type)
+            } else {
+                0.0
+            };
+            let dex_req = if req_dex_multi > 0 {
+                compute_gem_attr_req(level_req as f64, req_dex_multi as f64, stat_type)
+            } else {
+                0.0
+            };
+            let int_req = if req_int_multi > 0 {
+                compute_gem_attr_req(level_req as f64, req_int_multi as f64, stat_type)
+            } else {
+                0.0
+            };
+
+            if str_req > 0.0 || dex_req > 0.0 || int_req > 0.0 {
+                env.requirements_table.push(RequirementEntry {
+                    str_req,
+                    dex_req,
+                    int_req,
+                    source_name: format!("{} ({})", gem_data.display_name, slot_name),
+                });
+            }
+        }
+    }
+}
+
+/// Get the attribute requirement multipliers for a gem.
+/// First tries the gem_reqs lookup table (accurate PoB data),
+/// then falls back to color-based heuristic.
+/// Returns (str_multi, dex_multi, int_multi) each 0-100.
+fn gem_requirements(
+    skill_id: &str,
+    gem_data: &crate::data::gems::GemData,
+    gem_reqs: &std::collections::HashMap<String, crate::data::GemReqMultipliers>,
+) -> (u32, u32, u32) {
+    // Try exact skill ID match in gem_reqs
+    if let Some(req) = gem_reqs.get(skill_id) {
+        return (req.req_str, req.req_dex, req.req_int);
+    }
+
+    // Fallback: color-based heuristic
+    match gem_data.color.as_deref() {
+        Some("strength") => (100, 0, 0),
+        Some("dexterity") => (0, 100, 0),
+        Some("intelligence") => (0, 0, 100),
+        _ => (0, 0, 0),
+    }
+}
+
+/// Compute the actual attribute requirement from level requirement and multiplier.
+/// Mirrors PoB's calcLib.getGemStatRequirement().
+/// formula: floor(x + 0.5) where x = (20 + (level-3)*3) * (multi/100)^0.9 * statType
+/// Uses PoB's round() = floor(x + 0.5) (round half up, not banker's rounding).
+/// Returns 0 if result < 14.
+fn compute_gem_attr_req(level_req: f64, multi: f64, stat_type: f64) -> f64 {
+    if multi == 0.0 {
+        return 0.0;
+    }
+    let x = (20.0 + (level_req - 3.0) * 3.0) * (multi / 100.0_f64).powf(0.9) * stat_type;
+    let req = (x + 0.5).floor();
+    if req < 14.0 {
+        0.0
+    } else {
+        req
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::init_env;
     use crate::{
         build::{parse_xml, types::Build},
         data::GameData,

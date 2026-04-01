@@ -9,6 +9,7 @@ use bases::{BaseItemData, BaseItemMap};
 use gems::GemsMap;
 use misc::MiscData;
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::sync::Arc;
 use uniques::{UniqueItemData, UniqueItemMap};
 
@@ -24,15 +25,43 @@ struct RawGameData {
     uniques: Option<Vec<UniqueItemData>>,
 }
 
+/// Gem attribute requirement multipliers (0-100 scale per attribute).
+#[derive(Debug, Clone, Default, serde::Deserialize)]
+pub struct GemReqMultipliers {
+    #[serde(rename = "reqStr", default)]
+    pub req_str: u32,
+    #[serde(rename = "reqDex", default)]
+    pub req_dex: u32,
+    #[serde(rename = "reqInt", default)]
+    pub req_int: u32,
+}
+
 /// Immutable game data shared across all calculations.
 /// Loaded once at startup from the JSON files produced by data-extractor.
 #[derive(Debug, Clone)]
 pub struct GameData {
     pub gems: GemsMap,
     pub misc: Arc<MiscData>,
+    /// Default (current) passive tree.
     pub passive_tree: PassiveTree,
+    /// Version-specific passive trees, keyed by tree version string (e.g. "3_13", "3_6").
+    /// Used when a build specifies an older tree version.
+    pub versioned_trees: HashMap<String, PassiveTree>,
     pub bases: BaseItemMap,
     pub uniques: UniqueItemMap,
+    /// Gem attribute requirement multipliers by skill ID.
+    /// Key = PoB skill ID (e.g. "Spark"), value = reqStr/reqDex/reqInt on 0-100 scale.
+    pub gem_reqs: HashMap<String, GemReqMultipliers>,
+}
+
+impl GameData {
+    /// Get the passive tree for a specific build tree version.
+    /// Falls back to the default passive_tree if the version-specific tree isn't loaded.
+    pub fn tree_for_version(&self, tree_version: &str) -> &PassiveTree {
+        self.versioned_trees
+            .get(tree_version)
+            .unwrap_or(&self.passive_tree)
+    }
 }
 
 impl GameData {
@@ -84,6 +113,7 @@ impl GameData {
         } else {
             PassiveTree {
                 nodes: std::collections::HashMap::new(),
+                classes: Vec::new(),
             }
         };
         let bases = BaseItemMap::from_vec(raw.bases.unwrap_or_default());
@@ -92,9 +122,23 @@ impl GameData {
             gems: raw.gems,
             misc: Arc::new(raw.misc),
             passive_tree,
+            versioned_trees: HashMap::new(),
             bases,
             uniques,
+            gem_reqs: HashMap::new(),
         })
+    }
+
+    /// Add a version-specific passive tree.
+    pub fn add_versioned_tree(&mut self, version: String, tree: PassiveTree) {
+        self.versioned_trees.insert(version, tree);
+    }
+
+    /// Load gem attribute requirement multipliers from a JSON file.
+    pub fn load_gem_reqs_from_json(&mut self, json: &str) -> Result<(), crate::error::DataError> {
+        let reqs: HashMap<String, GemReqMultipliers> = serde_json::from_str(json)?;
+        self.gem_reqs = reqs;
+        Ok(())
     }
 }
 

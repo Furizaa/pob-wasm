@@ -33,6 +33,10 @@ struct RawNode {
     #[serde(default)]
     is_ascendancy_start: bool,
     #[serde(default)]
+    is_class_start: bool,
+    #[serde(default)]
+    class_start_index: Option<u32>,
+    #[serde(default)]
     ascendancy_name: Option<String>,
     #[serde(default)]
     icon: String,
@@ -52,6 +56,8 @@ impl RawNode {
             NodeType::Mastery
         } else if self.is_ascendancy_start {
             NodeType::AscendancyStart
+        } else if self.is_class_start {
+            NodeType::ClassStart
         } else {
             NodeType::Small
         }
@@ -64,7 +70,7 @@ pub struct PassiveNode {
     pub name: String,
     /// Human-readable stat descriptions, e.g. ["+10 to maximum Life"]
     pub stats: Vec<String>,
-    /// IDs of nodes this one connects to
+    /// IDs of nodes this one connects to (from "out" field in tree data)
     pub linked_ids: Vec<u32>,
     /// Classification of this node (keystone, notable, etc.)
     pub node_type: NodeType,
@@ -74,11 +80,35 @@ pub struct PassiveNode {
     pub icon: String,
     /// Number of skill points granted by allocating this node
     pub skill_points_granted: i32,
+    /// Class start index (0=Scion, 1=Marauder, etc.) if this is a class start node
+    pub class_start_index: Option<u32>,
+}
+
+/// Per-class base attributes from the passive tree data.
+#[derive(Debug, Clone, Default)]
+pub struct ClassData {
+    pub name: String,
+    pub base_str: f64,
+    pub base_dex: f64,
+    pub base_int: f64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+struct RawClassData {
+    name: String,
+    #[serde(default)]
+    base_str: f64,
+    #[serde(default)]
+    base_dex: f64,
+    #[serde(default)]
+    base_int: f64,
 }
 
 #[derive(Debug, Clone)]
 pub struct PassiveTree {
     pub nodes: HashMap<u32, PassiveNode>,
+    /// Class data by class index (0=Scion, 1=Marauder, 2=Ranger, 3=Witch, 4=Duelist, 5=Templar, 6=Shadow)
+    pub classes: Vec<ClassData>,
 }
 
 impl PassiveTree {
@@ -86,6 +116,8 @@ impl PassiveTree {
         #[derive(Deserialize)]
         struct Root {
             nodes: HashMap<String, RawNode>,
+            #[serde(default)]
+            classes: HashMap<String, RawClassData>,
         }
         let root: Root = serde_json::from_str(json)?;
         let nodes = root
@@ -102,11 +134,65 @@ impl PassiveTree {
                     ascendancy_name: raw.ascendancy_name,
                     icon: raw.icon,
                     skill_points_granted: raw.skill_points_granted,
+                    class_start_index: raw.class_start_index,
                 };
                 (raw.id, node)
             })
             .collect();
-        Ok(Self { nodes })
+
+        // Parse class data — keyed by class index string ("0", "1", ...)
+        let mut classes_map: Vec<(u32, ClassData)> = root
+            .classes
+            .into_iter()
+            .filter_map(|(k, v)| {
+                k.parse::<u32>().ok().map(|idx| {
+                    (
+                        idx,
+                        ClassData {
+                            name: v.name,
+                            base_str: v.base_str,
+                            base_dex: v.base_dex,
+                            base_int: v.base_int,
+                        },
+                    )
+                })
+            })
+            .collect();
+        classes_map.sort_by_key(|(idx, _)| *idx);
+        let classes = classes_map.into_iter().map(|(_, c)| c).collect();
+
+        Ok(Self { nodes, classes })
+    }
+
+    /// Get the class start node IDs for all classes.
+    /// Returns a HashSet of node IDs that are class start or ascendancy start nodes.
+    pub fn get_start_node_ids(&self) -> std::collections::HashSet<u32> {
+        self.nodes
+            .values()
+            .filter(|n| {
+                n.node_type == NodeType::ClassStart || n.node_type == NodeType::AscendancyStart
+            })
+            .map(|n| n.id)
+            .collect()
+    }
+
+    /// Get class data by class index (PoB class ID).
+    /// Returns None if the index is out of range.
+    pub fn class_data(&self, class_idx: u32) -> Option<&ClassData> {
+        self.classes.get(class_idx as usize)
+    }
+
+    /// Build a bidirectional adjacency map from the tree's `linked_ids`.
+    /// Returns a map from node_id → list of connected node_ids.
+    pub fn build_adjacency(&self) -> HashMap<u32, Vec<u32>> {
+        let mut adj: HashMap<u32, Vec<u32>> = HashMap::new();
+        for node in self.nodes.values() {
+            for &linked in &node.linked_ids {
+                adj.entry(node.id).or_default().push(linked);
+                adj.entry(linked).or_default().push(node.id);
+            }
+        }
+        adj
     }
 }
 
