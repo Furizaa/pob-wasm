@@ -38952,7 +38952,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Acrobatics */,
+                    value: ModValue::String("Acrobatics".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -38965,7 +38965,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Ancestral Bond */,
+                    value: ModValue::String("Ancestral Bond".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -38978,7 +38978,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Arrow Dancing */,
+                    value: ModValue::String("Arrow Dancing".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -38991,7 +38991,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Arsenal of Vengeance */,
+                    value: ModValue::String("Arsenal of Vengeance".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39004,7 +39004,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Avatar of Fire */,
+                    value: ModValue::String("Avatar of Fire".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39017,7 +39017,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Blood Magic */,
+                    value: ModValue::String("Blood Magic".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39030,7 +39030,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Bloodsoaked Blade */,
+                    value: ModValue::String("Bloodsoaked Blade".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39043,7 +39043,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Call to Arms */,
+                    value: ModValue::String("Call to Arms".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39056,7 +39056,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Chaos Inoculation */,
+                    value: ModValue::String("Chaos Inoculation".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39069,7 +39069,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Conduit */,
+                    value: ModValue::String("Conduit".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39082,7 +39082,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Corrupted Soul */,
+                    value: ModValue::String("Corrupted Soul".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39095,7 +39095,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Crimson Dance */,
+                    value: ModValue::String("Crimson Dance".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39108,7 +39108,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Divine Flesh */,
+                    value: ModValue::String("Divine Flesh".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39121,7 +39121,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Divine Shield */,
+                    value: ModValue::String("Divine Shield".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39134,7 +39134,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Doomsday */,
+                    value: ModValue::String("Doomsday".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39147,7 +39147,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Eldritch Battery */,
+                    value: ModValue::String("Eldritch Battery".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39160,7 +39160,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Elemental Equilibrium */,
+                    value: ModValue::String("Elemental Equilibrium".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39173,7 +39173,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Elemental Overload */,
+                    value: ModValue::String("Elemental Overload".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39186,7 +39186,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Eternal Youth */,
+                    value: ModValue::String("Eternal Youth".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39199,7 +39199,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Ghost Dance */,
+                    value: ModValue::String("Ghost Dance".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39212,7 +39212,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Ghost Reaver */,
+                    value: ModValue::String("Ghost Reaver".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39225,7 +39225,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Glancing Blows */,
+                    value: ModValue::String("Glancing Blows".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39238,7 +39238,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Hex Master */,
+                    value: ModValue::String("Hex Master".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39251,7 +39251,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Imbalanced Guard */,
+                    value: ModValue::String("Imbalanced Guard".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39264,7 +39264,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Immortal Ambition */,
+                    value: ModValue::String("Immortal Ambition".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39277,7 +39277,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Inner Conviction */,
+                    value: ModValue::String("Inner Conviction".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39290,7 +39290,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Iron Grip */,
+                    value: ModValue::String("Iron Grip".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39303,7 +39303,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Iron Reflexes */,
+                    value: ModValue::String("Iron Reflexes".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39316,7 +39316,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Iron Will */,
+                    value: ModValue::String("Iron Will".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39329,7 +39329,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Lethe Shade */,
+                    value: ModValue::String("Lethe Shade".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39342,7 +39342,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Magebane */,
+                    value: ModValue::String("Magebane".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39355,7 +39355,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Mind Over Matter */,
+                    value: ModValue::String("Mind Over Matter".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39368,7 +39368,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Minion Instability */,
+                    value: ModValue::String("Minion Instability".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39381,7 +39381,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Mortal Conviction */,
+                    value: ModValue::String("Mortal Conviction".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39394,7 +39394,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Necromantic Aegis */,
+                    value: ModValue::String("Necromantic Aegis".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39407,7 +39407,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Pain Attunement */,
+                    value: ModValue::String("Pain Attunement".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39420,7 +39420,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Perfect Agony */,
+                    value: ModValue::String("Perfect Agony".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39433,7 +39433,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Phase Acrobatics */,
+                    value: ModValue::String("Phase Acrobatics".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39446,7 +39446,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Point Blank */,
+                    value: ModValue::String("Point Blank".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39459,7 +39459,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Power of Purpose */,
+                    value: ModValue::String("Power of Purpose".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39472,7 +39472,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Precise Technique */,
+                    value: ModValue::String("Precise Technique".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39485,7 +39485,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Resolute Technique */,
+                    value: ModValue::String("Resolute Technique".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39498,7 +39498,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Runebinder */,
+                    value: ModValue::String("Runebinder".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39511,7 +39511,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Solipsism */,
+                    value: ModValue::String("Solipsism".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39524,7 +39524,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Supreme Decadence */,
+                    value: ModValue::String("Supreme Decadence".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39537,7 +39537,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Supreme Ego */,
+                    value: ModValue::String("Supreme Ego".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39550,7 +39550,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: The Agnostic */,
+                    value: ModValue::String("The Agnostic".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39563,7 +39563,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: The Impaler */,
+                    value: ModValue::String("The Impaler".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39576,7 +39576,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Transcendence */,
+                    value: ModValue::String("Transcendence".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39589,7 +39589,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Unwavering Stance */,
+                    value: ModValue::String("Unwavering Stance".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39602,7 +39602,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Vaal Pact */,
+                    value: ModValue::String("Vaal Pact".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39615,7 +39615,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Versatile Combatant */,
+                    value: ModValue::String("Versatile Combatant".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39628,7 +39628,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Wicked Ward */,
+                    value: ModValue::String("Wicked Ward".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39641,7 +39641,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Wind Dancer */,
+                    value: ModValue::String("Wind Dancer".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39654,7 +39654,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Zealot's Oath */,
+                    value: ModValue::String("Zealot's Oath".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39667,7 +39667,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Disciple of Kitava */,
+                    value: ModValue::String("Disciple of Kitava".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39680,7 +39680,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Lone Messenger */,
+                    value: ModValue::String("Lone Messenger".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39693,7 +39693,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Nature's Patience */,
+                    value: ModValue::String("Nature's Patience".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39706,7 +39706,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Secrets of Suffering */,
+                    value: ModValue::String("Secrets of Suffering".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39719,7 +39719,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Kineticism */,
+                    value: ModValue::String("Kineticism".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39732,7 +39732,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Veteran's Awareness */,
+                    value: ModValue::String("Veteran's Awareness".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39745,7 +39745,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Hollow Palm Technique */,
+                    value: ModValue::String("Hollow Palm Technique".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -39758,7 +39758,7 @@ fn handle_special_mod(
                 Mod {
                     name: "Keystone".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: Pitfighter */,
+                    value: ModValue::String("Pitfighter".to_string()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],

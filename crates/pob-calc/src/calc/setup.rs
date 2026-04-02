@@ -99,6 +99,106 @@ pub fn init_env(build: &Build, data: Arc<GameData>) -> Result<CalcEnv, CalcError
     Ok(env)
 }
 
+/// Merge keystone modifiers into the player's mod_db.
+///
+/// Mirrors `modLib.mergeKeystones(env, modDB)` from ModTools.lua lines 225–237.
+///
+/// Algorithm:
+/// 1. Collect all "Keystone" LIST mods from `env.player.mod_db`.
+/// 2. For each mod whose value is a string keystone name:
+///    - Skip if already in `env.keystones_added` (dedup guard).
+///    - Look up the keystone node by name in the passive tree.
+///    - If not found (no such keystone in this tree version), skip.
+///    - Mark the keystone as added.
+///    - Determine if the granting source is NOT from the tree:
+///       `override_source = !source.category.to_lowercase().contains("tree")
+///                          && !source.name.to_lowercase().contains("tree")`
+///    - For each stat on the keystone node:
+///        - Parse it into Mod objects.
+///        - If `override_source`, replace each mod's source with the granting mod's source.
+///        - Add to player mod_db.
+///
+/// Call sites:
+/// - `perform::run()`: once at the start (after clearing `keystones_added`).
+/// - `perform::run()`: again after aura/buff application (CalcPerform.lua:3257).
+/// - `perform::run()`: again after flask application when mode_combat (CalcPerform.lua:1779).
+pub fn merge_keystones(env: &mut super::env::CalcEnv) {
+    use crate::mod_db::types::ModValue;
+
+    let empty_output = super::env::OutputTable::new();
+    let data = env.data.clone();
+    let tree = &data.passive_tree;
+
+    // Collect all "Keystone" LIST mods from player mod_db.
+    // We clone to avoid holding an immutable borrow while mutating the mod_db below.
+    let keystone_mods: Vec<crate::mod_db::types::Mod> = env
+        .player
+        .mod_db
+        .list("Keystone", None, &empty_output)
+        .into_iter()
+        .cloned()
+        .collect();
+
+    for granting_mod in keystone_mods {
+        // The keystone name is stored as ModValue::String.
+        let keystone_name = match &granting_mod.value {
+            ModValue::String(s) => s.clone(),
+            _ => continue, // Number(0.0) stub — skip silently
+        };
+
+        // Dedup guard: skip if already processed this pass.
+        // Mirrors: if not env.keystonesAdded[modObj.value]
+        if env.keystones_added.contains(&keystone_name) {
+            continue;
+        }
+
+        // Look up the keystone node in the tree.
+        // Mirrors: env.spec.tree.keystoneMap[modObj.value]
+        let keystone_node = match tree.keystone_by_name(&keystone_name) {
+            Some(n) => n,
+            None => continue, // Keystone not in this tree version — skip.
+        };
+
+        // Mark as processed for this pass.
+        env.keystones_added.insert(keystone_name.clone());
+
+        // Determine source override:
+        // `fromTree` in Lua = modObj.mod.source exists AND does NOT contain "tree"
+        // (case-insensitive). When fromTree is true (non-tree source), we override
+        // each keystone mod's source with the granting item's source.
+        //
+        // In Rust:
+        //   override_source = source.category does NOT contain "tree"
+        //                   AND source.name does NOT contain "tree"
+        let cat_lower = granting_mod.source.category.to_lowercase();
+        let name_lower_src = granting_mod.source.name.to_lowercase();
+        let override_source = !cat_lower.contains("tree") && !name_lower_src.contains("tree");
+
+        // Parse each stat of the keystone node and add to player mod_db.
+        // Mirrors: for _, mod in ipairs(env.spec.tree.keystoneMap[modObj.value].modList)
+        // The source for the keystone mods: use "Passive:<keystone_name>" as the
+        // default (same as add_passive_mods).
+        let default_source =
+            crate::mod_db::types::ModSource::new("Passive", keystone_name.as_str());
+
+        // Collect the stats first (to avoid borrow issue with tree while we mutate mod_db).
+        let stats: Vec<String> = keystone_node.stats.clone();
+
+        for stat_text in &stats {
+            let parsed_mods =
+                crate::build::mod_parser::parse_mod(stat_text, default_source.clone());
+            for mut keystone_mod in parsed_mods {
+                if override_source {
+                    // Replace source with granting item's source.
+                    // Mirrors: modLib.setSource(mod, modObj.mod.source)
+                    keystone_mod.source = granting_mod.source.clone();
+                }
+                env.player.mod_db.add(keystone_mod);
+            }
+        }
+    }
+}
+
 /// Helper: look up a game constant or use a default.
 fn gc_or(gc: &std::collections::HashMap<String, f64>, key: &str, default: f64) -> f64 {
     gc.get(key).copied().unwrap_or(default)

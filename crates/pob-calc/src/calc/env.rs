@@ -268,6 +268,12 @@ pub struct CalcEnv {
     /// buildModListForNodeList when finishJewels=true, but do NOT contribute to the
     /// player's modDB directly.
     pub extra_radius_node_list: HashSet<u32>,
+    /// Mirrors env.keystonesAdded: dedup set of keystone names already merged this pass.
+    /// Reset at the start of each perform::run() call (CalcPerform.lua line 1096).
+    /// Guards against double-applying a keystone when merge_keystones() is called multiple
+    /// times within the same perform pass (e.g. after flask application, after aura/buff
+    /// application).
+    pub keystones_added: HashSet<String>,
 }
 
 /// Get a numeric output value, returning 0.0 if absent or not a number.
@@ -296,6 +302,7 @@ impl CalcEnv {
             granted_passives: HashSet::new(),
             radius_jewel_list: Vec::new(),
             extra_radius_node_list: HashSet::new(),
+            keystones_added: HashSet::new(),
         }
     }
 }
