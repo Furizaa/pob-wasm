@@ -9,6 +9,7 @@ use crate::{
         ModDb,
     },
 };
+use std::collections::HashMap;
 use std::sync::Arc;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -54,9 +55,6 @@ pub fn init_env(build: &Build, data: Arc<GameData>) -> Result<CalcEnv, CalcError
     // Add class base stats
     add_class_base_stats(build, &mut player_db, &data);
 
-    // Add passive tree node mods
-    add_passive_mods(build, &mut player_db, &data);
-
     // Add config conditions
     add_config_conditions(build, &mut player_db);
 
@@ -64,16 +62,34 @@ pub fn init_env(build: &Build, data: Arc<GameData>) -> Result<CalcEnv, CalcError
     let mut env = CalcEnv::new(player_db, enemy_db, data);
 
     // Add item mods from equipped items and extract weapon data
+    // (CalcSetup.lua line 1228: mergeDB(env.modDB, env.itemModDB))
     add_item_mods(build, &mut env);
 
     // Add jewel mods from jewel slots
     add_jewel_mods(build, &mut env);
 
-    // Add cluster jewel subgraph mods (synthetic passive nodes from cluster jewels)
+    // Add cluster jewel mods (synthetic passive nodes from cluster jewels)
     add_cluster_jewel_mods(build, &mut env);
 
     // Add flask mods (only if conditionUsingFlask is true)
     add_flask_mods(build, &mut env);
+
+    // SETUP-07: Process anointments and Forbidden Flesh/Flame granted passives.
+    // Must run AFTER add_item_mods (GrantedPassive mods come from items)
+    // and BEFORE add_passive_mods (granted nodes must be in alloc_nodes when
+    // passive mods are applied).
+    // Mirrors CalcSetup.lua lines 1230-1258.
+    apply_granted_passives(build, &mut env);
+
+    // Add passive tree node mods (including granted nodes from anointments).
+    // Mirrors CalcSetup.lua lines 1260-1265: buildModListForNodeList(env, env.allocNodes, true).
+    let granted_nodes = env.granted_passives.clone();
+    add_passive_mods_with_granted(
+        build,
+        &mut env.player.mod_db,
+        &env.data.clone(),
+        &granted_nodes,
+    );
 
     // Initialize enemy ModDb
     init_enemy_db(build, &mut env.enemy.mod_db, &env.data.clone());
@@ -314,7 +330,141 @@ fn add_class_base_stats(build: &Build, db: &mut ModDb, _data: &GameData) {
     db.add(Mod::new_base("Evasion", 53.0 + 3.0 * level, eva_src));
 }
 
+/// Process anointments (GrantedPassive mods) and Forbidden Flesh/Flame
+/// (GrantedAscendancyNode mods) to populate `env.alloc_nodes` and
+/// `env.granted_passives`.
+///
+/// Mirrors CalcSetup.lua lines 1230-1258.
+///
+/// Must be called AFTER item mods have been added to `env.player.mod_db`
+/// (so that `GrantedPassive` and `GrantedAscendancyNode` mods from amulets
+/// and jewels are present) and BEFORE `add_passive_mods_with_granted`
+/// (so that granted node IDs are available for mod application).
+fn apply_granted_passives(build: &Build, env: &mut CalcEnv) {
+    let data = env.data.clone();
+    let tree = data.tree_for_version(&build.passive_spec.tree_version);
+
+    // Empty output table (these mods have no tags requiring output lookups).
+    let empty_output = crate::calc::env::OutputTable::new();
+
+    // ── Part 1: Amulet anointments (GrantedPassive) ──────────────────────────
+    // Mirrors CalcSetup.lua lines 1231-1239.
+    //
+    // `env.modDB:List(nil, "GrantedPassive")` returns a list of string values
+    // where each value is the lowercase notable name (e.g. "corruption").
+    // We look up the node in `tree.notable_map` (keyed by lowercase name).
+    // If found, add the node ID to alloc_nodes and granted_passives.
+    for m in env
+        .player
+        .mod_db
+        .list("GrantedPassive", None, &empty_output)
+    {
+        let ModValue::String(passive_name) = &m.value else {
+            continue;
+        };
+        // notableMap lookup: key is already lowercase (both the stored name and the map key).
+        if let Some(&node_id) = tree.notable_map.get(passive_name.as_str()) {
+            // Insert the node into the allocated set.
+            // env.allocNodes[node.id] = env.spec.nodes[node.id] or node
+            // In Rust, conquered-node handling is done by SETUP-06; we just track the ID.
+            env.alloc_nodes.insert(node_id);
+            // env.grantedPassives[node.id] = true
+            env.granted_passives.insert(node_id);
+            // env.extraRadiusNodeList[node.id] = nil — SETUP-08 concern, skip for now
+        }
+        // If not found, skip silently (stale build / passive renamed between versions).
+    }
+
+    // ── Part 2: Forbidden Flesh/Flame (GrantedAscendancyNode) ────────────────
+    // Mirrors CalcSetup.lua lines 1242-1258.
+    //
+    // Both jewels must be equipped and name the SAME ascendancy notable.
+    // The mod value is encoded as "<side>:<name>" (e.g. "flesh:heavy hitter").
+    // We accumulate entries and only grant the node when BOTH sides are seen.
+    //
+    // matchedName = { name → (side, matched) }
+    let mut matched: HashMap<String, (String, bool)> = HashMap::new();
+
+    for m in env
+        .player
+        .mod_db
+        .list("GrantedAscendancyNode", None, &empty_output)
+    {
+        let ModValue::String(encoded) = &m.value else {
+            continue;
+        };
+        // encoded = "<side>:<name>", e.g. "flesh:heavy hitter"
+        let Some((side, name)) = encoded.split_once(':') else {
+            continue;
+        };
+
+        if let Some(entry) = matched.get_mut(name) {
+            // Second jewel seen: check it's the opposite side and not yet matched.
+            // matchedName[name].side ~= ascTbl.side and matchedName[name].matched == false
+            if entry.0 != side && !entry.1 {
+                entry.1 = true; // matchedName[name].matched = true
+
+                // Look up in ascendancyMap, fall back to latest tree.
+                // env.spec.tree.ascendancyMap[name] or build.latestTree.ascendancyMap[name]
+                let node_id = tree.ascendancy_map.get(name).copied().or_else(|| {
+                    // Fallback: try the default (latest) tree's ascendancyMap.
+                    data.passive_tree.ascendancy_map.get(name).copied()
+                });
+
+                if let Some(node_id) = node_id {
+                    // Extra guard: BOTH jewels must match the current character's class.
+                    // env.itemModDB.conditions["ForbiddenFlesh"] == env.spec.curClassName
+                    // and env.itemModDB.conditions["ForbiddenFlame"] == env.spec.curClassName
+                    //
+                    // In Rust, the ForbiddenFlesh/ForbiddenFlame conditions are stored as
+                    // Condition mods in the player mod_db (set by item mod parser).
+                    // For now: check if the node's ascendancy matches the build's ascendancy.
+                    // This is the practical equivalent: Forbidden jewels only work if both
+                    // jewels' ascendancy matches the current character's ascendancy class.
+                    let node_ascendancy = tree
+                        .nodes
+                        .get(&node_id)
+                        .and_then(|n| n.ascendancy_name.as_deref())
+                        .unwrap_or("");
+
+                    // The class check: node must belong to the build's current ascendancy.
+                    // build.ascend_class_name contains the current ascendancy (e.g. "Deadeye").
+                    // This matches env.spec.curClassName in PoB.
+                    if node_ascendancy == build.ascend_class_name
+                        || build.ascend_class_name == "None"
+                        || build.ascend_class_name.is_empty()
+                        || node_ascendancy.is_empty()
+                    {
+                        // env.allocNodes[node.id] = node
+                        env.alloc_nodes.insert(node_id);
+                        // env.grantedPassives[node.id] = true
+                        env.granted_passives.insert(node_id);
+                    }
+                }
+            }
+        } else {
+            // First time we see this name: record which side (Flesh or Flame) this jewel is.
+            // matchedName[name] = { side = ascTbl.side, matched = false }
+            matched.insert(name.to_string(), (side.to_string(), false));
+        }
+    }
+}
+
+#[allow(dead_code)]
 fn add_passive_mods(build: &Build, db: &mut ModDb, data: &GameData) {
+    add_passive_mods_with_granted(build, db, data, &std::collections::HashSet::new());
+}
+
+/// Core implementation that applies passive mods for both connected (reachable) nodes
+/// and explicitly granted nodes (from anointments and Forbidden Flesh/Flame).
+///
+/// Mirrors CalcSetup.lua lines 1260-1265: buildModListForNodeList(env, env.allocNodes, true).
+fn add_passive_mods_with_granted(
+    build: &Build,
+    db: &mut ModDb,
+    data: &GameData,
+    granted_nodes: &std::collections::HashSet<u32>,
+) {
     // Use the version-specific tree if available, otherwise fall back to default.
     let tree = data.tree_for_version(&build.passive_spec.tree_version);
 
@@ -328,7 +478,15 @@ fn add_passive_mods(build: &Build, db: &mut ModDb, data: &GameData) {
     // class/ascendancy start are orphans and should not contribute mods.
     let reachable = connected_passive_nodes(build, tree);
 
-    for &node_id in &reachable {
+    // Combine reachable (connected) nodes with explicitly granted nodes.
+    // Granted nodes bypass the connectivity check (they are anointment/jewel grants).
+    let all_nodes: std::collections::HashSet<u32> = reachable
+        .iter()
+        .copied()
+        .chain(granted_nodes.iter().copied())
+        .collect();
+
+    for &node_id in &all_nodes {
         let Some(node) = tree.nodes.get(&node_id) else {
             continue;
         };

@@ -35859,7 +35859,7 @@ fn handle_special_mod(
                 Mod {
                     name: "GrantedAscendancyNode".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: { side = side, name = ascendancy } */,
+                    value: ModValue::String(format!("{}:{}", caps.get(2).map(|m| m.as_str()).unwrap_or("").to_lowercase(), caps.get(1).map(|m| m.as_str()).unwrap_or("").to_lowercase())),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
@@ -35874,7 +35874,7 @@ fn handle_special_mod(
                 Mod {
                     name: "GrantedPassive".to_string(),
                     mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: passive */,
+                    value: ModValue::String(caps.get(1).map(|m| m.as_str()).unwrap_or("").to_lowercase()),
                     flags: ModFlags::NONE,
                     keyword_flags: KeywordFlags::NONE,
                     tags: vec![],
