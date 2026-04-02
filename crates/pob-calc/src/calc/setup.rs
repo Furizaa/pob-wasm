@@ -703,6 +703,50 @@ fn apply_passive_mods(build: &Build, env: &mut super::env::CalcEnv) {
         .chain(granted_nodes.iter().copied())
         .collect();
 
+    // ── NOTABLE AND KEYSTONE COUNTING (SETUP-14) ─────────────────────────────
+    // Mirrors PassiveSpec.lua:BuildAllDependsAndPaths lines 1312-1362 (the
+    // elseif node.type == "Notable"/"Keystone" branches).
+    // Counts are written as Multiplier:AllocatedNotable / Multiplier:AllocatedKeystone
+    // in CalcSetup.lua lines 658-663.
+    let mut allocated_notable_count: u32 = 0;
+    let mut allocated_keystone_count: u32 = 0;
+
+    // ── TATTOO TYPE COUNTING (SETUP-14) ──────────────────────────────────────
+    // Mirrors PassiveSpec.lua:BuildAllDependsAndPaths lines 1348-1362:
+    //   if node.isTattoo and node.alloc and node.overrideType then
+    //       allocatedTattooTypes[node.overrideType] += 1
+    // and CalcSetup.lua lines 607-311:
+    //   if allocatedTattooTypes then
+    //       for type, count in pairs(allocatedTattooTypes) do
+    //           env.modDB.multipliers[type] = count
+    //
+    // A node is tattooed if it has an entry in hash_overrides with is_tattoo = true.
+    // The counting uses `override_type` from the TattooOverrideNode.
+    // Nodes with an empty `override_type` (no tattoo data loaded) are skipped.
+    //
+    // NOTE: This counts nodes in all_alloc_nodes (before mastery filtering).
+    // The Lua does the same: the loop at line 1312 iterates self.nodes, checking
+    // `node.alloc` which is set by the allocation process.
+    let mut alloc_tattoo_types: HashMap<String, u32> = HashMap::new();
+
+    for &nid in &all_alloc_nodes {
+        match tree.nodes.get(&nid).map(|n| n.node_type) {
+            Some(NodeType::Notable) => allocated_notable_count += 1,
+            Some(NodeType::Keystone) => allocated_keystone_count += 1,
+            _ => {}
+        }
+
+        // Count tattoo types for allocated nodes that have a hash override.
+        // Mirrors: if node.isTattoo and node.alloc and node.overrideType then
+        if let Some(override_node) = build.passive_spec.hash_overrides.get(&nid) {
+            if override_node.is_tattoo && !override_node.override_type.is_empty() {
+                *alloc_tattoo_types
+                    .entry(override_node.override_type.clone())
+                    .or_insert(0) += 1;
+            }
+        }
+    }
+
     // ── MASTERY COUNTING (SETUP-09) ──────────────────────────────────────────
     // Mirrors PassiveSpec.lua:BuildAllDependsAndPaths lines 1307-1363.
     // For each allocated mastery node with a valid selection:
@@ -827,8 +871,38 @@ fn apply_passive_mods(build: &Build, env: &mut super::env::CalcEnv) {
         env.player.mod_db.add(m);
     }
 
-    // ── WRITE MULTIPLIER MODS (SETUP-09) ────────────────────────────────────
-    // Mirrors CalcSetup.lua:664-671.
+    // ── WRITE MULTIPLIER MODS (SETUP-09 + SETUP-14) ─────────────────────────
+    // Mirrors CalcSetup.lua:658-676.
+    let passive_src = ModSource::new("Passive", "allocated node type counts");
+
+    // Multiplier:AllocatedNotable (SETUP-14)
+    // Mirrors CalcSetup.lua:658-660.
+    if allocated_notable_count > 0 {
+        env.player.mod_db.add(Mod {
+            name: "Multiplier:AllocatedNotable".to_string(),
+            mod_type: crate::mod_db::types::ModType::Base,
+            value: crate::mod_db::types::ModValue::Number(allocated_notable_count as f64),
+            flags: crate::mod_db::types::ModFlags::NONE,
+            keyword_flags: crate::mod_db::types::KeywordFlags::NONE,
+            tags: vec![],
+            source: passive_src.clone(),
+        });
+    }
+
+    // Multiplier:AllocatedKeystone (SETUP-14)
+    // Mirrors CalcSetup.lua:661-663.
+    if allocated_keystone_count > 0 {
+        env.player.mod_db.add(Mod {
+            name: "Multiplier:AllocatedKeystone".to_string(),
+            mod_type: crate::mod_db::types::ModType::Base,
+            value: crate::mod_db::types::ModValue::Number(allocated_keystone_count as f64),
+            flags: crate::mod_db::types::ModFlags::NONE,
+            keyword_flags: crate::mod_db::types::KeywordFlags::NONE,
+            tags: vec![],
+            source: passive_src.clone(),
+        });
+    }
+
     let mastery_src = ModSource::new("Mastery", "allocated mastery nodes");
 
     if allocated_mastery_count > 0 {
@@ -869,6 +943,20 @@ fn apply_passive_mods(build: &Build, env: &mut super::env::CalcEnv) {
                 source: mastery_src,
             });
         }
+    }
+
+    // ── WRITE TATTOO TYPE MULTIPLIERS (SETUP-14) ─────────────────────────────
+    // Mirrors CalcSetup.lua:307-311:
+    //   if allocatedTattooTypes then
+    //       for type, count in pairs(allocatedTattooTypes) do
+    //           env.modDB.multipliers[type] = count
+    //
+    // IMPORTANT: These use `set_multiplier` (direct write to `modDB.multipliers`),
+    // NOT `NewMod` / `db.add`. This mirrors the Lua which writes directly to
+    // `env.modDB.multipliers[type]` bypassing the NewMod pipeline.
+    // See "What's missing" section in SETUP-14 reference doc.
+    for (tattoo_type, &count) in &alloc_tattoo_types {
+        env.player.mod_db.set_multiplier(tattoo_type, count as f64);
     }
 }
 

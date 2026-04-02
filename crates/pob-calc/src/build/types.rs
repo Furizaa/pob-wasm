@@ -37,6 +37,49 @@ pub struct PassiveSpec {
     /// Populated from `masteryEffects="{nodeId,effectId},..."` attribute on `<Spec>`.
     /// Mirrors `PassiveSpec.masterySelections` in Lua.
     pub mastery_selections: HashMap<u32, u32>,
+    /// Maps tree node ID → tattoo override data.
+    /// Populated from `<Overrides><Override nodeId="..." dn="..."/></Overrides>`
+    /// inside `<Spec>` in the PoB XML.
+    /// Mirrors `PassiveSpec.hashOverrides` in Lua (PassiveSpec.lua line 83).
+    pub hash_overrides: HashMap<u32, TattooOverrideNode>,
+}
+
+/// Tattoo replacement data for a single passive tree node.
+///
+/// Mirrors what `ReplaceNode` in PassiveSpec.lua copies from `tree.tattoo.nodes`
+/// onto the original tree node. Specifically captures the fields needed for
+/// multiplier counting in CalcSetup.lua lines 582–677.
+///
+/// Fields map to TattooPassives.lua entry fields:
+/// - `dn`            → `["dn"]`           (display name / key into `tree.tattoo.nodes`)
+/// - `is_tattoo`     → `["isTattoo"]`     (always `true` for tattoo nodes)
+/// - `override_type` → `["overrideType"]` (e.g. `"KeystoneTattoo"`, `"StrTattoo"`)
+/// - `is_keystone`   → `["ks"]`           (keystone tattoo flag)
+/// - `is_notable`    → `["not"]`          (notable tattoo flag; `["not"]` avoids keyword)
+/// - `is_mastery`    → `["m"]`            (mastery tattoo flag)
+/// - `stats`         → `["sd"]`           (stat description lines)
+#[derive(Debug, Clone, Default)]
+pub struct TattooOverrideNode {
+    /// The tree node ID this tattoo replaces (the slot's hash ID).
+    pub node_id: u32,
+    /// Tattoo display name (e.g. "Acrobatics", "Ancestral Bond").
+    pub dn: String,
+    /// Always `true` for tattoo nodes (mirrors `isTattoo = true` in TattooPassives.lua).
+    pub is_tattoo: bool,
+    /// The tattoo's type string, used as the Multiplier key.
+    /// E.g. `"KeystoneTattoo"`, `"StrTattoo"`, `"DexTattoo"`, `"IntTattoo"`,
+    /// `"JourneyTattooBody"`, `"JourneyTattooSoul"`, `"JourneyTattooMind"`.
+    /// Maps to `env.modDB.multipliers[override_type]` in CalcSetup.lua line 309.
+    pub override_type: String,
+    /// `true` if this is a keystone tattoo (node.ks in TattooPassives.lua).
+    pub is_keystone: bool,
+    /// `true` if this is a notable tattoo (node["not"] in TattooPassives.lua).
+    pub is_notable: bool,
+    /// `true` if this is a mastery tattoo (node.m in TattooPassives.lua).
+    pub is_mastery: bool,
+    /// Stat description lines (the `sd` field from TattooPassives.lua).
+    /// Used to replace the original node's stats via `ReplaceNode`.
+    pub stats: Vec<String>,
 }
 
 #[derive(Debug, Clone)]

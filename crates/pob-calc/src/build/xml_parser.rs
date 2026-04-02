@@ -31,6 +31,7 @@ pub fn parse_xml(xml: &str) -> Result<Build, ParseError> {
     let mut current_item_text = String::new();
     let mut items: HashMap<u32, Item> = HashMap::new();
     let mut in_spec_sockets = false; // true when parsing <Sockets> inside <Spec>
+    let mut in_spec_overrides = false; // true when parsing <Overrides> inside <Spec>
 
     let mut buf = Vec::new();
     loop {
@@ -204,6 +205,7 @@ pub fn parse_xml(xml: &str) -> Result<Build, ParseError> {
                             ascend_class_id,
                             jewels: HashMap::new(),
                             mastery_selections,
+                            hash_overrides: HashMap::new(),
                         };
                     }
                     "Sockets" => {
@@ -221,6 +223,49 @@ pub fn parse_xml(xml: &str) -> Result<Build, ParseError> {
                             ) {
                                 if item_id > 0 {
                                     passive_spec.jewels.insert(node_id, item_id);
+                                }
+                            }
+                        }
+                    }
+                    "Overrides" => {
+                        // <Overrides> is a child element of <Spec> that contains
+                        // tattoo overrides for passive tree nodes.
+                        // Mirrors PassiveSpec.lua:117-115: loop over xml children for
+                        // `node.elem == "Overrides"` block.
+                        in_spec_overrides = true;
+                    }
+                    "Override" => {
+                        // <Override nodeId="12345" dn="Acrobatics" icon="Art/.../icon.png"
+                        //           activeEffectImage="Art/.../bg.png"/>
+                        // Mirrors PassiveSpec.lua:117-115 inner loop.
+                        // We parse what's available from the XML; the tattoo type data
+                        // (overrideType, isKeystone, etc.) is not in the XML — it comes
+                        // from tree.tattoo.nodes lookup by dn.
+                        // Since we don't have TattooPassives.lua data loaded in Rust yet,
+                        // we store a stub TattooOverrideNode with what we can from XML.
+                        // The override_type will remain empty until tattoo data is loaded.
+                        if in_spec_overrides {
+                            if let Some(node_id_str) = attrs.get("nodeId") {
+                                if let Ok(node_id) = node_id_str.parse::<u32>() {
+                                    let dn = attrs.get("dn").cloned().unwrap_or_default();
+                                    // Store a stub override node. The override_type and type
+                                    // flags will be empty until tattoo data is enriched via
+                                    // `GameData::enrich_tattoo_overrides` (requires
+                                    // TattooPassives.lua data to be loaded). The is_tattoo
+                                    // flag is always true for override entries.
+                                    // Mirrors PassiveSpec.lua:101-108: if lookup succeeded,
+                                    // store with node_id; else skip (we store the stub always).
+                                    let override_node = TattooOverrideNode {
+                                        node_id,
+                                        dn,
+                                        is_tattoo: true,
+                                        override_type: String::new(),
+                                        is_keystone: false,
+                                        is_notable: false,
+                                        is_mastery: false,
+                                        stats: Vec::new(),
+                                    };
+                                    passive_spec.hash_overrides.insert(node_id, override_node);
                                 }
                             }
                         }
@@ -293,6 +338,9 @@ pub fn parse_xml(xml: &str) -> Result<Build, ParseError> {
                 match name {
                     "Sockets" => {
                         in_spec_sockets = false;
+                    }
+                    "Overrides" => {
+                        in_spec_overrides = false;
                     }
                     "Skill" => {
                         if let (Some(ref mut ss), Some(skill)) =
