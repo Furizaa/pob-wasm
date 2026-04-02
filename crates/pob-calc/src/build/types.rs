@@ -27,6 +27,10 @@ pub struct PassiveSpec {
     /// Populated from `<Sockets><Socket nodeId="..." itemId="..."/></Sockets>`
     /// inside `<Spec>` in the PoB XML.
     pub jewels: HashMap<u32, u32>,
+    /// Maps mastery node ID → selected effect ID.
+    /// Populated from `masteryEffects="{nodeId,effectId},..."` attribute on `<Spec>`.
+    /// Mirrors `PassiveSpec.masterySelections` in Lua.
+    pub mastery_selections: HashMap<u32, u32>,
 }
 
 #[derive(Debug, Clone)]

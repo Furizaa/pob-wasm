@@ -1,0 +1,1103 @@
+{
+  "effects": {
+    "37": [
+      "Burning Enemies you kill have a 3% chance to Explode, dealing a tenth of their maximum Life as Fire Damage"
+    ],
+    "233": [
+      "Gain 2 Rage on Hit with Axes"
+    ],
+    "533": [
+      "Mines cannot be Damaged"
+    ],
+    "571": [
+      "50% of your Energy Shield is added to your Stun Threshold"
+    ],
+    "763": [
+      "Recover 30 Life when your Trap is triggered by an Enemy"
+    ],
+    "1167": [
+      "15% more Projectile Speed"
+    ],
+    "1251": [
+      "+10% to Damage over Time Multiplier if you've Killed Recently"
+    ],
+    "1626": [
+      "Attacks with Two Handed Weapons deal 60% increased Damage with Hits and Ailments",
+      "10% reduced Attack Speed"
+    ],
+    "1727": [
+      "+1% to maximum Chaos Resistance"
+    ],
+    "1915": [
+      "80% increased Duration of Ailments inflicted by Retaliation Skills"
+    ],
+    "2198": [
+      "Projectiles deal 20% increased Damage with Hits and Ailments for each time they have Chained"
+    ],
+    "2249": [
+      "40% increased Armour and Evasion Rating while Leeching"
+    ],
+    "2459": [
+      "30% increased Effect of Cruelty"
+    ],
+    "2474": [
+      "Suppressed Spell Damage cannot inflict Elemental Ailments on you"
+    ],
+    "2498": [
+      "Every Rage also grants 1% increased Stun Threshold"
+    ],
+    "2800": [
+      "Marked Enemy cannot Regenerate Life"
+    ],
+    "2823": [
+      "50% increased Stealth if you've Hit With a Claw Recently"
+    ],
+    "2902": [
+      "Regenerate 5 Mana per second"
+    ],
+    "2987": [
+      "+25% to Critical Strike Multiplier against Unique Enemies"
+    ],
+    "3449": [
+      "Attack Hits Aggravate any Bleeding on targets which is older than 4 seconds"
+    ],
+    "4116": [
+      "40% of Physical Damage Converted to Cold Damage"
+    ],
+    "4119": [
+      "60% of Elemental Damage from your Hits cannot be Reflected"
+    ],
+    "4319": [
+      "Your Elemental Resistances cannot be lowered by Curses"
+    ],
+    "4500": [
+      "+1% Chance to Block Spell Damage per 5% Chance to Block Attack Damage"
+    ],
+    "4516": [
+      "10% of Life Leech is Instant per Equipped Claw"
+    ],
+    "4606": [
+      "1% increased Evasion Rating per 10 Intelligence",
+      "Dexterity provides no inherent bonus to Evasion Rating"
+    ],
+    "4710": [
+      "4% increased Stun and Block Recovery per Fortification"
+    ],
+    "4842": [
+      "Gain Adrenaline when Stunned, for 2 seconds per 100ms of Stun Duration"
+    ],
+    "5108": [
+      "80% increased Stun and Block Recovery"
+    ],
+    "5356": [
+      "5% increased Attributes"
+    ],
+    "5907": [
+      "Brands have 30% increased Area of Effect if 50% of Attached Duration expired"
+    ],
+    "5944": [
+      "10% chance when you use a Retaliation Skill for a different Retaliation Skill to become Usable"
+    ],
+    "5995": [
+      "25% more Damage with Hits against Enemies that cannot have Life Leeched from them"
+    ],
+    "6090": [
+      "+1% to Off Hand Critical Strike Chance while Dual Wielding"
+    ],
+    "6216": [
+      "Critical Strikes do not inherently Ignite",
+      "100% increased Damage with Hits against Ignited Enemies"
+    ],
+    "6462": [
+      "10% increased Movement Speed if you haven't taken Damage Recently"
+    ],
+    "6510": [
+      "Regenerate 2.5% of Life per Second if you've Detonated a Mine Recently"
+    ],
+    "6630": [
+      "Every 3 seconds, Consume a nearby Corpse to Recover 10% of Life"
+    ],
+    "6906": [
+      "+50% to Critical Strike Multiplier against Stunned Enemies"
+    ],
+    "7137": [
+      "+1% to all maximum Elemental Resistances if Equipped Helmet, Body Armour, Gloves, and Boots all have Armour"
+    ],
+    "7389": [
+      "Inherent Attack Speed bonus from Dual Wielding is doubled while wielding two Claws"
+    ],
+    "7677": [
+      "Inflict Fire, Cold and Lightning Exposure on Enemies when you Suppress their Spell Damage"
+    ],
+    "7831": [
+      "100% increased Blind duration"
+    ],
+    "7972": [
+      "20% chance to gain Elusive when you Block while Dual Wielding"
+    ],
+    "8018": [
+      "8% chance to gain a Frenzy Charge when you Hit a Unique Enemy"
+    ],
+    "8298": [
+      "8% Chance for Traps to Trigger an additional time"
+    ],
+    "8653": [
+      "100% increased Armour and Energy Shield from Equipped Body Armour if Equipped Helmet,\\nGloves and Boots all have Armour and Energy Shield"
+    ],
+    "8875": [
+      "1% increased Flask Charges gained per Mana Burn on you"
+    ],
+    "9074": [
+      "Corrupted Blood cannot be inflicted on you"
+    ],
+    "9088": [
+      "40% increased Effect of Onslaught on you"
+    ],
+    "9143": [
+      "Gain Unholy Might on Block for 3 seconds"
+    ],
+    "9755": [
+      "+500 to Accuracy Rating",
+      "-2 to Accuracy Rating per Level"
+    ],
+    "9876": [
+      "Minions Penetrate 8% of Cursed Enemies' Elemental Resistances"
+    ],
+    "9986": [
+      "50% increased Effect of non-Damaging Ailments you inflict with Critical Strikes"
+    ],
+    "10059": [
+      "Intimidate Enemies for 4 seconds on Block while holding a Shield"
+    ],
+    "10268": [
+      "Recover 3% of Life per 5 Valour consumed to place a Banner"
+    ],
+    "10497": [
+      "25% increased Maximum total Life Recovery per second from Leech while at maximum Rage"
+    ],
+    "10546": [
+      "50% chance to Aggravate Bleeding on targets you Stun with Attacks Hits"
+    ],
+    "10680": [
+      "100% increased Armour from Equipped Boots and Gloves"
+    ],
+    "10815": [
+      "Recover 4% of Life when you use a Flask"
+    ],
+    "11049": [
+      "Bleeding you inflict deals Damage 15% faster"
+    ],
+    "11521": [
+      "10% less Damage Taken from Damage over Time"
+    ],
+    "11541": [
+      "30% increased Evasion Rating while you have Energy Shield"
+    ],
+    "11723": [
+      "Minions have 20% increased Cooldown Recovery Rate"
+    ],
+    "11869": [
+      "Remove a random Non-Elemental Ailment when you use a Life Flask"
+    ],
+    "11938": [
+      "5% increased Attack Speed per Enemy in Close Range"
+    ],
+    "12046": [
+      "Non-Curse Aura Skills have 50% increased Duration"
+    ],
+    "12100": [
+      "100% chance to Avoid Blind"
+    ],
+    "12119": [
+      "10% reduced Mana Cost of Skills"
+    ],
+    "12139": [
+      "Crush Enemies on hit with Maces and Sceptres"
+    ],
+    "12747": [
+      "5% of Damage from Hits is taken from your nearest Totem's Life before you"
+    ],
+    "12916": [
+      "Warcries Debilitate Enemies for 1 second"
+    ],
+    "13257": [
+      "5% chance to throw up to 4 additional Traps"
+    ],
+    "13267": [
+      "10% Chance to Inflict Cold Exposure on Hit with Cold Damage"
+    ],
+    "13382": [
+      "+20% chance to Ignite, Freeze, Shock, and Poison Cursed Enemies"
+    ],
+    "13757": [
+      "You have Phasing if you have Suppressed Spell Damage Recently",
+      "+8% chance to Suppress Spell Damage while Phasing"
+    ],
+    "14032": [
+      "Warcries have 10% chance to Exert 3 additional Attacks"
+    ],
+    "14100": [
+      "Cannot be Shocked while at maximum Power Charges"
+    ],
+    "14206": [
+      "Warcries cannot Exert Travel Skills"
+    ],
+    "14796": [
+      "+20% Chance to Block Spell Damage while Dual Wielding",
+      "Dual Wielding does not inherently grant chance to Block Attack Damage"
+    ],
+    "14813": [
+      "Knock Back Enemies if you get a Critical Strike with Projectile Damage"
+    ],
+    "14881": [
+      "20% reduced Elemental Ailment Duration on you"
+    ],
+    "15133": [
+      "0.5% of Attack Damage Leeched as Life",
+      "0.5% of Attack Damage Leeched as Mana"
+    ],
+    "15574": [
+      "Minions Leech 1% of Damage as Life"
+    ],
+    "15826": [
+      "+5 to Dexterity per Allocated Mastery Passive Skill"
+    ],
+    "16013": [
+      "Life Recovery from Regeneration is not applied",
+      "Every 4 seconds, Recover 1 Life for every 0.1 Life Recovery per second from Regeneration"
+    ],
+    "16215": [
+      "You take 20% reduced Extra Damage from Critical Strikes"
+    ],
+    "16264": [
+      "Recover 3% of Life on Killing a Poisoned Enemy"
+    ],
+    "16425": [
+      "Hits that Stun Enemies have Culling Strike"
+    ],
+    "16545": [
+      "10% chance to gain a Power Charge on Critical Strike with Wands"
+    ],
+    "16644": [
+      "Projectiles deal 20% increased Damage with Hits and Ailments for each Enemy Pierced"
+    ],
+    "16950": [
+      "Totems Taunt Enemies around them for 1 second when Summoned"
+    ],
+    "16991": [
+      "Gain 5 Valour when you Warcry, if able"
+    ],
+    "17267": [
+      "30% increased Evasion Rating while you have an active Tincture"
+    ],
+    "17821": [
+      "20% increased Area of Effect if you've dealt a Critical Strike Recently"
+    ],
+    "17852": [
+      "10% more Skill Effect Duration"
+    ],
+    "17942": [
+      "Hits have 15% chance to treat Enemy Monster Elemental Resistance values as inverted"
+    ],
+    "18130": [
+      "Recover 1% of Life when you Curse a Non-Cursed Enemy",
+      "Recover 1% of Mana when you Curse a Non-Cursed Enemy"
+    ],
+    "18301": [
+      "Increases and Reductions to Armour also apply to Energy\\nShield Recharge Rate at 20% of their value"
+    ],
+    "18365": [
+      "Links take twice as long to break"
+    ],
+    "18391": [
+      "30% increased Effect of Auras from Mines"
+    ],
+    "18435": [
+      "Your Movement Speed is equal to the highest Movement Speed among Linked Players"
+    ],
+    "18859": [
+      "40% increased Physical Damage with Skills that Cost Life"
+    ],
+    "18881": [
+      "25% chance to deal a Stunning Hit to Nearby Enemy Monsters when you're Stunned"
+    ],
+    "19002": [
+      "3% chance to Recover all Life when you Kill an Enemy"
+    ],
+    "19142": [
+      "Nearby Enemies cannot gain Power, Frenzy or Endurance Charges"
+    ],
+    "19422": [
+      "50% of Damage from your Hits cannot be Reflected"
+    ],
+    "19495": [
+      "Chills from your Hits always reduce Action Speed by at least 10%"
+    ],
+    "19500": [
+      "Attack Skills Cost Life instead of 20% of Mana Cost"
+    ],
+    "19628": [
+      "Nearby Enemies are Intimidated while you have Rage"
+    ],
+    "20111": [
+      "Flasks adjacent to applied Tincture have 10% increased Effect when\\nused if you've Hit an enemy with a Weapon Recently"
+    ],
+    "20153": [
+      "Link Skills can target Damageable Minions"
+    ],
+    "20173": [
+      "Cannot be Stunned by Hits that deal only Physical Damage"
+    ],
+    "20273": [
+      "20% increased Effect of Impales you inflict on non-Impaled Enemies"
+    ],
+    "20364": [
+      "Lightning Damage of Enemies Hitting you while you're Shocked is Unlucky"
+    ],
+    "20464": [
+      "Enemies you Kill that are affected by Elemental Ailments\\ngrant 100% increased Flask Charges"
+    ],
+    "20515": [
+      "+10% chance to Suppress Spell Damage for each Dagger you're Wielding"
+    ],
+    "20630": [
+      "Brands Attach to a new Enemy each time they Activate, no more than once every 0.3 seconds"
+    ],
+    "20694": [
+      "60% increased Trap Trigger Area of Effect"
+    ],
+    "21313": [
+      "Detonate Mines is Triggered while you are moving"
+    ],
+    "21468": [
+      "You count as on Full Life while at 90% of maximum Life or above"
+    ],
+    "21652": [
+      "40% of Physical Damage Converted to Chaos Damage"
+    ],
+    "21730": [
+      "10% less Skill Effect Duration"
+    ],
+    "22056": [
+      "Skills Supported by Nightblade have 40% increased Effect of Elusive"
+    ],
+    "22149": [
+      "3% increased maximum Life per Red Socket on equipped Staff",
+      "5% increased maximum Mana per Blue Socket on equipped Staff"
+    ],
+    "22300": [
+      "1% increased Movement Speed per 5 Rage"
+    ],
+    "22542": [
+      "12% chance to deal Double Damage with Attacks if Attack Time is longer than 1 second"
+    ],
+    "23021": [
+      "Recover 15% of Life when you use a Warcry"
+    ],
+    "23152": [
+      "50% more Accuracy Rating against Marked Enemy"
+    ],
+    "23247": [
+      "Off Hand Accuracy is equal to Main Hand Accuracy while wielding a Sword"
+    ],
+    "23442": [
+      "20 Life gained when you Block",
+      "20 Mana gained when you Block"
+    ],
+    "23471": [
+      "25% chance to open nearby Chests when you Cast a Spell"
+    ],
+    "23472": [
+      "10% reduced Damage over Time Taken while you have at least 20 Fortification"
+    ],
+    "23557": [
+      "40% reduced Cost of Retaliation Skills"
+    ],
+    "23621": [
+      "20% increased Life Reservation Efficiency of Skills"
+    ],
+    "23936": [
+      "80% increased Critical Strike Chance against Bleeding Enemies"
+    ],
+    "23955": [
+      "Every 4 seconds, Regenerate Life equal to 1% of Armour and Evasion Rating over 1 second"
+    ],
+    "24180": [
+      "Fire Exposure you inflict applies an extra -5% to Fire Resistance"
+    ],
+    "24305": [
+      "Life Recoup Effects instead occur over 3 seconds"
+    ],
+    "24352": [
+      "Debuffs on you expire 15% faster"
+    ],
+    "25487": [
+      "Cannot be Stunned if you haven't been Hit Recently"
+    ],
+    "25681": [
+      "3% chance for Hits to deal 300% of Physical Damage as Extra Damage of a random Element"
+    ],
+    "26621": [
+      "+5 to Strength per Allocated Mastery Passive Skill"
+    ],
+    "26782": [
+      "Enemies permanently take 5% increased Damage for each second they've ever been Frozen by you, up to a maximum of 50%"
+    ],
+    "26785": [
+      "25% increased Mana Reservation Efficiency of Skills Supported by Spellslinger"
+    ],
+    "26894": [
+      "100% increased Mirage Archer Duration"
+    ],
+    "26985": [
+      "Enemies near your Linked targets have Fire, Cold and Lightning Exposure"
+    ],
+    "26997": [
+      "Tinctures deactivate when you have 12 or more Mana Burn"
+    ],
+    "27095": [
+      "40% increased Damage with Hits against Rare and Unique Enemies"
+    ],
+    "27103": [
+      "Every 4 seconds, Regenerate Energy Shield equal to 1% of Evasion Rating over 1 second"
+    ],
+    "27173": [
+      "2% reduced Duration of Ailments inflicted on you per Fortification"
+    ],
+    "27401": [
+      "Skills supported by Unleash have +1 to maximum number of Seals"
+    ],
+    "27718": [
+      "Skills that Summon a Totem have 30% chance to Summon two Totems instead of one"
+    ],
+    "28354": [
+      "Enemies Killed by your Hits are destroyed"
+    ],
+    "28469": [
+      "Melee Hits Fortify",
+      "-3 to maximum Fortification"
+    ],
+    "28524": [
+      "+0.3 metres to Melee Strike Range"
+    ],
+    "28569": [
+      "Shocks you inflict spread to other Enemies within 1 metre"
+    ],
+    "28589": [
+      "30% increased Defences while wielding a Staff"
+    ],
+    "28638": [
+      "8% increased Damage for each of your Aura or Herald Skills affecting you"
+    ],
+    "28676": [
+      "100% increased Evasion Rating from Equipped Body Armour"
+    ],
+    "28678": [
+      "Deal 10% more Chaos Damage to enemies which have Energy Shield"
+    ],
+    "28720": [
+      "Cannot be Ignited while at maximum Endurance Charges"
+    ],
+    "29161": [
+      "Each Mine applies 2% increased Damage taken to Enemies near it, up to 10%"
+    ],
+    "29209": [
+      "Call of Steel deals Reflected Damage with 40% increased Area of Effect",
+      "Call of Steel has 40% increased Use Speed"
+    ],
+    "29214": [
+      "Life Flasks gain 1 Charge every 3 seconds",
+      "Mana Flasks gain 1 Charge every 3 seconds"
+    ],
+    "29586": [
+      "30% of Chaos Damage taken does not bypass Energy Shield"
+    ],
+    "29652": [
+      "100% increased Charge Duration"
+    ],
+    "30502": [
+      "Critical Strikes against you do not inherently inflict Elemental Ailments"
+    ],
+    "30520": [
+      "10% less Physical Damage Taken while on Full Energy Shield"
+    ],
+    "30612": [
+      "+1% Chance to Block Attack Damage per 5% Chance to Block on Equipped Shield"
+    ],
+    "31038": [
+      "15% more Stun Duration with Two Handed Weapons"
+    ],
+    "31331": [
+      "Damaging Ailments Cannot Be inflicted on you while you already have one",
+      "Non-Damaging Ailments Cannot Be inflicted on you while you already have one"
+    ],
+    "31556": [
+      "100% increased Energy Shield from Equipped Helmet"
+    ],
+    "31564": [
+      "10% increased Armour per Red Socket on Main Hand Weapon",
+      "10% increased Evasion Rating per Green Socket on Main Hand Weapon"
+    ],
+    "31822": [
+      "You count as on Low Life while at 55% of maximum Life or below"
+    ],
+    "32255": [
+      "10% more Maximum Physical Attack Damage"
+    ],
+    "32279": [
+      "60% increased Global Critical Strike Chance if you've Summoned a Totem Recently"
+    ],
+    "32877": [
+      "You can Cast 2 additional Brands"
+    ],
+    "33089": [
+      "Gain a Power Charge each second while Channelling a Spell"
+    ],
+    "33129": [
+      "+1% to Cold Damage over Time Multiplier for each 4% Overcapped Cold Resistance"
+    ],
+    "33315": [
+      "Critical Strikes have Culling Strike"
+    ],
+    "33959": [
+      "20% chance to Maim Enemies with Main Hand Hits",
+      "20% chance to Blind Enemies with Off Hand Hits"
+    ],
+    "34031": [
+      "Enemies near your Marked Enemy are Blinded"
+    ],
+    "34242": [
+      "15% increased maximum Life if there are no Life Modifiers on Equipped Body Armour"
+    ],
+    "34383": [
+      "+1% to all maximum Elemental Resistances if you have Reserved Life and Mana"
+    ],
+    "34420": [
+      "15% increased Duration of Ailments on Enemies",
+      "15% increased Skill Effect Duration"
+    ],
+    "34563": [
+      "Poisons you inflict on non-Poisoned Enemies deal 300% increased Damage"
+    ],
+    "34663": [
+      "Enemies you Curse are Hindered, with 15% reduced Movement Speed"
+    ],
+    "35302": [
+      "2% increased Attack Damage per 75 Armour or Evasion Rating on Shield"
+    ],
+    "35426": [
+      "Your Curses have 20% increased Effect if 50% of Curse Duration expired"
+    ],
+    "35582": [
+      "3% chance to deal Triple Damage"
+    ],
+    "35810": [
+      "Regenerate 2% of Energy Shield per second"
+    ],
+    "36081": [
+      "Nearby Enemies have 50% reduced Life Regeneration Rate"
+    ],
+    "36313": [
+      "+12% to Fire Damage over Time Multiplier",
+      "50% increased Ignite Duration on you"
+    ],
+    "36475": [
+      "60% increased Damage with Claws against Enemies that are on Low Life"
+    ],
+    "36787": [
+      "20% chance on Hit to remove all Impales from Enemy\\nImpales removed this way multiply their Reflected Damage for this Hit by the number of Hits they have left"
+    ],
+    "36934": [
+      "Remove a random Ailment on you when you consume at least 10 Valour to place a Banner"
+    ],
+    "36967": [
+      "+100 to Accuracy Rating per Green Socket on Equipped Bow"
+    ],
+    "37132": [
+      "All Damage with Maces and Sceptres inflicts Chill"
+    ],
+    "37186": [
+      "Recover 10% of Mana when a Brand expires while Attached"
+    ],
+    "37190": [
+      "40% increased Evasion Rating if you have been Hit Recently"
+    ],
+    "37307": [
+      "Retaliation Skills Debilitate Enemies for 3 seconds on Hit"
+    ],
+    "37614": [
+      "Recover 5% of Energy Shield over 1 second when you take Physical Damage from an Enemy Hit"
+    ],
+    "37925": [
+      "Recover 100 Life for each Fortification lost"
+    ],
+    "38070": [
+      "+3 to Level of all Critical Support Gems"
+    ],
+    "38114": [
+      "Enemies near your Banner take 8% increased Damage"
+    ],
+    "38401": [
+      "Remove Damaging Ailments when you Change Stance",
+      "Stance Skills have +6 seconds to Cooldown"
+    ],
+    "38423": [
+      "100% increased Evasion Rating if Energy Shield Recharge has started in the past 2 seconds"
+    ],
+    "38454": [
+      "Skills Cost Life instead of 15% of Mana Cost"
+    ],
+    "38703": [
+      "+3% to Damage over Time Multiplier for Bleeding per Endurance Charge"
+    ],
+    "38814": [
+      "-30% to Fire Resistance",
+      "+1 to Level of all Cold Skill Gems"
+    ],
+    "39010": [
+      "Hits have 50% chance to ignore Enemy Physical Damage Reduction"
+    ],
+    "39154": [
+      "Non-Vaal Strike Skills target 1 additional nearby Enemy"
+    ],
+    "39178": [
+      "50% more Accuracy Rating at Close Range"
+    ],
+    "39863": [
+      "Brand Recall has 50% increased Cooldown Recovery Rate"
+    ],
+    "40037": [
+      "Enemies near your Banner are Maimed"
+    ],
+    "40041": [
+      "Gain 25 Life per Enemy Hit with Main Hand Claw Attacks",
+      "Gain 25 Mana per Enemy Hit with Off Hand Claw Attacks"
+    ],
+    "40073": [
+      "Minions have 25% chance to gain Unholy Might for 4 seconds on Kill"
+    ],
+    "40307": [
+      "3% increased Damage per Endurance, Frenzy or Power Charge"
+    ],
+    "40578": [
+      "2% chance to Defend with 150% of Armour per 5% missing Energy Shield"
+    ],
+    "40906": [
+      "25% chance to gain a Flask Charge when you deal a Critical Strike"
+    ],
+    "40991": [
+      "50% increased Stun Duration on Enemies"
+    ],
+    "41483": [
+      "1% increased Damage per 5 of your lowest Attribute"
+    ],
+    "41544": [
+      "Minions have 30% increased Area of Effect"
+    ],
+    "42014": [
+      "Prevent +1% of Suppressed Spell Damage per Hit Suppressed Recently",
+      "-2% chance to Suppress Spell Damage per Hit Suppressed Recently"
+    ],
+    "42540": [
+      "Wand Attacks fire an additional Projectile"
+    ],
+    "42559": [
+      "8% more Damage with Hits and Ailments against Enemies affected by at least 5 Poisons"
+    ],
+    "42952": [
+      "Arrows gain Critical Strike Chance as they travel farther, up to 100% increased Critical Strike Chance"
+    ],
+    "43061": [
+      "Traps cannot be Damaged"
+    ],
+    "43250": [
+      "You take 40% reduced Extra Damage from Critical Strikes by Cursed Enemies"
+    ],
+    "43258": [
+      "Immune to Bleeding if Equipped Helmet has higher Armour than Evasion Rating",
+      "Immune to Poison if Equipped Helmet has higher Evasion Rating than Armour"
+    ],
+    "43295": [
+      "10% chance on Hitting an Enemy for all Impales on that Enemy to last for an additional Hit"
+    ],
+    "43308": [
+      "Call of Steel has +4 to maximum Steel Shards",
+      "Call of Steel causes 10% increased Reflected Damage"
+    ],
+    "43400": [
+      "Minions have 15% reduced Life Recovery rate",
+      "Minions have 30% increased maximum Life"
+    ],
+    "43524": [
+      "40% increased Blind Effect"
+    ],
+    "44240": [
+      "15% less Projectile Speed"
+    ],
+    "44252": [
+      "The first 6 Mana Burn applied to you have no effect"
+    ],
+    "44840": [
+      "+2% to maximum Chance to Block Spell Damage"
+    ],
+    "44869": [
+      "Elusive also grants +40% to Critical Strike Multiplier for Skills Supported by Nightblade"
+    ],
+    "45263": [
+      "30% chance to Avoid being Stunned while holding a Shield"
+    ],
+    "45300": [
+      "+12% to Damage over Time Multiplier for Poison you inflict on Bleeding Enemies"
+    ],
+    "45307": [
+      "+1% to Critical Strike Multiplier per 10 Maximum Energy Shield on Shield"
+    ],
+    "45317": [
+      "Chance to Suppress Spell Damage is Lucky"
+    ],
+    "45512": [
+      "20% increased Area of Effect while wielding a Bow"
+    ],
+    "45652": [
+      "20% chance to gain an Endurance Charge when you Stun an Enemy with a Melee Hit"
+    ],
+    "45653": [
+      "Regenerate 50 Life per second"
+    ],
+    "45691": [
+      "Non-Cursed Enemies you inflict Non-Aura Curses on are Blinded for 4 seconds"
+    ],
+    "46059": [
+      "Link Skills Link to 1 additional random target"
+    ],
+    "46099": [
+      "20% increased Energy Shield Recovery Rate if you haven't been Hit Recently"
+    ],
+    "46180": [
+      "+1 Armour per 2 Strength"
+    ],
+    "46493": [
+      "60% increased Damage while wielding two different Weapon Types"
+    ],
+    "46636": [
+      "Minions Recover 5% of Life on Minion Death"
+    ],
+    "46672": [
+      "40% increased Brand Attachment range"
+    ],
+    "46807": [
+      "You cannot be Maimed",
+      "You cannot be Hindered"
+    ],
+    "47151": [
+      "20% increased Maximum Energy Shield if both Equipped Left and Right Rings have an Explicit Evasion Modifier",
+      "40% increased Energy Shield Recharge Rate if Equipped Amulet has an Explicit Evasion Modifier"
+    ],
+    "47249": [
+      "+8% Chance to Block Attack Damage if you've Stunned an Enemy Recently"
+    ],
+    "47299": [
+      "20% chance to Impale Enemies on Hit with Attacks"
+    ],
+    "47429": [
+      "Minions Hits have 50% chance to ignore Enemy Physical Damage Reduction"
+    ],
+    "47595": [
+      "+0.3 metres to Melee Strike Range with Swords"
+    ],
+    "47642": [
+      "+30 to maximum Life"
+    ],
+    "47823": [
+      "Each Mine applies 2% reduced Damage dealt to Enemies near it, up to 10%"
+    ],
+    "47958": [
+      "20% increased Armour for each different Retaliation Skill you've used in the past 10 seconds"
+    ],
+    "48358": [
+      "Final Repeat of Spells has 40% increased Area of Effect"
+    ],
+    "48385": [
+      "Exposure you inflict applies at least -18% to the affected Resistance"
+    ],
+    "48661": [
+      "Cannot be Chilled while at maximum Frenzy Charges"
+    ],
+    "48718": [
+      "+7 to Maximum Rage",
+      "Inherent loss of Rage is 20% faster"
+    ],
+    "48720": [
+      "You take 30% reduced Extra Damage from Critical Strikes"
+    ],
+    "48980": [
+      "10% chance to gain a Frenzy Charge when you Hit your Marked Enemy"
+    ],
+    "49522": [
+      "Defend with 120% of Armour against Projectile Attacks",
+      "5% more chance to Evade Melee Attacks"
+    ],
+    "50175": [
+      "30% increased Damage while in Blood Stance",
+      "15% increased Area of Effect while in Sand Stance"
+    ],
+    "50228": [
+      "20% chance to Avoid Elemental Ailments while holding a Shield"
+    ],
+    "50265": [
+      "Can have up to 5 additional Traps placed at a time"
+    ],
+    "50841": [
+      "Marked Enemy cannot deal Critical Strikes"
+    ],
+    "50863": [
+      "Recover 2% of Energy Shield when you Block Spell Damage while wielding a Staff",
+      "Recover 2% of Life when you Block Attack Damage while wielding a Staff"
+    ],
+    "50906": [
+      "Spells which can gain Intensity have +1 to maximum Intensity"
+    ],
+    "50922": [
+      "120% increased Critical Strike Chance with Swords",
+      "-20% to Critical Strike Multiplier with Swords"
+    ],
+    "50933": [
+      "Recover 1% of Life per Withered Debuff on each Enemy you Kill"
+    ],
+    "50993": [
+      "+15% to Maximum Effect of Shock"
+    ],
+    "51147": [
+      "Gain Accuracy Rating equal to your Intelligence"
+    ],
+    "51153": [
+      "Gain 20 Fortification on Melee Kill against a Rare or Unique Enemy"
+    ],
+    "51424": [
+      "30% increased Light Radius",
+      "Light Radius is based on Energy Shield instead of Life"
+    ],
+    "52120": [
+      "Plague Bearer has 20% increased Maximum Plague Value"
+    ],
+    "52153": [
+      "Your Mark Transfers to another Enemy when Marked Enemy dies"
+    ],
+    "52274": [
+      "100% increased Enemy Stun Threshold",
+      "200% increased Stun Duration on Enemies"
+    ],
+    "52404": [
+      "1% increased Projectile Damage per 16 Dexterity"
+    ],
+    "52557": [
+      "Hits against you Cannot be Critical Strikes if you've been Stunned Recently"
+    ],
+    "52604": [
+      "+5 to Intelligence per Allocated Mastery Passive Skill"
+    ],
+    "52684": [
+      "150% increased Critical Strike Chance against Enemies that are on Full Life"
+    ],
+    "52876": [
+      "25% increased Maximum total Life, Mana and Energy Shield Recovery per second from Leech"
+    ],
+    "53005": [
+      "1% of Physical Attack Damage dealt by your Totems is Leeched to you as Life"
+    ],
+    "53046": [
+      "40% of Physical Damage Converted to Lightning Damage"
+    ],
+    "53627": [
+      "25% of Damage taken Recouped as Life if Leech was removed by Filling Unreserved Life Recently"
+    ],
+    "53837": [
+      "You cannot be Impaled"
+    ],
+    "54067": [
+      "50% reduced Enemy Chance to Block Sword Attacks"
+    ],
+    "55013": [
+      "+2% to maximum Chance to Block Attack Damage"
+    ],
+    "55308": [
+      "Regenerate 1 Life per second for each 1% Uncapped Fire Resistance"
+    ],
+    "55886": [
+      "Recover 10% of Mana over 1 second when you use a Guard Skill"
+    ],
+    "56133": [
+      "Impale Damage dealt to Enemies Impaled by you ignores Enemy Physical Damage Reduction"
+    ],
+    "56471": [
+      "30% increased Area of Effect of Aura Skills"
+    ],
+    "56848": [
+      "Warcries grant 1 Rage per 5 Enemy Power, up to 5"
+    ],
+    "56951": [
+      "Increases and Reductions to Projectile Speed also apply to Damage with Bows"
+    ],
+    "57074": [
+      "+15% chance to Suppress Spell Damage if Equipped Helmet, Body Armour, Gloves, and Boots all have Evasion Rating"
+    ],
+    "57179": [
+      "20% increased effect of Offerings"
+    ],
+    "57298": [
+      "100% increased total Recovery per second from Life, Mana, or Energy Shield Leech"
+    ],
+    "57463": [
+      "60% increased Critical Strike Chance against Blinded Enemies"
+    ],
+    "57597": [
+      "40% more Accuracy Rating against Unique Enemies"
+    ],
+    "58106": [
+      "Convocation has 40% increased Cooldown Recovery Rate"
+    ],
+    "58309": [
+      "50% increased Projectile Speed while wielding a Dagger"
+    ],
+    "58447": [
+      "Prevent +3% of Suppressed Spell Damage"
+    ],
+    "58876": [
+      "40% increased Evasion Rating if you have been Hit Recently",
+      "40% increased Armour if you haven't been Hit Recently"
+    ],
+    "59010": [
+      "+6% to Damage over Time Multiplier for Bleeding per Impale on Enemy"
+    ],
+    "59064": [
+      "10% of Damage taken Recouped as Mana"
+    ],
+    "59281": [
+      "25% chance to Aggravate Bleeding on targets you Hit with Exerted Attacks"
+    ],
+    "59343": [
+      "50% reduced Effect of Exposure on you"
+    ],
+    "59574": [
+      "+1 to Level of all Chaos Skill Gems",
+      "Lose 10% of Life and Energy Shield when you use a Chaos Skill"
+    ],
+    "59626": [
+      "Moving while Bleeding doesn't cause you to take extra Damage"
+    ],
+    "59634": [
+      "Blink Arrow and Mirror Arrow have 100% increased Cooldown Recovery Rate"
+    ],
+    "59734": [
+      "Stuns from Critical Strikes have 100% increased Duration"
+    ],
+    "59754": [
+      "20% chance to Defend with 200% of Armour"
+    ],
+    "59815": [
+      "Enemies in your Link Beams cannot apply Elemental Ailments"
+    ],
+    "59906": [
+      "Remove a random Elemental Ailment when you use a Mana Flask"
+    ],
+    "59936": [
+      "20% increased Armour per second you've been stationary, up to a maximum of 100%"
+    ],
+    "60034": [
+      "Warcries have a minimum of 10 Power"
+    ],
+    "60050": [
+      "Totems' Action Speed cannot be modified to below Base Value"
+    ],
+    "60246": [
+      "Ruthless Hits Intimidate Enemies for 4 seconds"
+    ],
+    "60440": [
+      "+15% Chance to Block Attack Damage if you have not Blocked Recently"
+    ],
+    "61071": [
+      "6% increased Cast Speed for each different Non-Instant Spell you've Cast Recently"
+    ],
+    "61097": [
+      "Auras from your Skills have 10% increased Effect on you"
+    ],
+    "61283": [
+      "Minions have +8% to all maximum Elemental Resistances"
+    ],
+    "61352": [
+      "Increases and Reductions to Spell Damage also apply to Attacks while wielding a Wand"
+    ],
+    "61534": [
+      "You take 30% reduced Extra Damage from Critical Strikes"
+    ],
+    "61741": [
+      "30% chance to Avoid being Poisoned",
+      "30% chance to Avoid Bleeding",
+      "30% chance to Avoid being Impaled"
+    ],
+    "62252": [
+      "5% of Leech is Instant"
+    ],
+    "62285": [
+      "8% increased Evasion Rating per Frenzy Charge",
+      "8% increased Armour per Endurance Charge"
+    ],
+    "62782": [
+      "60% of Physical Damage from your Hits cannot be Reflected"
+    ],
+    "62897": [
+      "Poisons you inflict deal Damage 20% faster"
+    ],
+    "63223": [
+      "+100% to Critical Strike Multiplier against Enemies that are on Full Life"
+    ],
+    "63280": [
+      "Intelligence is added to Accuracy Rating with Wands"
+    ],
+    "63994": [
+      "Remove all Damaging Ailments when you Warcry"
+    ],
+    "64063": [
+      "Increases and reductions to Maximum Mana also apply to Shock Effect at 30% of their value"
+    ],
+    "64228": [
+      "10% more Damage with Hits and Ailments against Enemies that are on Low Life"
+    ],
+    "64241": [
+      "60% increased Critical Strike Chance against enemies with Lightning Exposure"
+    ],
+    "64264": [
+      "Enemies Poisoned by you cannot deal Critical Strikes"
+    ],
+    "64381": [
+      "10% more Maximum Life if you have at least 6 Life Masteries allocated"
+    ],
+    "64511": [
+      "Monsters cannot Block your Attacks"
+    ],
+    "64642": [
+      "10% chance to Recover 10% of Mana when you use a Skill"
+    ],
+    "64655": [
+      "Linked targets share Endurance, Frenzy and Power Charges with you"
+    ],
+    "64775": [
+      "Dexterity's Accuracy Bonus instead grants +3 to Accuracy Rating per Dexterity"
+    ],
+    "64875": [
+      "12% increased Mana Reservation Efficiency of Skills"
+    ],
+    "65015": [
+      "5% chance when you inflict Withered to inflict up to 15 Withered Debuffs instead"
+    ],
+    "65020": [
+      "40% of Physical Damage Converted to Fire Damage"
+    ],
+    "65233": [
+      "+60% to Critical Strike Multiplier if you haven't dealt a Critical Strike Recently"
+    ],
+    "65504": [
+      "20% reduced Effect of Curses on you"
+    ]
+  }
+}

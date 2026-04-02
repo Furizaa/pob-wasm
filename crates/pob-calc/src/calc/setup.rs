@@ -452,15 +452,21 @@ fn apply_granted_passives(build: &Build, env: &mut CalcEnv) {
 /// Apply passive tree mods to the player ModDb, implementing the full two-pass
 /// radius jewel framework from CalcSetup.lua.
 ///
+/// Also handles mastery node stat substitution (SETUP-09) and writes the
+/// Multiplier:AllocatedMastery* mods (CalcSetup.lua:664-671).
+///
 /// Mirrors calcs.buildModListForNodeList(env, env.allocNodes, true).
 fn apply_passive_mods(build: &Build, env: &mut super::env::CalcEnv) {
+    use crate::passive_tree::NodeType;
+
     let data = env.data.clone();
     let tree = data.tree_for_version(&build.passive_spec.tree_version);
 
     // Apply timeless jewel node replacements (SETUP-06).
     let timeless_overrides = crate::timeless_jewels::apply_timeless_jewels(build, tree, &data);
 
-    // Find reachable (connected) nodes.
+    // Find reachable (connected) nodes, respecting mastery gate.
+    // Mirrors PassiveSpec.lua ImportFromNodeList:266-277.
     let reachable = connected_passive_nodes(build, tree);
 
     // Combine reachable nodes with explicitly granted nodes.
@@ -471,8 +477,73 @@ fn apply_passive_mods(build: &Build, env: &mut super::env::CalcEnv) {
         .chain(granted_nodes.iter().copied())
         .collect();
 
+    // ── MASTERY COUNTING (SETUP-09) ──────────────────────────────────────────
+    // Mirrors PassiveSpec.lua:BuildAllDependsAndPaths lines 1307-1363.
+    // For each allocated mastery node with a valid selection:
+    //   - Count total allocated masteries
+    //   - Count distinct mastery types (by node name)
+    // These are written as Multiplier mods after all passive mods are applied.
+    let mut allocated_mastery_count: u32 = 0;
+    let mut allocated_mastery_type_count: u32 = 0;
+    let mut allocated_mastery_types: HashMap<String, u32> = HashMap::new();
+
+    // Build the effective mastery selections for this pass:
+    // Only count mastery nodes that are both allocated AND have a recognized effect.
+    // Unrecognized effects (effect not in tree.mastery_effects) dealloc the node (skip it).
+    // Mirrors PassiveSpec.lua:1320-1347.
+    let mut effective_mastery_selections: HashMap<u32, Vec<String>> = HashMap::new();
+    for (&node_id, &effect_id) in &build.passive_spec.mastery_selections {
+        if !all_alloc_nodes.contains(&node_id) {
+            // Not allocated — skip (mirrors "else" branch at line 1343)
+            continue;
+        }
+        // Look up the effect in the global mastery effects table
+        let effect_stats = tree.mastery_effects.get(&effect_id);
+        let Some(stats) = effect_stats else {
+            // Unrecognized effect: skip (mirrors lines 1343-1347)
+            continue;
+        };
+        // Node is allocated and has a recognized effect: apply it
+        effective_mastery_selections.insert(node_id, stats.clone());
+
+        // Count mastery for Multiplier mods.
+        // Mirrors PassiveSpec.lua:1331-1341.
+        allocated_mastery_count += 1;
+
+        // Count distinct mastery types by node name (e.g. "Life Mastery").
+        let node_name = tree
+            .nodes
+            .get(&node_id)
+            .map(|n| n.name.as_str())
+            .unwrap_or("");
+
+        let type_count = allocated_mastery_types
+            .entry(node_name.to_string())
+            .or_insert(0);
+        if *type_count == 0 {
+            // First allocation of this mastery type (or re-added after being zeroed)
+            allocated_mastery_type_count += 1;
+        }
+        *type_count += 1;
+    }
+
     // Update env.alloc_nodes to include all allocated nodes (for radius jewel checks).
-    env.alloc_nodes = all_alloc_nodes.clone();
+    // Remove mastery nodes that have no valid selection (mirrors line 1344-1346).
+    let final_alloc_nodes: std::collections::HashSet<u32> = all_alloc_nodes
+        .iter()
+        .copied()
+        .filter(|&nid| {
+            // Keep non-mastery nodes always
+            let node_type = tree.nodes.get(&nid).map(|n| n.node_type);
+            if node_type != Some(NodeType::Mastery) {
+                return true;
+            }
+            // Keep mastery nodes only if they have an effective selection
+            effective_mastery_selections.contains_key(&nid)
+        })
+        .collect();
+
+    env.alloc_nodes = final_alloc_nodes.clone();
 
     // Reset radius jewel accumulators and set modSource.
     // Mirrors CalcSetup.lua: for _, rad in pairs(env.radiusJewelList) do wipeTable(rad.data); ...
@@ -485,12 +556,13 @@ fn apply_passive_mods(build: &Build, env: &mut super::env::CalcEnv) {
     let mut all_mods: Vec<crate::mod_db::types::Mod> = Vec::new();
 
     // Process all allocated nodes.
-    for &node_id in &all_alloc_nodes {
+    for &node_id in &final_alloc_nodes {
         let node_mods = build_mod_list_for_node(
             node_id,
             true, // is_allocated
             tree,
             &timeless_overrides,
+            &effective_mastery_selections,
             &mut env.radius_jewel_list,
             &env.alloc_nodes,
         );
@@ -503,7 +575,7 @@ fn apply_passive_mods(build: &Build, env: &mut super::env::CalcEnv) {
     let extra_nodes = env.extra_radius_node_list.clone();
     for &node_id in &extra_nodes {
         // Only process if not already in alloc_nodes (to avoid double-processing).
-        if all_alloc_nodes.contains(&node_id) {
+        if final_alloc_nodes.contains(&node_id) {
             continue;
         }
         build_mod_list_for_node(
@@ -511,6 +583,7 @@ fn apply_passive_mods(build: &Build, env: &mut super::env::CalcEnv) {
             false, // is_allocated
             tree,
             &timeless_overrides,
+            &effective_mastery_selections,
             &mut env.radius_jewel_list,
             &env.alloc_nodes,
         );
@@ -527,12 +600,58 @@ fn apply_passive_mods(build: &Build, env: &mut super::env::CalcEnv) {
     for m in all_mods {
         env.player.mod_db.add(m);
     }
+
+    // ── WRITE MULTIPLIER MODS (SETUP-09) ────────────────────────────────────
+    // Mirrors CalcSetup.lua:664-671.
+    let mastery_src = ModSource::new("Mastery", "allocated mastery nodes");
+
+    if allocated_mastery_count > 0 {
+        env.player.mod_db.add(Mod {
+            name: "Multiplier:AllocatedMastery".to_string(),
+            mod_type: crate::mod_db::types::ModType::Base,
+            value: crate::mod_db::types::ModValue::Number(allocated_mastery_count as f64),
+            flags: crate::mod_db::types::ModFlags::NONE,
+            keyword_flags: crate::mod_db::types::KeywordFlags::NONE,
+            tags: vec![],
+            source: mastery_src.clone(),
+        });
+    }
+
+    if allocated_mastery_type_count > 0 {
+        env.player.mod_db.add(Mod {
+            name: "Multiplier:AllocatedMasteryType".to_string(),
+            mod_type: crate::mod_db::types::ModType::Base,
+            value: crate::mod_db::types::ModValue::Number(allocated_mastery_type_count as f64),
+            flags: crate::mod_db::types::ModFlags::NONE,
+            keyword_flags: crate::mod_db::types::KeywordFlags::NONE,
+            tags: vec![],
+            source: mastery_src.clone(),
+        });
+    }
+
+    // "Life Mastery" gets a specific multiplier.
+    // Mirrors CalcSetup.lua:670-672.
+    if let Some(&life_mastery_count) = allocated_mastery_types.get("Life Mastery") {
+        if life_mastery_count > 0 {
+            env.player.mod_db.add(Mod {
+                name: "Multiplier:AllocatedLifeMastery".to_string(),
+                mod_type: crate::mod_db::types::ModType::Base,
+                value: crate::mod_db::types::ModValue::Number(life_mastery_count as f64),
+                flags: crate::mod_db::types::ModFlags::NONE,
+                keyword_flags: crate::mod_db::types::KeywordFlags::NONE,
+                tags: vec![],
+                source: mastery_src,
+            });
+        }
+    }
 }
 
 /// Build the mod list for a single passive node, implementing the two-pass
 /// radius jewel dispatch, PassiveSkillEffect scaling, and suppression checks.
 ///
 /// Mirrors calcs.buildModListForNode(env, node) from CalcSetup.lua lines 113-167.
+/// Also handles mastery node stat substitution (SETUP-09):
+///   if the node is a mastery with a selection, use the effect's stats instead of node.stats.
 ///
 /// Returns the final Vec<Mod> for this node.
 fn build_mod_list_for_node(
@@ -540,6 +659,9 @@ fn build_mod_list_for_node(
     is_allocated: bool,
     tree: &crate::passive_tree::PassiveTree,
     timeless_overrides: &HashMap<u32, Vec<String>>,
+    // mastery_stats: mastery node_id → effective stat strings (already looked up from mastery_effects).
+    // Mastery nodes NOT in this map are skipped (they have no allocated effect).
+    mastery_stats: &HashMap<u32, Vec<String>>,
     radius_jewel_list: &mut Vec<super::env::RadiusJewelEntry>,
     _alloc_nodes: &std::collections::HashSet<u32>,
 ) -> Vec<crate::mod_db::types::Mod> {
@@ -551,9 +673,23 @@ fn build_mod_list_for_node(
         return Vec::new();
     };
 
-    // Skip mastery nodes entirely (they have no stats that should be applied).
+    // Mastery node handling (SETUP-09):
+    // Mirrors PassiveSpec.lua:BuildAllDependsAndPaths lines 1320-1347.
+    // If the node has an effective selection in mastery_stats, use those stats.
+    // If not in mastery_stats, skip (no selection or unrecognized effect).
     if node.node_type == NodeType::Mastery {
-        return Vec::new();
+        let Some(effect_stats) = mastery_stats.get(&node_id) else {
+            // No selection or unrecognized effect: skip this node entirely.
+            return Vec::new();
+        };
+        // Apply mastery effect stats (node.sd = effect.sd in Lua).
+        let source = ModSource::new("Passive", &node.name);
+        let mut mod_list: Vec<crate::mod_db::types::Mod> = Vec::new();
+        for stat_text in effect_stats {
+            let parsed = crate::build::mod_parser::parse_mod(stat_text, source.clone());
+            mod_list.extend(parsed);
+        }
+        return mod_list;
     }
 
     let source = ModSource::new("Passive", &node.name);
@@ -907,13 +1043,35 @@ fn determine_jewel_type(item: &crate::build::types::Item) -> super::env::RadiusJ
 ///
 /// Mirrors PoB's `BuildAllDependsAndPaths` which prunes "orphan" nodes —
 /// allocated nodes that can't be traced back to the character's start.
+///
+/// Also enforces the mastery gate from `ImportFromNodeList`:
+///   mastery nodes are only considered allocated if they have a selection in
+///   `build.passive_spec.mastery_selections`.
 fn connected_passive_nodes(
     build: &Build,
     tree: &crate::passive_tree::PassiveTree,
 ) -> std::collections::HashSet<u32> {
+    use crate::passive_tree::NodeType;
     use std::collections::{HashSet, VecDeque};
 
-    let allocated: HashSet<u32> = build.passive_spec.allocated_nodes.iter().copied().collect();
+    // Gate: mastery nodes are only allocated if they have a selection.
+    // Mirrors PassiveSpec.lua ImportFromNodeList:269-273.
+    let allocated: HashSet<u32> = build
+        .passive_spec
+        .allocated_nodes
+        .iter()
+        .copied()
+        .filter(|&nid| {
+            // Check if this is a mastery node
+            match tree.nodes.get(&nid) {
+                Some(node) if node.node_type == NodeType::Mastery => {
+                    // Mastery nodes require a selection to be considered allocated
+                    build.passive_spec.mastery_selections.contains_key(&nid)
+                }
+                _ => true, // Non-mastery nodes are always allocated
+            }
+        })
+        .collect();
 
     if allocated.is_empty() {
         return HashSet::new();
@@ -934,7 +1092,6 @@ fn connected_passive_nodes(
 
     // Find start nodes: class start nodes and ascendancy start nodes in the tree
     // that are in the allocated set OR are the expected class/ascendancy starts.
-    use crate::passive_tree::NodeType;
     let mut start_ids: HashSet<u32> = HashSet::new();
     for (&nid, node) in &tree.nodes {
         if matches!(
