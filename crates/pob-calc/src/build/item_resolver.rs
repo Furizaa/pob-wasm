@@ -93,6 +93,8 @@ mod tests {
             crafted_mods: Vec::new(),
             enchant_mods: Vec::new(),
             corrupted: false,
+            foulborn: false,
+            class_restriction: None,
             influence: ItemInfluence::default(),
             weapon_data: None,
             armour_data: None,

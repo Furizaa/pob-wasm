@@ -130,6 +130,10 @@ pub struct Item {
     pub enchant_mods: Vec<String>,
     /// Whether the item is corrupted
     pub corrupted: bool,
+    /// True if the item name/title contains "Foulborn" (PoE2 unique tag)
+    pub foulborn: bool,
+    /// Class restriction (e.g. "Scion"), set from "Requires Class XXX" line in item text
+    pub class_restriction: Option<String>,
     /// Influence flags (shaper, elder, etc.)
     pub influence: ItemInfluence,
     /// Weapon-specific data, resolved from base data
@@ -154,6 +158,8 @@ pub enum ItemRarity {
     Magic,
     Rare,
     Unique,
+    /// Relic items: treated same as Unique for counting purposes.
+    Relic,
 }
 
 impl ItemRarity {
@@ -164,6 +170,7 @@ impl ItemRarity {
             "MAGIC" => Some(Self::Magic),
             "RARE" => Some(Self::Rare),
             "UNIQUE" => Some(Self::Unique),
+            "RELIC" => Some(Self::Relic),
             _ => None,
         }
     }
@@ -457,6 +464,8 @@ mod tests {
             crafted_mods: vec!["10% increased Attack Speed".into()],
             enchant_mods: vec![],
             corrupted: false,
+            foulborn: false,
+            class_restriction: None,
             influence: ItemInfluence::default(),
             weapon_data: Some(ItemWeaponData {
                 phys_min: 10.0,

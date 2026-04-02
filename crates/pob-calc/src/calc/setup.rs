@@ -2672,6 +2672,183 @@ fn add_item_mods(build: &Build, env: &mut CalcEnv) {
             }
             _ => {}
         }
+
+        // ── SETUP-11: Item condition & multiplier tracking ────────────────────
+        // Mirrors CalcSetup.lua lines 1132-1203.
+
+        // Lines 1132-1135: Class-restriction condition
+        // e.g. "Requires Class Scion" → conditions["SolarisLorica"] = true
+        if let Some(ref _restriction) = resolved_item.class_restriction {
+            let key = resolved_item.name.replace(' ', "");
+            env.player.mod_db.set_condition(&key, true);
+        }
+
+        // Lines 1136-1203: Item counts (skipped for Jewel/Flask/Tincture/Graft)
+        // Jewels and flasks are skipped by the slot check above; also skip Tincture/Graft types.
+        if resolved_item.item_type != "Tincture" && resolved_item.item_type != "Graft" {
+            // Lines 1138-1151: Rarity multiplier
+            let rarity_key = match resolved_item.rarity {
+                crate::build::types::ItemRarity::Unique
+                | crate::build::types::ItemRarity::Relic => {
+                    if resolved_item.foulborn {
+                        *env.player
+                            .mod_db
+                            .multipliers
+                            .entry("FoulbornUniqueItem".to_string())
+                            .or_insert(0.0) += 1.0;
+                    }
+                    "UniqueItem"
+                }
+                crate::build::types::ItemRarity::Rare => "RareItem",
+                crate::build::types::ItemRarity::Magic => "MagicItem",
+                crate::build::types::ItemRarity::Normal => "NormalItem",
+            };
+            *env.player
+                .mod_db
+                .multipliers
+                .entry(rarity_key.to_string())
+                .or_insert(0.0) += 1.0;
+
+            // Set per-slot rarity condition: "{RarityKey}In{SlotName}"
+            // e.g. "UniqueItemInWeapon 1" = true, "RareItemInBody Armour" = true
+            env.player
+                .mod_db
+                .set_condition(&format!("{}In{}", rarity_key, slot_name), true);
+
+            // Lines 1153-1159: Influence multipliers (and their Non* counterparts)
+            let influences = [
+                ("CorruptedItem", resolved_item.corrupted),
+                ("ShaperItem", resolved_item.influence.shaper),
+                ("ElderItem", resolved_item.influence.elder),
+                ("WarlordItem", resolved_item.influence.warlord),
+                ("HunterItem", resolved_item.influence.hunter),
+                ("CrusaderItem", resolved_item.influence.crusader),
+                ("RedeemerItem", resolved_item.influence.redeemer),
+            ];
+            for (mult_key, has_it) in &influences {
+                if *has_it {
+                    *env.player
+                        .mod_db
+                        .multipliers
+                        .entry(mult_key.to_string())
+                        .or_insert(0.0) += 1.0;
+                } else {
+                    let non_key = format!("Non{}", mult_key);
+                    *env.player.mod_db.multipliers.entry(non_key).or_insert(0.0) += 1.0;
+                }
+            }
+
+            // Lines 1160-1162: ShaperOrElderItem
+            if resolved_item.influence.shaper || resolved_item.influence.elder {
+                *env.player
+                    .mod_db
+                    .multipliers
+                    .entry("ShaperOrElderItem".to_string())
+                    .or_insert(0.0) += 1.0;
+            }
+
+            // Line 1163: Item type multiplier
+            // Lua: item.type:gsub(" ", ""):gsub(".+Handed", "").."Item"
+            // Strips spaces then strips any prefix ending in "Handed"
+            // e.g. "Two Handed Sword" → "TwoHandedSword" → "Sword" → "SwordItem"
+            // e.g. "One Handed Axe" → "OneHandedAxe" → "Axe" → "AxeItem"
+            let type_no_spaces = resolved_item.item_type.replace(' ', "");
+            let type_key = if let Some(after) = type_no_spaces.strip_prefix("TwoHanded") {
+                after.to_string()
+            } else if let Some(after) = type_no_spaces.strip_prefix("OneHanded") {
+                after.to_string()
+            } else {
+                type_no_spaces
+            };
+            let item_type_mult_key = format!("{}Item", type_key);
+            *env.player
+                .mod_db
+                .multipliers
+                .entry(item_type_mult_key)
+                .or_insert(0.0) += 1.0;
+
+            // Lines 1165-1168: Ring base-name multiplier (for Breachlord ring interactions)
+            // e.g. "Cryonic Ring" → "CryonicRingEquipped" += 1
+            if resolved_item.item_type == "Ring" {
+                let ring_key = format!("{}Equipped", resolved_item.base_type.replace(' ', ""));
+                *env.player.mod_db.multipliers.entry(ring_key).or_insert(0.0) += 1.0;
+            }
+
+            // Lines 1169-1202: Socket counting
+            // Count enabled gems in socket groups assigned to this slot
+            let active_skill_set = build.skill_sets.get(build.active_skill_set);
+            let socketed_gems = active_skill_set
+                .map(|ss| {
+                    ss.skills
+                        .iter()
+                        .filter(|s| s.slot == *slot_name && s.enabled)
+                        .flat_map(|s| s.gems.iter())
+                        .filter(|g| g.enabled && !g.skill_id.is_empty())
+                        .count()
+                })
+                .unwrap_or(0) as u32;
+
+            // Flatten socket groups to individual sockets (1-based index like Lua's ipairs)
+            let flat_sockets: Vec<char> = resolved_item
+                .sockets
+                .iter()
+                .flat_map(|g| g.colors.iter().copied())
+                .collect();
+
+            let mut slot_gem_socket_count: u32 = 0;
+            let mut slot_empty_r: u32 = 0;
+            let mut slot_empty_g: u32 = 0;
+            let mut slot_empty_b: u32 = 0;
+            let mut slot_empty_w: u32 = 0;
+
+            for (i, color) in flat_sockets.iter().enumerate() {
+                let idx = (i + 1) as u32; // 1-based index (mirrors Lua's ipairs)
+                match color {
+                    'R' | 'G' | 'B' | 'W' => {
+                        slot_gem_socket_count += 1;
+                        // Sockets beyond the gem count are "empty"
+                        if idx > socketed_gems {
+                            match color {
+                                'R' => slot_empty_r += 1,
+                                'G' => slot_empty_g += 1,
+                                'B' => slot_empty_b += 1,
+                                'W' => slot_empty_w += 1,
+                                _ => {}
+                            }
+                        }
+                    }
+                    _ => {} // 'A' (abyss) sockets are ignored
+                }
+            }
+
+            // SocketedGemsIn{SlotName}: capped at actual socket count
+            let sg_key = format!("SocketedGemsIn{}", slot_name);
+            *env.player.mod_db.multipliers.entry(sg_key).or_insert(0.0) +=
+                slot_gem_socket_count.min(socketed_gems) as f64;
+
+            // Accumulate empty socket counts across all items
+            *env.player
+                .mod_db
+                .multipliers
+                .entry("EmptyRedSocketsInAnySlot".to_string())
+                .or_insert(0.0) += slot_empty_r as f64;
+            *env.player
+                .mod_db
+                .multipliers
+                .entry("EmptyGreenSocketsInAnySlot".to_string())
+                .or_insert(0.0) += slot_empty_g as f64;
+            *env.player
+                .mod_db
+                .multipliers
+                .entry("EmptyBlueSocketsInAnySlot".to_string())
+                .or_insert(0.0) += slot_empty_b as f64;
+            *env.player
+                .mod_db
+                .multipliers
+                .entry("EmptyWhiteSocketsInAnySlot".to_string())
+                .or_insert(0.0) += slot_empty_w as f64;
+        }
+        // ── End SETUP-11 ──────────────────────────────────────────────────────
     }
 
     // After processing all slots, determine dual-wield status:
@@ -2681,6 +2858,21 @@ fn add_item_mods(build: &Build, env: &mut CalcEnv) {
         && !env.player.has_shield
     {
         env.player.dual_wield = true;
+    }
+
+    // ── SETUP-11 lines 1207-1210: Config override for empty sockets ───────────
+    // After all items are processed, allow the config tab to override computed
+    // empty socket counts.
+    let socket_overrides = [
+        ("overrideEmptyRedSockets", "EmptyRedSocketsInAnySlot"),
+        ("overrideEmptyGreenSockets", "EmptyGreenSocketsInAnySlot"),
+        ("overrideEmptyBlueSockets", "EmptyBlueSocketsInAnySlot"),
+        ("overrideEmptyWhiteSockets", "EmptyWhiteSocketsInAnySlot"),
+    ];
+    for (cfg_key, mult_key) in &socket_overrides {
+        if let Some(&v) = build.config.numbers.get(*cfg_key) {
+            env.player.mod_db.set_multiplier(mult_key, v);
+        }
     }
 }
 
