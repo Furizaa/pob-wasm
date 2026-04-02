@@ -790,7 +790,9 @@ fn make_keystone_entry(name: &str) -> SpecialModEntry {
         template: SpecialModTemplate::StaticMods(vec![LuaModCall {
             name: "Keystone".into(),
             mod_type: "LIST".into(),
-            value: name.to_string(),
+            // Wrap in quotes so lua_value_to_rust() recognises this as a string
+            // literal and emits ModValue::String("...") rather than the TODO fallback.
+            value: format!("\"{}\"", name),
             flags: None,
             keyword_flags: None,
             tags: vec![],
