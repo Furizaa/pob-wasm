@@ -829,14 +829,19 @@ fn calc_recovery_rates(env: &mut CalcEnv) {
     let output = env.player.output.clone();
 
     for resource in &["Life", "Mana", "EnergyShield"] {
-        let stat = format!("{resource}RecoveryRateMod");
+        // The mod stat name is "{resource}RecoveryRate" (e.g. "LifeRecoveryRate").
+        // The output field name is "{resource}RecoveryRateMod".
+        // Lua: calcLib.mod(modDB, nil, "LifeRecoveryRate") == (1 + INC/100) * More
+        // CalcDefence.lua:1194-1197
+        let mod_stat = format!("{resource}RecoveryRate");
+        let output_stat = format!("{resource}RecoveryRateMod");
         let inc = env
             .player
             .mod_db
-            .sum_cfg(ModType::Inc, &stat, None, &output);
-        let more = env.player.mod_db.more_cfg(&stat, None, &output);
+            .sum_cfg(ModType::Inc, &mod_stat, None, &output);
+        let more = env.player.mod_db.more_cfg(&mod_stat, None, &output);
         let rate = (1.0 + inc / 100.0) * more;
-        env.player.set_output(&stat, rate);
+        env.player.set_output(&output_stat, rate);
     }
 }
 
@@ -981,36 +986,91 @@ fn calc_regeneration(env: &mut CalcEnv) {
 fn calc_es_recharge(env: &mut CalcEnv) {
     let output = env.player.output.clone();
 
-    let es = get_output_f64(&output, "EnergyShield").max(0.0);
-
-    // ES recharge rate: 20% of ES per second * (1+inc/100) * more
-    let inc = env
-        .player
-        .mod_db
-        .sum_cfg(ModType::Inc, "EnergyShieldRechargeRate", None, &output);
-    let more = env
-        .player
-        .mod_db
-        .more_cfg("EnergyShieldRechargeRate", None, &output);
-    let recharge_rate = es * 0.20 * (1.0 + inc / 100.0) * more;
-    env.player.set_output("EnergyShieldRecharge", recharge_rate);
-
-    // ES recharge delay: 2s / (1 + faster/100)
-    let faster =
+    // CalcDefence.lua:1322-1369
+    // output.EnergyShieldRechargeAppliesToLife = flag(EnergyShieldRechargeAppliesToLife)
+    //   and not flag(CannotRecoverLifeOutsideLeech)
+    // output.EnergyShieldRechargeAppliesToEnergyShield = not (flag(NoEnergyShieldRecharge)
+    //   or flag(CannotGainEnergyShield) or EnergyShieldRechargeAppliesToLife)
+    let applies_to_life =
         env.player
             .mod_db
-            .sum_cfg(ModType::Inc, "EnergyShieldRechargeFaster", None, &output);
-    let delay = 2.0 / (1.0 + faster / 100.0);
-    env.player.set_output("EnergyShieldRechargeDelay", delay);
-
-    // ES recharge applies to life
-    if env
+            .flag_cfg("EnergyShieldRechargeAppliesToLife", None, &output)
+            && !env
+                .player
+                .mod_db
+                .flag_cfg("CannotRecoverLifeOutsideLeech", None, &output);
+    let applies_to_es = !(env
         .player
         .mod_db
-        .flag_cfg("EnergyShieldRechargeAppliesToLife", None, &output)
-    {
-        env.player.set_output("LifeRechargeRate", recharge_rate);
-        env.player.set_output("LifeRechargeDelay", delay);
+        .flag_cfg("NoEnergyShieldRecharge", None, &output)
+        || env
+            .player
+            .mod_db
+            .flag_cfg("CannotGainEnergyShield", None, &output)
+        || applies_to_life);
+
+    env.player
+        .set_output_bool("EnergyShieldRechargeAppliesToLife", applies_to_life);
+    env.player
+        .set_output_bool("EnergyShieldRechargeAppliesToEnergyShield", applies_to_es);
+
+    if applies_to_life || applies_to_es {
+        // Inc/More mod names are "EnergyShieldRecharge" (NOT "EnergyShieldRechargeRate").
+        // CalcDefence.lua:1327-1328
+        let inc = env
+            .player
+            .mod_db
+            .sum_cfg(ModType::Inc, "EnergyShieldRecharge", None, &output);
+        let more = env
+            .player
+            .mod_db
+            .more_cfg("EnergyShieldRecharge", None, &output);
+
+        // base = modDB:Override(nil, "EnergyShieldRecharge") or data.misc.EnergyShieldRechargeBase
+        // EnergyShieldRechargeBase = character_constants["energy_shield_recharge_rate_per_minute_%"] / 60 / 100
+        // CalcDefence.lua:1329 / Data.lua:182-183
+        let base = env
+            .player
+            .mod_db
+            .override_value("EnergyShieldRecharge", None, &output)
+            .unwrap_or_else(|| {
+                env.data
+                    .misc
+                    .character_constants
+                    .get("energy_shield_recharge_rate_per_minute_%")
+                    .copied()
+                    .unwrap_or(2000.0)
+                    / 60.0
+                    / 100.0
+            });
+
+        if applies_to_life {
+            // output.LifeRecharge = round(Life * base * (1+inc/100) * more * LifeRecoveryRateMod)
+            // CalcDefence.lua:1331-1332
+            let life = get_output_f64(&output, "Life");
+            let life_recovery_rate = get_output_f64(&output, "LifeRecoveryRateMod").max(1.0);
+            let recharge = life * base * (1.0 + inc / 100.0) * more;
+            let life_recharge = (recharge * life_recovery_rate).round();
+            env.player.set_output("LifeRecharge", life_recharge);
+        } else {
+            // output.EnergyShieldRecharge = round(EnergyShield * base * (1+inc/100) * more
+            //   * EnergyShieldRecoveryRateMod)
+            // CalcDefence.lua:1350-1351
+            let es = get_output_f64(&output, "EnergyShield").max(0.0);
+            let es_recovery_rate = get_output_f64(&output, "EnergyShieldRecoveryRateMod").max(1.0);
+            let recharge = es * base * (1.0 + inc / 100.0) * more;
+            let es_recharge = (recharge * es_recovery_rate).round();
+            env.player.set_output("EnergyShieldRecharge", es_recharge);
+        }
+
+        // ES recharge delay: data.misc.EnergyShieldRechargeDelay / (1 + faster/100)
+        // CalcDefence.lua:1369 — EnergyShieldRechargeDelay = 2 (from Data.lua:184)
+        let faster =
+            env.player
+                .mod_db
+                .sum_cfg(ModType::Inc, "EnergyShieldRechargeFaster", None, &output);
+        let delay = 2.0 / (1.0 + faster / 100.0);
+        env.player.set_output("EnergyShieldRechargeDelay", delay);
     }
 }
 
