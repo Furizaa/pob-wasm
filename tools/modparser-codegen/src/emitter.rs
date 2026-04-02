@@ -706,11 +706,21 @@ fn emit_template_handler(
             }
         }
         SpecialModTemplate::SimpleFn(calls) => {
-            // Extract the first capture as num
-            out.push_str(
-                "            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or(\"0\");\n",
-            );
-            out.push_str("            let num: f64 = num_str.parse().unwrap_or(0.0);\n");
+            // Only emit the num_str/num preamble if at least one call's value
+            // expression actually uses `num`. Some patterns (e.g. GrantedAscendancyNode,
+            // GrantedPassive, static strings) generate a ModValue that reads directly
+            // from `caps` without going through a numeric parse — emitting unused
+            // `num_str`/`num` locals would produce dead-code in those cases.
+            let needs_num = calls.iter().any(|call| {
+                let value_expr = lua_value_to_rust(&call.value, &call.mod_type);
+                value_expr.contains("num")
+            });
+            if needs_num {
+                out.push_str(
+                    "            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or(\"0\");\n",
+                );
+                out.push_str("            let num: f64 = num_str.parse().unwrap_or(0.0);\n");
+            }
             if calls.is_empty() {
                 out.push_str("            vec![]\n");
             } else {
