@@ -1542,6 +1542,8 @@ mod tests {
             mode: CalcMode::Normal,
             data,
             requirements_table: Vec::new(),
+            alloc_nodes: std::collections::HashSet::new(),
+            granted_passives: std::collections::HashSet::new(),
         };
         setup(&mut env);
         env
@@ -2655,6 +2657,8 @@ mod tests {
             mode: CalcMode::Normal,
             data: data.clone(),
             requirements_table: Vec::new(),
+            alloc_nodes: std::collections::HashSet::new(),
+            granted_passives: std::collections::HashSet::new(),
         };
 
         // Add Marauder L90 base stats
@@ -2703,6 +2707,8 @@ mod tests {
             mode: CalcMode::Normal,
             data: data.clone(),
             requirements_table: Vec::new(),
+            alloc_nodes: std::collections::HashSet::new(),
+            granted_passives: std::collections::HashSet::new(),
         };
 
         let base_src = ModSource::new("Base", "Marauder base stats");

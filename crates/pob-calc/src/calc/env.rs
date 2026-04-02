@@ -1,6 +1,6 @@
 use crate::data::GameData;
 use crate::mod_db::ModDb;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 /// Final computed stat values. Keys match POB's env.player.output table names.
@@ -214,6 +214,12 @@ pub struct CalcEnv {
     pub data: Arc<GameData>,
     /// Item and gem attribute requirements. Populated during setup.
     pub requirements_table: Vec<RequirementEntry>,
+    /// Mirrors env.allocNodes: set of node IDs that are "allocated" for this env
+    /// (includes both passive spec nodes and nodes granted by anointments/Forbidden jewels).
+    pub alloc_nodes: HashSet<u32>,
+    /// Mirrors env.grantedPassives: set of node IDs that were granted via anointments
+    /// or Forbidden Flesh/Flame (i.e. NOT part of the original passive spec allocation).
+    pub granted_passives: HashSet<u32>,
 }
 
 /// Get a numeric output value, returning 0.0 if absent or not a number.
@@ -238,6 +244,8 @@ impl CalcEnv {
             mode: CalcMode::Normal,
             data,
             requirements_table: Vec::new(),
+            alloc_nodes: HashSet::new(),
+            granted_passives: HashSet::new(),
         }
     }
 }

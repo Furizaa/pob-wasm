@@ -120,6 +120,8 @@ impl GameData {
             PassiveTree {
                 nodes: std::collections::HashMap::new(),
                 classes: Vec::new(),
+                notable_map: std::collections::HashMap::new(),
+                ascendancy_map: std::collections::HashMap::new(),
             }
         };
         let bases = BaseItemMap::from_vec(raw.bases.unwrap_or_default());
