@@ -1588,3 +1588,21 @@ fn arakaali_chaos_dot_resist_has_dot_flag() {
     assert!(m.flags.contains(ModFlags::DOT), 
         "Mod should have DOT flag (0x08), got flags={:?}", m.flags);
 }
+
+#[test]
+fn test_es_inc_parsing() {
+    use pob_calc::build::mod_parser::parse_mod;
+    use pob_calc::mod_db::types::ModSource;
+    
+    let src = ModSource::new("Test", "test");
+    let mods = parse_mod("6% increased maximum Energy Shield", src.clone());
+    println!("Parsed mods: {:?}", mods);
+    assert!(!mods.is_empty(), "Should parse 'increased maximum Energy Shield'");
+    assert_eq!(mods[0].name, "EnergyShield");
+    assert_eq!(format!("{:?}", mods[0].mod_type), "Inc");
+    assert_eq!(mods[0].value.as_f64(), 6.0);
+    
+    let mods2 = parse_mod("10% increased maximum Energy Shield", src.clone());
+    assert!(!mods2.is_empty());
+    assert_eq!(mods2[0].value.as_f64(), 10.0);
+}

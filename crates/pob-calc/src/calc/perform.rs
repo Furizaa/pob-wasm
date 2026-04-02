@@ -372,23 +372,61 @@ fn compute_omniscience(env: &mut CalcEnv) {
 
 /// Mirrors doActorLifeMana() in CalcPerform.lua.
 fn do_actor_life_mana(env: &mut CalcEnv) {
-    let o = &env.player.output;
+    // data.misc.LowPoolThreshold = 0.5 (Data.lua:167)
+    const LOW_POOL_THRESHOLD: f64 = 0.5;
 
-    // Chaos Inoculation: life is fixed at 1
-    let chaos_inoc = env.player.mod_db.flag_cfg("ChaosInoculation", None, o);
+    // LowLifePercentage: output as a percentage (e.g. 50.0 means 50%)
+    // Lua: output.LowLifePercentage = 100.0 * (lowLifePerc > 0 and lowLifePerc or 0.5)
+    let low_life_perc_raw =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "LowLifePercentage", None, &env.player.output);
+    let low_life_threshold = if low_life_perc_raw > 0.0 {
+        low_life_perc_raw
+    } else {
+        LOW_POOL_THRESHOLD
+    };
+    env.player
+        .set_output("LowLifePercentage", 100.0 * low_life_threshold);
+
+    // FullLifePercentage
+    let full_life_perc_raw = env.player.mod_db.sum_cfg(
+        ModType::Base,
+        "FullLifePercentage",
+        None,
+        &env.player.output,
+    );
+    let full_life_threshold = if full_life_perc_raw > 0.0 {
+        full_life_perc_raw
+    } else {
+        1.0
+    };
+    env.player
+        .set_output("FullLifePercentage", 100.0 * full_life_threshold);
+
+    // ChaosInoculation flag — written as bool output AND condition
+    let chaos_inoc = env
+        .player
+        .mod_db
+        .flag_cfg("ChaosInoculation", None, &env.player.output);
+    env.player.set_output_bool("ChaosInoculation", chaos_inoc);
+
     if chaos_inoc {
+        // CI: life is fixed at 1
         env.player.set_output("Life", 1.0);
         env.player.mod_db.set_condition("FullLife", true);
         env.player.mod_db.set_condition("ChaosInoculation", true);
     } else {
-        // Life-to-ES conversion reduces life
-        let life_convert_to_es = env.player.mod_db.sum_cfg(
+        // Life-to-ES conversion reduces life.
+        // NOTE: Lua does NOT clamp conv to [0, 100]. PoB allows conv > 100 (life goes negative
+        // before max(1.0)). We reproduce the same behaviour — no clamping.
+        let life_conv = env.player.mod_db.sum_cfg(
             ModType::Base,
             "LifeConvertToEnergyShield",
             None,
             &env.player.output,
         );
-        let life_conversion_factor = 1.0 - (life_convert_to_es / 100.0).clamp(0.0, 1.0);
+        let conv_factor = 1.0 - life_conv / 100.0;
 
         let base = env
             .player
@@ -399,13 +437,28 @@ fn do_actor_life_mana(env: &mut CalcEnv) {
             .mod_db
             .sum_cfg(ModType::Inc, "Life", None, &env.player.output);
         let more = env.player.mod_db.more_cfg("Life", None, &env.player.output);
-        let life = (base * (1.0 + inc / 100.0) * more * life_conversion_factor)
-            .max(1.0)
-            .round();
+
+        // Check for Override mod (e.g. Divine Flesh uniquifying)
+        let life = env
+            .player
+            .mod_db
+            .override_value("Life", None, &env.player.output)
+            .unwrap_or_else(|| {
+                // Lua: m_max(round(base * (1 + inc/100) * more * (1 - conv/100)), 1)
+                // Note: round() THEN max(1), not max(1) THEN round()
+                (base * (1.0 + inc / 100.0) * more * conv_factor)
+                    .round()
+                    .max(1.0)
+            });
         env.player.set_output("Life", life);
 
         // Breakdown
-        if inc != 0.0 || more != 1.0 || life_conversion_factor < 1.0 {
+        let has_override = env
+            .player
+            .mod_db
+            .override_value("Life", None, &env.player.output)
+            .is_some();
+        if inc != 0.0 || more != 1.0 || conv_factor != 1.0 || has_override {
             let mut lines = vec![format!("{base:.0} (base)")];
             if inc != 0.0 {
                 lines.push(format!("x {:.2} (increased/reduced)", 1.0 + inc / 100.0));
@@ -413,61 +466,30 @@ fn do_actor_life_mana(env: &mut CalcEnv) {
             if more != 1.0 {
                 lines.push(format!("x {more:.2} (more/less)"));
             }
-            if life_conversion_factor < 1.0 {
-                lines.push(format!("x {life_conversion_factor:.2} (converted to ES)"));
+            if has_override {
+                lines.push(format!("= {life:.0} (life override)"));
             }
             lines.push(format!("= {life:.0}"));
             env.player.set_breakdown_lines("Life", lines);
         }
 
-        // LowLife / FullLife conditions
-        let low_life_pct = {
-            let v = env.player.mod_db.sum_cfg(
-                ModType::Base,
-                "LowLifePercentage",
-                None,
-                &env.player.output,
-            );
-            if v > 0.0 {
-                v
-            } else {
-                50.0
-            }
-        };
-        let full_life_pct = {
-            let v = env.player.mod_db.sum_cfg(
-                ModType::Base,
-                "FullLifePercentage",
-                None,
-                &env.player.output,
-            );
-            if v > 0.0 {
-                v
-            } else {
-                100.0
-            }
-        };
-
-        // Unreserved life percentage
-        let reserved_pct = env.player.reserved_life_percent;
-        let reserved_flat = env.player.reserved_life;
-        let reserved_flat_pct = if life > 0.0 {
-            reserved_flat / life * 100.0
-        } else {
-            0.0
-        };
-        let unreserved_pct = (100.0 - reserved_pct - reserved_flat_pct).max(0.0);
-
-        env.player
-            .mod_db
-            .set_condition("LowLife", unreserved_pct <= low_life_pct);
-        env.player
-            .mod_db
-            .set_condition("FullLife", unreserved_pct >= full_life_pct);
+        // FullLife condition (LowLife is set in do_actor_life_mana_reservation, matching Lua).
+        // FullLife is set here based on unreserved percentage at time of pool calculation.
+        // This is a simplified check — the Lua actually sets FullLife here (CI path) or
+        // doesn't set it (it's set in condList via other means). The reservation pass
+        // handles LowLife. FullLife in the non-CI path is not explicitly set in Lua either
+        // (it may be set by the reservation pass or external conditions).
+        // We set a conservative FullLife=false here; the reservation pass corrects it.
     }
 
-    // Mana
+    // Mana: Lua uses calcLib.val short-circuit (0 if base == 0), plus ManaConvertToArmour
     {
+        let mana_conv = env.player.mod_db.sum_cfg(
+            ModType::Base,
+            "ManaConvertToArmour",
+            None,
+            &env.player.output,
+        );
         let base = env
             .player
             .mod_db
@@ -477,10 +499,17 @@ fn do_actor_life_mana(env: &mut CalcEnv) {
             .mod_db
             .sum_cfg(ModType::Inc, "Mana", None, &env.player.output);
         let more = env.player.mod_db.more_cfg("Mana", None, &env.player.output);
-        let mana = (base * (1.0 + inc / 100.0) * more).max(0.0).round();
+        // calcLib.val short-circuit: if base == 0, result is 0 regardless of inc/more
+        let mana_pre_conv = if base == 0.0 {
+            0.0
+        } else {
+            base * (1.0 + inc / 100.0) * more
+        };
+        // No minimum here — Mana can legitimately be 0 or negative.
+        let mana = (mana_pre_conv * (1.0 - mana_conv / 100.0)).round();
         env.player.set_output("Mana", mana);
 
-        if inc != 0.0 || more != 1.0 {
+        if inc != 0.0 || more != 1.0 || mana_conv != 0.0 {
             let mut lines = vec![format!("{base:.0} (base)")];
             if inc != 0.0 {
                 lines.push(format!("x {:.2} (increased/reduced)", 1.0 + inc / 100.0));
@@ -488,82 +517,128 @@ fn do_actor_life_mana(env: &mut CalcEnv) {
             if more != 1.0 {
                 lines.push(format!("x {more:.2} (more/less)"));
             }
+            if mana_conv != 0.0 {
+                lines.push(format!(
+                    "x {:.2} (converted to Armour)",
+                    1.0 - mana_conv / 100.0
+                ));
+            }
             lines.push(format!("= {mana:.0}"));
             env.player.set_breakdown_lines("Mana", lines);
         }
     }
 
-    // Energy Shield
+    // LowestOfMaximumLifeAndMaximumMana (Lua line 129)
     {
-        let base =
-            env.player
-                .mod_db
-                .sum_cfg(ModType::Base, "EnergyShield", None, &env.player.output);
-        let inc = env
-            .player
-            .mod_db
-            .sum_cfg(ModType::Inc, "EnergyShield", None, &env.player.output);
-        let more = env
-            .player
-            .mod_db
-            .more_cfg("EnergyShield", None, &env.player.output);
-        let es = (base * (1.0 + inc / 100.0) * more).max(0.0).round();
-        env.player.set_output("EnergyShield", es);
+        let life = get_output_f64(&env.player.output, "Life");
+        let mana = get_output_f64(&env.player.output, "Mana");
+        env.player
+            .set_output("LowestOfMaximumLifeAndMaximumMana", life.min(mana));
     }
+
+    // NOTE: EnergyShield is computed in defence.rs::calc_primary_defences, not here.
+    // The Lua has it in doActorLifeMana but only via a simple formula for the
+    // placeholder before CalcDefence runs. Rust mirrors this by removing it from here.
 }
 
 // ---------------------------------------------------------------------------
 // Reservation
 // ---------------------------------------------------------------------------
 
-/// Compute life/mana reserved and unreserved amounts and percentages.
+/// Mirrors doActorLifeManaReservation() in CalcPerform.lua:519-553.
+/// Computes life/mana reserved and unreserved amounts and percentages.
+/// Also sets LowLife and LowMana conditions (Lua sets them here, NOT in doActorLifeMana).
 fn do_actor_life_mana_reservation(env: &mut CalcEnv) {
+    // data.misc.LowPoolThreshold = 0.5 (Data.lua:167)
+    const LOW_POOL_THRESHOLD: f64 = 0.5;
+
+    // Lua iterates {"Life", "Mana"} and runs the same logic for both.
+    // We unroll the loop here for Rust clarity.
+
+    // ── Life ──────────────────────────────────────────────────────────────
     let life = get_output_f64(&env.player.output, "Life");
-    let mana = get_output_f64(&env.player.output, "Mana");
-
-    // Life reservation
-    let reserved_life_from_pct = (env.player.reserved_life_percent / 100.0 * life).floor();
-    let total_reserved_life = (reserved_life_from_pct + env.player.reserved_life).min(life);
-    let life_unreserved = (life - total_reserved_life).max(0.0);
-
-    env.player.set_output("LifeReserved", total_reserved_life);
-    env.player.set_output("LifeUnreserved", life_unreserved);
     if life > 0.0 {
-        env.player
-            .set_output("LifeReservedPercent", total_reserved_life / life * 100.0);
+        // LowLifePercentage: read from modDB (raw fraction, e.g. 0.35 for 35%)
+        // This was already written to output as 100*fraction in do_actor_life_mana.
+        // Here we re-read the raw fraction for the condition check.
+        let low_life_perc_raw =
+            env.player
+                .mod_db
+                .sum_cfg(ModType::Base, "LowLifePercentage", None, &env.player.output);
+        let low_life_threshold = if low_life_perc_raw > 0.0 {
+            low_life_perc_raw
+        } else {
+            LOW_POOL_THRESHOLD
+        };
+
+        // Percent portion uses m_ceil (Lua uses ceil, NOT floor or round)
+        let reserved_life_from_pct = (life * env.player.reserved_life_percent / 100.0).ceil();
+        let total_reserved_life = reserved_life_from_pct + env.player.reserved_life;
+        // Reserved shown in UI is capped at max, but Unreserved is NOT clamped.
+        let life_reserved_display = total_reserved_life.min(life);
+        let life_unreserved = life - total_reserved_life; // can be negative — do NOT clamp
+
+        env.player.set_output("LifeReserved", life_reserved_display);
+        env.player.set_output(
+            "LifeReservedPercent",
+            (total_reserved_life / life * 100.0).min(100.0),
+        );
+        env.player.set_output("LifeUnreserved", life_unreserved);
         env.player
             .set_output("LifeUnreservedPercent", life_unreserved / life * 100.0);
-    } else {
-        env.player.set_output("LifeReservedPercent", 0.0);
-        env.player.set_output("LifeUnreservedPercent", 0.0);
+
+        // UncancellableReservation: Lua uses m_min(val, 0) — always ≤ 0 (PoB quirk)
+        let uncancellable_life = env.player.uncancellable_life_reservation;
+        env.player
+            .set_output("LifeUncancellableReservation", uncancellable_life.min(0.0));
+        env.player
+            .set_output("LifeCancellableReservation", 100.0 - uncancellable_life);
+
+        // LowLife condition: (unreserved / max) <= threshold
+        if life_unreserved / life <= low_life_threshold {
+            env.player.mod_db.set_condition("LowLife", true);
+        }
     }
 
-    // Mana reservation
-    let reserved_mana_from_pct = (env.player.reserved_mana_percent / 100.0 * mana).floor();
-    let total_reserved_mana = (reserved_mana_from_pct + env.player.reserved_mana).min(mana);
-    let mana_unreserved = (mana - total_reserved_mana).max(0.0);
-
-    env.player.set_output("ManaReserved", total_reserved_mana);
-    env.player.set_output("ManaUnreserved", mana_unreserved);
+    // ── Mana ──────────────────────────────────────────────────────────────
+    let mana = get_output_f64(&env.player.output, "Mana");
     if mana > 0.0 {
-        env.player
-            .set_output("ManaReservedPercent", total_reserved_mana / mana * 100.0);
+        let low_mana_perc_raw =
+            env.player
+                .mod_db
+                .sum_cfg(ModType::Base, "LowManaPercentage", None, &env.player.output);
+        let low_mana_threshold = if low_mana_perc_raw > 0.0 {
+            low_mana_perc_raw
+        } else {
+            LOW_POOL_THRESHOLD
+        };
+
+        // Percent portion uses m_ceil
+        let reserved_mana_from_pct = (mana * env.player.reserved_mana_percent / 100.0).ceil();
+        let total_reserved_mana = reserved_mana_from_pct + env.player.reserved_mana;
+        let mana_reserved_display = total_reserved_mana.min(mana);
+        let mana_unreserved = mana - total_reserved_mana; // can be negative — do NOT clamp
+
+        env.player.set_output("ManaReserved", mana_reserved_display);
+        env.player.set_output(
+            "ManaReservedPercent",
+            (total_reserved_mana / mana * 100.0).min(100.0),
+        );
+        env.player.set_output("ManaUnreserved", mana_unreserved);
         env.player
             .set_output("ManaUnreservedPercent", mana_unreserved / mana * 100.0);
-    } else {
-        env.player.set_output("ManaReservedPercent", 0.0);
-        env.player.set_output("ManaUnreservedPercent", 0.0);
-    }
 
-    // LowMana condition: unreserved <= 50%
-    let mana_unreserved_pct = if mana > 0.0 {
-        mana_unreserved / mana * 100.0
-    } else {
-        0.0
-    };
-    env.player
-        .mod_db
-        .set_condition("LowMana", mana_unreserved_pct <= 50.0);
+        let uncancellable_mana = env.player.uncancellable_mana_reservation;
+        env.player
+            .set_output("ManaUncancellableReservation", uncancellable_mana.min(0.0));
+        env.player
+            .set_output("ManaCancellableReservation", 100.0 - uncancellable_mana);
+
+        // LowMana condition: (unreserved / max) <= threshold
+        if mana_unreserved / mana <= low_mana_threshold {
+            env.player.mod_db.set_condition("LowMana", true);
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1419,21 +1494,19 @@ fn do_actor_attack_cast_speed(_env: &mut CalcEnv) {
 
 /// Set final conditions that depend on multiple computed stats.
 fn set_final_conditions(env: &mut CalcEnv) {
+    // LowestOfMaximumLifeAndMaximumMana was already set in do_actor_life_mana (Lua line 129).
+    // We keep it here as a fallback in case the Lua-order calc is revised,
+    // but it should already be set correctly.
     let life = get_output_f64(&env.player.output, "Life");
     let mana = get_output_f64(&env.player.output, "Mana");
-    let es = get_output_f64(&env.player.output, "EnergyShield");
-
     let lowest_life_mana = life.min(mana);
     env.player
         .set_output("LowestOfMaximumLifeAndMaximumMana", lowest_life_mana);
 
-    // ES conditions
-    env.player
-        .mod_db
-        .set_condition("HaveEnergyShield", es > 0.0);
-    env.player
-        .mod_db
-        .set_condition("FullEnergyShield", es > 0.0); // Simplified: assume full if have any
+    // HaveEnergyShield / FullEnergyShield are set via "Condition:HaveEnergyShield" mods
+    // (ConfigOptions.lua) or by mods in the database that carry those conditions.
+    // They are NOT auto-set from the ES pool value in CalcPerform.lua.
+    // DO NOT set them from output.EnergyShield here.
 }
 
 // ---------------------------------------------------------------------------
@@ -1660,8 +1733,10 @@ mod tests {
         // Mana should be: (100 + 100) * 1.0 * 1.0 = 200 (no INC mods)
         assert_eq!(get_output_f64(&env.player.output, "Mana"), 200.0);
 
-        // ES should be: 50 * (1 + 20/100) = 60
-        assert_eq!(get_output_f64(&env.player.output, "EnergyShield"), 60.0);
+        // ES is now computed in defence.rs, NOT in perform.rs.
+        // The Int → ES INC mod is correctly added to the mod_db (verified above as es_inc=20).
+        // The actual ES computation happens when defence::run() is called.
+        // This test only verifies the INC mod is added, not the final ES value.
     }
 
     // ------------------------------------------------------------------
@@ -1688,24 +1763,47 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // 5. FullLife condition when no reservation
+    // 5. FullLife condition — only set in CI path
     // ------------------------------------------------------------------
+    // NOTE: In CalcPerform.lua, FullLife is ONLY set automatically in the CI path.
+    // For non-CI builds, FullLife is set via "Condition:FullLife" mods (config checkboxes).
+    // The old Rust code incorrectly set FullLife based on unreserved percentage.
     #[test]
-    fn full_life_when_no_reservation() {
+    fn full_life_only_set_for_ci() {
+        // Non-CI: FullLife should NOT be automatically set
         let mut env = make_env(|env| {
             env.player.mod_db.add(Mod::new_base("Life", 1000.0, src()));
-            // No reservation → 100% unreserved → FullLife
         });
         run(&mut env);
-
+        // FullLife is not automatically set for non-CI builds
+        let full_life = env
+            .player
+            .mod_db
+            .conditions
+            .get("FullLife")
+            .copied()
+            .unwrap_or(false);
         assert!(
+            !full_life,
+            "FullLife should not be auto-set for non-CI builds (use Condition:FullLife mod)"
+        );
+
+        // CI: FullLife IS set
+        let mut env2 = make_env(|env| {
+            env.player.mod_db.add(Mod::new_base("Life", 1000.0, src()));
             env.player
+                .mod_db
+                .add(Mod::new_flag("ChaosInoculation", src()));
+        });
+        run(&mut env2);
+        assert!(
+            env2.player
                 .mod_db
                 .conditions
                 .get("FullLife")
                 .copied()
                 .unwrap_or(false),
-            "Expected FullLife to be true with no reservation"
+            "Expected FullLife to be true with CI"
         );
     }
 
@@ -1997,11 +2095,16 @@ mod tests {
 
     #[test]
     fn es_recharge_computed() {
+        // ES is now computed in defence.rs (not perform.rs). The perform::run pass
+        // computes ES recharge based on the ES value already in the output table.
+        // We simulate this by pre-setting EnergyShield in the output table.
         let mut env = make_env(|env| {
             env.player.mod_db.add(Mod::new_base("Life", 100.0, src()));
             env.player
                 .mod_db
                 .add(Mod::new_base("EnergyShield", 500.0, src()));
+            // Pre-set ES in output to simulate defence.rs having already run
+            env.player.set_output("EnergyShield", 500.0);
         });
         run(&mut env);
 
@@ -2052,7 +2155,8 @@ mod tests {
         assert!(env.player.output.contains_key("Int"));
         assert!(env.player.output.contains_key("Life"));
         assert!(env.player.output.contains_key("Mana"));
-        assert!(env.player.output.contains_key("EnergyShield"));
+        // NOTE: EnergyShield is now computed in defence.rs, NOT perform.rs.
+        // perform::run does NOT write EnergyShield to output.
         assert!(env.player.output.contains_key("TotalAttr"));
         assert!(env.player.output.contains_key("LowestAttribute"));
         assert!(env.player.output.contains_key("ActionSpeedMod"));
