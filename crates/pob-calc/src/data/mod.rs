@@ -1,6 +1,7 @@
 pub mod bases;
 pub mod cluster_jewels;
 pub mod gems;
+pub mod legion;
 pub mod misc;
 pub mod uniques;
 
@@ -8,6 +9,7 @@ use crate::error::DataError;
 use crate::passive_tree::PassiveTree;
 use bases::{BaseItemData, BaseItemMap};
 use gems::GemsMap;
+use legion::LegionData;
 use misc::MiscData;
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -53,6 +55,9 @@ pub struct GameData {
     /// Gem attribute requirement multipliers by skill ID.
     /// Key = PoB skill ID (e.g. "Spark"), value = reqStr/reqDex/reqInt on 0-100 scale.
     pub gem_reqs: HashMap<String, GemReqMultipliers>,
+    /// Legion jewel data (LegionPassives.lua + LUT binary files).
+    /// Empty by default; populated by `load_legion_data()`.
+    pub legion: LegionData,
 }
 
 impl GameData {
@@ -127,6 +132,7 @@ impl GameData {
             bases,
             uniques,
             gem_reqs: HashMap::new(),
+            legion: LegionData::default(),
         })
     }
 
@@ -139,6 +145,16 @@ impl GameData {
     pub fn load_gem_reqs_from_json(&mut self, json: &str) -> Result<(), crate::error::DataError> {
         let reqs: HashMap<String, GemReqMultipliers> = serde_json::from_str(json)?;
         self.gem_reqs = reqs;
+        Ok(())
+    }
+
+    /// Load legion jewel data from a legion.json file.
+    /// This populates `self.legion` with LegionPassives data and LUT binary data.
+    pub fn load_legion_data_from_json(
+        &mut self,
+        json: &str,
+    ) -> Result<(), crate::error::DataError> {
+        self.legion = LegionData::from_json(json)?;
         Ok(())
     }
 }

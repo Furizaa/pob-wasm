@@ -37,6 +37,12 @@ fn load_game_data() -> Option<Arc<GameData>> {
         let _ = data.load_gem_reqs_from_json(&gem_reqs_str);
     }
 
+    // Load legion jewel data (for SETUP-06 timeless jewel replacements).
+    let legion_path = format!("{data_dir}/legion.json");
+    if let Ok(legion_str) = std::fs::read_to_string(&legion_path) {
+        let _ = data.load_legion_data_from_json(&legion_str);
+    }
+
     Some(Arc::new(data))
 }
 
