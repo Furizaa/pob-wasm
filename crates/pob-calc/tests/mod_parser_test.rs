@@ -1527,3 +1527,64 @@ fn diagnostic_dump() {
     }
     // These "Adds X to Y" patterns may not work yet — this is informational only
 }
+
+#[test]
+fn pantheon_arakaali_souls() {
+    use pob_calc::build::mod_parser::parse_mod;
+    use pob_calc::mod_db::types::ModSource;
+    let src = ModSource::new("Pantheon", "Soul of Arakaali");
+    
+    let lines = [
+        ("10% reduced Damage taken from Damage Over Time", false),
+        ("20% increased Recovery rate of Life and Energy Shield if you've stopped taking Damage Over Time Recently", false),
+        ("Debuffs on you expire 20% faster", false),
+        ("+40% Chaos Resistance against Damage Over Time", false),
+    ];
+    
+    for (line, should_be_empty) in &lines {
+        let mods = parse_mod(line, src.clone());
+        println!("'{}' -> {} mods", line, mods.len());
+        for m in &mods {
+            println!("  name={} type={:?} value={:?}", m.name, m.mod_type, m.value);
+        }
+        if *should_be_empty {
+            assert!(mods.is_empty(), "Expected no mods for '{}'", line);
+        }
+    }
+}
+
+#[test]
+fn pantheon_shakari_souls() {
+    use pob_calc::build::mod_parser::parse_mod;
+    use pob_calc::mod_db::types::ModSource;
+    let src = ModSource::new("Pantheon", "Soul of Shakari");
+    
+    let lines = [
+        "50% less Duration of Poisons on You",
+        "You cannot be Poisoned while there are at least 3 Poisons on you",
+        "5% reduced Chaos Damage taken",
+        "25% reduced Chaos Damage over Time taken while on Caustic Ground",
+    ];
+    
+    for line in &lines {
+        let mods = parse_mod(line, src.clone());
+        println!("'{}' -> {} mods", line, mods.len());
+        for m in &mods {
+            println!("  name={} type={:?} value={:?}", m.name, m.mod_type, m.value);
+        }
+    }
+}
+
+#[test]  
+fn arakaali_chaos_dot_resist_has_dot_flag() {
+    use pob_calc::build::mod_parser::parse_mod;
+    use pob_calc::mod_db::types::{ModFlags, ModSource};
+    let src = ModSource::new("Pantheon", "Soul of Arakaali");
+    let mods = parse_mod("+40% Chaos Resistance against Damage Over Time", src);
+    println!("mods: {:?}", mods);
+    assert_eq!(mods.len(), 1, "Should parse to exactly 1 mod");
+    let m = &mods[0];
+    println!("flags: {:?} ({:?})", m.flags, m.flags.0);
+    assert!(m.flags.contains(ModFlags::DOT), 
+        "Mod should have DOT flag (0x08), got flags={:?}", m.flags);
+}

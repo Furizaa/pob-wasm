@@ -50,6 +50,13 @@ fn load_game_data() -> Option<Arc<GameData>> {
         let _ = data.load_mastery_effects_from_json(&mastery_str);
     }
 
+    // Load pantheon god data (for SETUP-12-bandit-pantheon).
+    // Optional: gracefully skipped if the file is absent.
+    let pantheons_path = format!("{data_dir}/pantheons.json");
+    if let Ok(pantheons_str) = std::fs::read_to_string(&pantheons_path) {
+        let _ = data.load_pantheons_from_json(&pantheons_str);
+    }
+
     Some(Arc::new(data))
 }
 
