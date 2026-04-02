@@ -408,6 +408,7 @@ fn parse_item_text(id: u32, text: &str) -> Item {
     let mut quality: u32 = 0;
     let mut sockets: Vec<SocketGroup> = Vec::new();
     let mut corrupted = false;
+    let mut class_restriction: Option<String> = None;
     let mut influence = ItemInfluence::default();
     let mut implicits: Vec<String> = Vec::new();
     let mut explicits: Vec<String> = Vec::new();
@@ -519,6 +520,10 @@ fn parse_item_text(id: u32, text: &str) -> Item {
             radius = Some(rest.to_string());
             continue;
         }
+        if let Some(rest) = line.strip_prefix("Requires Class ") {
+            class_restriction = Some(rest.to_string());
+            continue;
+        }
         if line == "Corrupted" {
             corrupted = true;
             continue;
@@ -578,6 +583,10 @@ fn parse_item_text(id: u32, text: &str) -> Item {
         base_type = bt.clone();
     }
 
+    // Foulborn is determined by whether the item title/name contains "Foulborn"
+    // (mirrors Lua: `if self.title and self.title:find("Foulborn") then self.foulborn = true end`)
+    let foulborn = name.contains("Foulborn");
+
     Item {
         id,
         rarity,
@@ -591,6 +600,8 @@ fn parse_item_text(id: u32, text: &str) -> Item {
         crafted_mods,
         enchant_mods,
         corrupted,
+        foulborn,
+        class_restriction,
         influence,
         weapon_data: None,
         armour_data: None,
