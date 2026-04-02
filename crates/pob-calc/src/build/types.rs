@@ -6,6 +6,12 @@ pub struct Build {
     pub ascend_class_name: String,
     pub level: u8,
     pub bandit: String,
+    /// Pantheon major god key (e.g. "Arakaali", "Solaris", "None").
+    /// Parsed from `pantheonMajorGod` attribute on `<Build>` element.
+    pub pantheon_major_god: String,
+    /// Pantheon minor god key (e.g. "Shakari", "Gruthkul", "None").
+    /// Parsed from `pantheonMinorGod` attribute on `<Build>` element.
+    pub pantheon_minor_god: String,
     pub target_version: String,
     pub passive_spec: PassiveSpec,
     pub skill_sets: Vec<SkillSet>,

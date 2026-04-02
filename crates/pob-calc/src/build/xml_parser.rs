@@ -62,6 +62,14 @@ pub fn parse_xml(xml: &str) -> Result<Build, ParseError> {
                             .get("bandit")
                             .cloned()
                             .unwrap_or_else(|| "None".into());
+                        let pantheon_major_god = attrs
+                            .get("pantheonMajorGod")
+                            .cloned()
+                            .unwrap_or_else(|| "None".into());
+                        let pantheon_minor_god = attrs
+                            .get("pantheonMinorGod")
+                            .cloned()
+                            .unwrap_or_else(|| "None".into());
                         let target_version =
                             attrs.get("targetVersion").cloned().unwrap_or_default();
                         main_socket_group = attrs
@@ -74,6 +82,8 @@ pub fn parse_xml(xml: &str) -> Result<Build, ParseError> {
                             ascend_class_name,
                             level,
                             bandit,
+                            pantheon_major_god,
+                            pantheon_minor_god,
                             target_version,
                             passive_spec: PassiveSpec::default(),
                             skill_sets: Vec::new(),

@@ -13,6 +13,107 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Bandit & Pantheon mod injection  (CalcSetup.lua lines 531–553)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Inject bandit reward mods into the player ModDb.
+///
+/// Mirrors CalcSetup.lua lines 531–540:
+/// ```lua
+/// if env.configInput.bandit == "Alira" then
+///     modDB:NewMod("ElementalResist", "BASE", 15, "Bandit")
+/// elseif env.configInput.bandit == "Kraityn" then
+///     modDB:NewMod("MovementSpeed", "INC", 8, "Bandit")
+/// elseif env.configInput.bandit == "Oak" then
+///     modDB:NewMod("Life", "BASE", 40, "Bandit")
+/// else
+///     modDB:NewMod("ExtraPoints", "BASE", 1, "Bandit")
+/// end
+/// ```
+///
+/// The source category is "Bandit" in all cases; the name is the bandit's
+/// name for the three rewarded choices, or "Kill All" for the default path.
+fn add_bandit_mods(build: &Build, db: &mut ModDb) {
+    match build.bandit.as_str() {
+        "Alira" => {
+            // +15 to all elemental resistances
+            let src = ModSource::new("Bandit", "Alira");
+            db.add(Mod::new_base("ElementalResist", 15.0, src));
+        }
+        "Kraityn" => {
+            // 8% increased Movement Speed
+            let src = ModSource::new("Bandit", "Kraityn");
+            db.add(Mod {
+                name: "MovementSpeed".to_string(),
+                mod_type: ModType::Inc,
+                value: ModValue::Number(8.0),
+                flags: ModFlags::NONE,
+                keyword_flags: KeywordFlags::NONE,
+                tags: vec![],
+                source: src,
+            });
+        }
+        "Oak" => {
+            // +40 to maximum Life
+            let src = ModSource::new("Bandit", "Oak");
+            db.add(Mod::new_base("Life", 40.0, src));
+        }
+        _ => {
+            // Kill all bandits (bandit == "None" / nil / any other string).
+            // Grants 1 ExtraPoints via the "Bandit" source.
+            // PoB adds 1 here (not 2): the additional passive point grant from
+            // killing bandits is modelled as 1 ExtraPoints mod.
+            let src = ModSource::new("Bandit", "Kill All");
+            db.add(Mod::new_base("ExtraPoints", 1.0, src));
+        }
+    }
+}
+
+/// Inject pantheon god mods into the player ModDb.
+///
+/// Mirrors CalcSetup.lua lines 542–553 and PantheonTools.lua lines 1–19
+/// (`pantheon.applySoulMod`).
+///
+/// For each of the selected major and minor gods:
+/// 1. Skip if the key is "None" or the god is not found in the data.
+/// 2. Iterate all soul tiers for that god.
+/// 3. For each soul mod line, parse it with `parse_mod`.
+/// 4. Set the source on each parsed mod to "Pantheon:<primary_soul_name>"
+///    where `primary_soul_name` is `god.souls[0].name` (the first soul tier).
+/// 5. Add all parsed mods to the player ModDb.
+///
+/// Silent discard: lines that parse to zero mods are silently ignored,
+/// matching `if modList and not extra then` guard in PantheonTools.lua.
+fn add_pantheon_mods(build: &Build, db: &mut ModDb, data: &GameData) {
+    for god_key in &[&build.pantheon_major_god, &build.pantheon_minor_god] {
+        if god_key.as_str() == "None" {
+            continue;
+        }
+        let Some(god) = data.pantheons.get(god_key.as_str()) else {
+            continue;
+        };
+        // The primary soul name is always souls[0].name (Lua: god.souls[1].name).
+        // ALL mods from this god use this name as the source, regardless of soul tier.
+        let Some(primary_soul) = god.souls.first() else {
+            continue;
+        };
+        let god_name = primary_soul.name.clone();
+        let source = ModSource::new("Pantheon", &god_name);
+
+        for soul in &god.souls {
+            for soul_mod in &soul.mods {
+                let parsed = crate::build::mod_parser::parse_mod(&soul_mod.line, source.clone());
+                // Silent discard: if parse_mod returns empty Vec, skip this line.
+                // Mirrors `if modList and not extra then` in PantheonTools.lua.
+                for m in parsed {
+                    db.add(m);
+                }
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Cluster-jewel regex patterns (compiled once at startup)
 // ─────────────────────────────────────────────────────────────────────────────
 use once_cell::sync::Lazy;
@@ -57,6 +158,12 @@ pub fn init_env(build: &Build, data: Arc<GameData>) -> Result<CalcEnv, CalcError
 
     // Add config conditions
     add_config_conditions(build, &mut player_db);
+
+    // Add bandit reward mods (CalcSetup.lua lines 531-540)
+    add_bandit_mods(build, &mut player_db);
+
+    // Add pantheon god mods (CalcSetup.lua lines 542-553 + PantheonTools.lua)
+    add_pantheon_mods(build, &mut player_db, &data);
 
     // Create the env first so add_item_mods can populate weapon data on the Actor
     let mut env = CalcEnv::new(player_db, enemy_db, data);

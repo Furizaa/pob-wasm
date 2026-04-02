@@ -3,6 +3,7 @@ pub mod cluster_jewels;
 pub mod gems;
 pub mod legion;
 pub mod misc;
+pub mod pantheons;
 pub mod uniques;
 
 use crate::error::DataError;
@@ -11,6 +12,7 @@ use bases::{BaseItemData, BaseItemMap};
 use gems::GemsMap;
 use legion::LegionData;
 use misc::MiscData;
+use pantheons::PantheonMap;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -58,6 +60,10 @@ pub struct GameData {
     /// Legion jewel data (LegionPassives.lua + LUT binary files).
     /// Empty by default; populated by `load_legion_data()`.
     pub legion: LegionData,
+    /// Pantheon god data from Data/Pantheons.lua.
+    /// Keyed by god name (e.g. "Arakaali", "Shakari").
+    /// Empty by default; populated by `load_pantheons_from_json()`.
+    pub pantheons: PantheonMap,
 }
 
 impl GameData {
@@ -136,6 +142,7 @@ impl GameData {
             uniques,
             gem_reqs: HashMap::new(),
             legion: LegionData::default(),
+            pantheons: PantheonMap::new(),
         })
     }
 
@@ -158,6 +165,17 @@ impl GameData {
         json: &str,
     ) -> Result<(), crate::error::DataError> {
         self.legion = LegionData::from_json(json)?;
+        Ok(())
+    }
+
+    /// Load pantheon god data from a pantheons.json file.
+    ///
+    /// The JSON is a map from god name to PantheonGod:
+    /// ```json
+    /// { "Arakaali": { "is_major_god": true, "souls": [ { "name": "...", "mods": [...] } ] } }
+    /// ```
+    pub fn load_pantheons_from_json(&mut self, json: &str) -> Result<(), crate::error::DataError> {
+        self.pantheons = serde_json::from_str(json)?;
         Ok(())
     }
 
