@@ -145,9 +145,17 @@ MIR-01    Mirage actors (Mirage Archer, Saviour, General)     mirages.rs
 AGG-01    FullDPS & multi-skill aggregation                   calcs.rs
 
 TAIL-01+  Edge cases, special uniques, minion actors          (various)
+
+FIX-01    Stat name mismatches in recovery/recharge           defence.rs
+FIX-02    Per-slot defence accumulation rework                defence.rs
+FIX-03    Radius jewel per-jewel callbacks                    setup.rs
+FIX-04    Glorious Vanity normal node LUT replacement         timeless_jewels.rs
+FIX-05    Tattoo data loading & node stat replacement         xml_parser, setup.rs, passive_tree/
+FIX-06    PERF-02 medium gaps (recovery guards, ES flags)     defence.rs, perform.rs
+FIX-07    Energy Blade weapon creation & re-run               setup.rs
 ```
 
-Total: ~42 chunks, plus a variable number of TAIL chunks for edge cases discovered
+Total: ~49 chunks, plus a variable number of TAIL chunks for edge cases discovered
 during execution.
 
 ### 5.2 SETUP Chunk Details
@@ -216,6 +224,64 @@ notable. CalcSetup.lua lines 1242-1258. Shares mechanism with SETUP-07
 handling: Necromantic Aegis, Energy Blade, The Iron Mass, Dancing Dervish,
 Kalandra's Touch, Widowhail, The Adorned. No oracle builds use any of these.
 **LOW PRIORITY — add per-unique as needed.**
+
+### 5.3 FIX Chunk Details
+
+FIX chunks address gaps found during post-implementation review where agents
+ported enough to pass oracle tests but skipped Lua code paths. These must be
+completed before proceeding with downstream chunks that depend on the fixed
+calculations.
+
+**FIX-01 (stat name mismatches):** Two critical single-line string fixes in
+`defence.rs`. (a) Recovery rate queries use `"LifeRecoveryRateMod"` instead of
+`"LifeRecoveryRate"` — all recovery rate mods from items/passives are invisible.
+(b) ES recharge queries use `"EnergyShieldRechargeRate"` instead of
+`"EnergyShieldRecharge"` — ES recharge speed mods have no effect. Both affect
+all builds. **CRITICAL — do first, 5-minute fix.**
+
+**FIX-02 (per-slot defence accumulation):** The defence calculation in
+`defence.rs` sums all ES/Armour/Evasion/Ward globally instead of iterating
+per gear slot with slot-scoped `slotCfg`. This means slot-specific INC/MORE
+mods (e.g., "100% increased Energy Shield from Body Armour"), `GainNo{Defence}From{Slot}`
+flags, `{slot}ESAndArmour` stat queries, and Iron Reflexes per-slot evasion→armour
+conversion are all missing. Structural rework of `defence.rs` required.
+Lua reference: CalcDefence.lua:843-923, 917-921. **CRITICAL — blocks DEF-02.**
+
+**FIX-03 (radius jewel callbacks):** SETUP-08 built the two-pass framework but
+all jewels get a generic "tally attributes" callback. Thread of Hope (allocate
+unconnected passives), Intuitive Leap (allocate without pathing), Impossible
+Escape (allocate keystones in radius) have NO specific behavior ported. The
+item-data-driven callback dispatch from CalcSetup.lua `radiusJewelList` entries
+is missing. Lua reference: CalcSetup.lua lines 680-1225 (per-jewel func entries).
+Affects `realworld_coc_trigger`. **HIGH — blocks builds with these jewels.**
+
+**FIX-04 (Glorious Vanity normal nodes):** In `timeless_jewels.rs`,
+`ConquerorType::Vaal` branch in `apply_normal_replacement` returns `None` with
+a comment "needs its own LUT lookup." The Lua (PassiveSpec.lua:1261-1268)
+performs a full LUT lookup for Vaal normal nodes. Most small passives in
+Glorious Vanity radius silently get no replacement. **MEDIUM — affects
+`realworld_timeless_jewel` if it uses Glorious Vanity.**
+
+**FIX-05 (tattoo data loading):** SETUP-14 implemented counting/multipliers
+but the XML `<Overrides>` parsing and tattoo node stat replacement are missing.
+`build_mod_list_for_node` checks `timeless_overrides` but not `hash_overrides`.
+Tattoo data (`TattooPassives.lua` equivalent) is not loaded. No oracle builds
+use tattoos, but the Lua code paths exist and should be ported.
+**LOW — no oracle builds, but completeness requires it.**
+
+**FIX-06 (PERF-02 medium gaps):** Collection of 8 medium-severity gaps from
+the PERF-02 audit: (a) `CannotRecoverLifeOutsideLeech` guard on
+LifeRecoveryRateMod, (b) `NoEnergyShieldRecharge`/`CannotGainEnergyShield`
+flags on ES recharge, (c) `EnergyShieldRecoveryRateMod` not applied to ES
+recharge, (d) `EnergyShieldOnSpellBlock`/`EnergyShieldOnSuppress` not written,
+(e) `GrantReservedPoolAsAura` branch, (f) `ConvertBodyArmourArmourEvasionToWard`,
+(g) `ConvertArmourESToLife` flag, (h) Ward recharge delay.
+**MEDIUM — all are missing Lua branches.**
+
+**FIX-07 (Energy Blade):** SETUP-16 has the condition check but the synthetic
+Energy Blade weapon item creation (CalcSetup.lua:979-1013) and the re-run
+trigger (CalcSetup.lua:1731-1741) are not implemented. Energy Blade builds
+get wrong weapon stats. **MEDIUM — no oracle builds, but Lua code exists.**
 
 ## 6. Annotated Lua Reference Docs
 

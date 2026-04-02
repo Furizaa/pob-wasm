@@ -171,6 +171,143 @@ Once all chunks have reference docs, move to chunk execution.
 
 ---
 
+## FIX Chunks: Post-Implementation Gap Fixes
+
+FIX chunks address code paths that agents skipped because no oracle test exercised
+them. **Do FIX-01 and FIX-02 before any new PERF/DEF/OFF chunk work** — they fix
+foundational bugs that cascade into every downstream calculation.
+
+### FIX execution order
+
+```
+CRITICAL (do before any new chunks):
+  FIX-01-stat-name-mismatches       5-minute fix, 2 string changes
+  FIX-02-per-slot-defence           Structural rework of defence.rs
+
+HIGH (do before chunks that depend on them):
+  FIX-03-radius-jewel-callbacks     Before any build with Thread of Hope / Intuitive Leap
+  FIX-04-glorious-vanity-normals    Before realworld_timeless_jewel passes fully
+
+MEDIUM (complete for Lua fidelity):
+  FIX-05-tattoo-data                No oracle builds, but Lua code exists
+  FIX-06-perf02-medium-gaps         8 missing branches in defence.rs / perform.rs
+  FIX-07-energy-blade               No oracle builds, but Lua code exists
+```
+
+### Prompt for FIX chunks
+
+Replace `{FIX-ID}` and `{DESCRIPTION}` with the specific fix:
+
+```
+You are fixing gaps in the PoB Lua→Rust port. Work on {FIX-ID}: {DESCRIPTION}.
+
+THE LUA SOURCE IS THE SOURCE OF TRUTH. These gaps were found because a previous
+agent skipped Lua code paths that no oracle test exercised. Your job is to port
+the missing Lua logic faithfully.
+
+Context:
+1. Read docs/superpowers/specs/2026-04-01-chunked-parity-design.md section 5.3
+   for the full description of this FIX chunk
+2. Read the Lua file(s) referenced in the spec
+3. Read the current Rust file(s) that need fixing
+
+Specific gaps to fix for {FIX-ID}:
+{PASTE THE SPECIFIC GAP LIST FROM BELOW}
+
+After fixing:
+4. Run: CHUNK={FIX-ID} DATA_DIR=./data cargo test --test chunk_oracle -- --nocapture
+5. Run: cargo test --workspace --exclude pob-wasm
+6. Commit with message: fix({FIX-ID}): {description}
+
+Rules:
+- Do NOT skip any Lua code path. Every branch in the referenced Lua section must
+  have a Rust equivalent.
+- Do NOT leave empty fallbacks, `let _ = var;` suppressions, or TODO comments.
+- Show test output before committing.
+```
+
+### Per-FIX gap lists (paste into the prompt)
+
+**FIX-01-stat-name-mismatches:**
+```
+Gap A: defence.rs recovery rate loop queries "LifeRecoveryRateMod" (the OUTPUT
+field name) instead of "LifeRecoveryRate" (the MOD stat name). Same for Mana
+and EnergyShield variants. Fix: change the stat name strings.
+Lua: CalcDefence.lua:1194 — calcLib.mod(modDB, nil, "LifeRecoveryRate")
+
+Gap B: defence.rs ES recharge queries "EnergyShieldRechargeRate" instead of
+"EnergyShieldRecharge". Fix: change the stat name string.
+Lua: CalcDefence.lua:1328-1340 — modDB:Sum("INC", nil, "EnergyShieldRecharge")
+```
+
+**FIX-02-per-slot-defence:**
+```
+Gap A: defence.rs sums ES/Armour/Evasion/Ward globally instead of iterating
+per gear slot with slot-scoped slotCfg. Port CalcDefence.lua:843-923 slot loop.
+
+Gap B: GainNo{Defence}From{Slot} flags not checked. Port CalcDefence.lua:847-850.
+
+Gap C: {slot}ESAndArmour stat names not queried. Port CalcDefence.lua:898,906.
+
+Gap D: Iron Reflexes per-slot evasion→armour conversion missing Armour INC/MORE.
+Port CalcDefence.lua:917-921.
+
+Gap E: Gear:Ward/ES/Armour/Evasion outputs not written. Port CalcDefence.lua:1051-1054.
+
+Gap F: Evasion→Armour conversion uses wrong base (potential double-count of gear
+evasion). Port CalcDefence.lua:1037 with separate gearEvasion tracking.
+```
+
+**FIX-03-radius-jewel-callbacks:**
+```
+All jewels get a generic "tally attributes" callback. The per-jewel dispatch from
+CalcSetup.lua radiusJewelList (lines 680-1225) is missing. Port at minimum:
+- Thread of Hope: allocate unconnected passives in radius
+- Intuitive Leap: allocate without pathing requirement
+- Impossible Escape: allocate keystones in radius
+Read the Lua item-data-driven callback system and port the dispatch.
+```
+
+**FIX-04-glorious-vanity-normals:**
+```
+In timeless_jewels.rs, ConquerorType::Vaal branch in apply_normal_replacement
+returns None. Port PassiveSpec.lua:1261-1268 which does a full LUT lookup for
+Vaal normal nodes. The LUT data and lookup infrastructure already exist for
+other jewel types — extend it to Vaal.
+```
+
+**FIX-05-tattoo-data:**
+```
+XML <Overrides> parsing not implemented. Tattoo node data (TattooPassives.lua
+equivalent) not loaded. build_mod_list_for_node checks timeless_overrides but
+not hash_overrides. Port PassiveSpec.lua:117-173 (hash override application)
+and add tattoo data loading.
+```
+
+**FIX-06-perf02-medium-gaps:**
+```
+8 missing Lua branches:
+a) CannotRecoverLifeOutsideLeech guard on LifeRecoveryRateMod (CalcDefence.lua:1192-1195)
+b) NoEnergyShieldRecharge / CannotGainEnergyShield flags on ES recharge (CalcDefence.lua:1323-1324)
+c) EnergyShieldRecoveryRateMod not applied to ES recharge (CalcDefence.lua:1351)
+d) EnergyShieldOnSpellBlock / EnergyShieldOnSuppress not written (CalcDefence.lua:1522-1524)
+e) GrantReservedPoolAsAura branch (CalcPerform.lua:545-551)
+f) ConvertBodyArmourArmourEvasionToWard (CalcDefence.lua:851-858)
+g) ConvertArmourESToLife flag on ES accumulation (CalcDefence.lua:897)
+h) Ward recharge delay (CalcDefence.lua:1474)
+Port each one faithfully.
+```
+
+**FIX-07-energy-blade:**
+```
+SETUP-16 has the condition check but the synthetic Energy Blade weapon creation
+is not implemented. Port CalcSetup.lua:979-1013 (create Energy Blade item from
+ES) and CalcSetup.lua:1731-1741 (scan for Energy Blade gem, set condition,
+trigger re-run).
+```
+
+---
+
 ## Chunk Execution: The Main Work
 
 ### Where am I?

@@ -474,6 +474,45 @@ pub fn fields_for_chunk(chunk: &str) -> Option<&'static [&'static str]> {
         // ── Tier 7: Aggregation ──
         "AGG-01-full-dps" => &["FullDPS", "FullDotDPS"],
 
+        // ── FIX chunks: address gaps found during post-implementation review ──
+
+        // FIX-01: Stat name mismatches in recovery rates and ES recharge.
+        // Verified via PERF-07 fields (LifeRecoveryRateMod, ManaRecoveryRateMod,
+        // EnergyShieldRecoveryRateMod, EnergyShieldRecharge, EnergyShieldRechargeDelay).
+        "FIX-01-stat-name-mismatches" => &[
+            "LifeRecoveryRateMod",
+            "ManaRecoveryRateMod",
+            "EnergyShieldRecoveryRateMod",
+            "EnergyShieldRecharge",
+            "EnergyShieldRechargeDelay",
+        ],
+
+        // FIX-02: Per-slot defence accumulation. Verified via DEF-02 fields.
+        "FIX-02-per-slot-defence" => &["Armour", "Evasion", "EnergyShield", "Ward"],
+
+        // FIX-03: Radius jewel per-jewel callbacks. No direct output fields —
+        // verified by downstream chunks passing for builds with Thread of Hope etc.
+        "FIX-03-radius-jewel-callbacks" => &[],
+
+        // FIX-04: Glorious Vanity normal node LUT. No direct output fields —
+        // verified by downstream chunks passing for realworld_timeless_jewel.
+        "FIX-04-glorious-vanity-normals" => &[],
+
+        // FIX-05: Tattoo data loading & node replacement. No direct output fields.
+        "FIX-05-tattoo-data" => &[],
+
+        // FIX-06: PERF-02 medium gaps. Verified via recovery/recharge/block fields.
+        "FIX-06-perf02-medium-gaps" => &[
+            "EnergyShieldOnBlock",
+            "EnergyShieldOnSpellBlock",
+            "EnergyShieldOnSuppress",
+            "WardRechargeDelay",
+        ],
+
+        // FIX-07: Energy Blade weapon creation. No direct output fields —
+        // verified by offence fields for Energy Blade builds.
+        "FIX-07-energy-blade" => &[],
+
         _ => return None,
     })
 }
@@ -519,6 +558,13 @@ pub fn all_chunk_ids() -> &'static [&'static str] {
         "TRIG-02-totem-trap-mine",
         "MIR-01-mirages",
         "AGG-01-full-dps",
+        "FIX-01-stat-name-mismatches",
+        "FIX-02-per-slot-defence",
+        "FIX-03-radius-jewel-callbacks",
+        "FIX-04-glorious-vanity-normals",
+        "FIX-05-tattoo-data",
+        "FIX-06-perf02-medium-gaps",
+        "FIX-07-energy-blade",
     ]
 }
 
