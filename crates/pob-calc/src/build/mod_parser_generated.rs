@@ -7340,8 +7340,6 @@ fn handle_special_mod(
             ]
         }
         24 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "UnaffectedBy\" .. firstToUpper(type) .. \"Regen".to_string(),
@@ -7370,8 +7368,6 @@ fn handle_special_mod(
             ]
         }
         26 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "UnaffectedByNonInstant\" .. firstToUpper(type) .. \"Leech".to_string(),
@@ -8249,8 +8245,6 @@ fn handle_special_mod(
             ]
         }
         73 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "LifeCostBase".to_string(),
@@ -8390,8 +8384,6 @@ fn handle_special_mod(
             ]
         }
         81 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "ElementalEquilibrium".to_string(),
@@ -8755,8 +8747,6 @@ fn handle_special_mod(
             ]
         }
         101 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "PoisonChance".to_string(),
@@ -9307,8 +9297,6 @@ fn handle_special_mod(
             ]
         }
         131 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "ArmourAppliesToChaosDamageTaken".to_string(),
@@ -9460,8 +9448,6 @@ fn handle_special_mod(
             ]
         }
         142 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "ShepherdOfSouls".to_string(),
@@ -9475,8 +9461,6 @@ fn handle_special_mod(
             ]
         }
         143 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "Condition:EverlastingSacrifice".to_string(),
@@ -10329,8 +10313,6 @@ fn handle_special_mod(
             ]
         }
         198 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "StunImmune".to_string(),
@@ -10359,8 +10341,6 @@ fn handle_special_mod(
             ]
         }
         200 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "LifeDegen".to_string(),
@@ -13094,8 +13074,6 @@ fn handle_special_mod(
             ]
         }
         341 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "ManaRegen".to_string(),
@@ -13677,8 +13655,6 @@ fn handle_special_mod(
             ]
         }
         379 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "StunImmune".to_string(),
@@ -14022,8 +13998,6 @@ fn handle_special_mod(
             ]
         }
         398 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "PhysicalMin".to_string(),
@@ -14268,8 +14242,6 @@ fn handle_special_mod(
             ]
         }
         414 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "ChaosMin".to_string(),
@@ -15766,8 +15738,6 @@ fn handle_special_mod(
             ]
         }
         512 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "EyeOfInnocenceSelfDamage".to_string(),
@@ -15781,8 +15751,6 @@ fn handle_special_mod(
             ]
         }
         513 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "HeartboundLoopSelfDamage".to_string(),
@@ -15796,8 +15764,6 @@ fn handle_special_mod(
             ]
         }
         514 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "StormSecretSelfDamage".to_string(),
@@ -15811,8 +15777,6 @@ fn handle_special_mod(
             ]
         }
         515 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "EnmitysEmbraceSelfDamage".to_string(),
@@ -15826,8 +15790,6 @@ fn handle_special_mod(
             ]
         }
         516 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "ScoldsBridleSelfDamage".to_string(),
@@ -15841,8 +15803,6 @@ fn handle_special_mod(
             ]
         }
         517 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "ScoldsBridleSelfDamage".to_string(),
@@ -15856,8 +15816,6 @@ fn handle_special_mod(
             ]
         }
         518 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "EchoesOfCreationSelfDamage".to_string(),
@@ -16432,8 +16390,6 @@ fn handle_special_mod(
             ]
         }
         618 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "CastSpeedAppliesToAttacks".to_string(),
@@ -16784,8 +16740,6 @@ fn handle_special_mod(
             ]
         }
         640 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "(resFrom:gsub(\"^%l\", string.upper))..\"MaxResConvertTo\"..(resTo1:gsub(\"^%l\", string.upper))".to_string(),
@@ -17125,8 +17079,6 @@ fn handle_special_mod(
             ]
         }
         658 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "LightningMin".to_string(),
@@ -18151,8 +18103,6 @@ fn handle_special_mod(
             ]
         }
         712 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "firstToUpper(element)..\"Can\"..firstToUpper(ailment)".to_string(),
@@ -18166,8 +18116,6 @@ fn handle_special_mod(
             ]
         }
         713 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "firstToUpper(element)..\"Cannot\"..firstToUpper(ailment)".to_string(),
@@ -19266,8 +19214,6 @@ fn handle_special_mod(
             ]
         }
         755 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "ElementalAilmentImmune".to_string(),
@@ -19877,8 +19823,6 @@ fn handle_special_mod(
             ]
         }
         783 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "Enemy\" .. firstToUpper(type) .. \"Chance".to_string(),
@@ -22011,8 +21955,6 @@ fn handle_special_mod(
             ]
         }
         918 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "EnemyCurseLimit".to_string(),
@@ -22698,8 +22640,6 @@ fn handle_special_mod(
             ]
         }
         960 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "LifeRegen".to_string(),
@@ -22966,8 +22906,6 @@ fn handle_special_mod(
             ]
         }
         977 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "ExtraAura".to_string(),
@@ -22981,8 +22919,6 @@ fn handle_special_mod(
             ]
         }
         978 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "ExtraAura".to_string(),
@@ -23132,8 +23068,6 @@ fn handle_special_mod(
             ]
         }
         989 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "Condition:CanWither".to_string(),
@@ -23389,8 +23323,6 @@ fn handle_special_mod(
             ]
         }
         1007 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "LifeRegen".to_string(),
@@ -23431,8 +23363,6 @@ fn handle_special_mod(
             ]
         }
         1008 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "EnergyShieldRegen".to_string(),
@@ -23815,8 +23745,6 @@ fn handle_special_mod(
             ]
         }
         1026 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "EnemyModifier".to_string(),
@@ -23830,8 +23758,6 @@ fn handle_special_mod(
             ]
         }
         1027 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "EnemyModifier".to_string(),
@@ -24285,8 +24211,6 @@ fn handle_special_mod(
             ]
         }
         1054 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "CoveredInAshEffect".to_string(),
@@ -25097,8 +25021,6 @@ fn handle_special_mod(
             ]
         }
         1110 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "ActiveBallistaLimit".to_string(),
@@ -25762,8 +25684,6 @@ fn handle_special_mod(
             ]
         }
         1151 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "Condition:Onslaught".to_string(),
@@ -26876,8 +26796,6 @@ fn handle_special_mod(
             ]
         }
         1212 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "ProjectileCount".to_string(),
@@ -28147,8 +28065,6 @@ fn handle_special_mod(
             ]
         }
         1292 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "LifeOnKill".to_string(),
@@ -28162,8 +28078,6 @@ fn handle_special_mod(
             ]
         }
         1293 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "LifeOnKill".to_string(),
@@ -28177,8 +28091,6 @@ fn handle_special_mod(
             ]
         }
         1294 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "LifeOnKill".to_string(),
@@ -28192,8 +28104,6 @@ fn handle_special_mod(
             ]
         }
         1295 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "LifeOnKill".to_string(),
@@ -28207,8 +28117,6 @@ fn handle_special_mod(
             ]
         }
         1296 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "LifeOnKill".to_string(),
@@ -28222,8 +28130,6 @@ fn handle_special_mod(
             ]
         }
         1297 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "LifeOnKill".to_string(),
@@ -28267,8 +28173,6 @@ fn handle_special_mod(
             ]
         }
         1300 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "ManaOnKill".to_string(),
@@ -28282,8 +28186,6 @@ fn handle_special_mod(
             ]
         }
         1301 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "EnergyShieldOnKill".to_string(),
@@ -28297,8 +28199,6 @@ fn handle_special_mod(
             ]
         }
         1302 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "LifeOnKill".to_string(),
@@ -28312,8 +28212,6 @@ fn handle_special_mod(
             ]
         }
         1303 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "LifeOnKill".to_string(),
@@ -28336,8 +28234,6 @@ fn handle_special_mod(
             ]
         }
         1304 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "LifeOnKill".to_string(),
@@ -28381,8 +28277,6 @@ fn handle_special_mod(
             ]
         }
         1307 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "ManaOnKill".to_string(),
@@ -28396,8 +28290,6 @@ fn handle_special_mod(
             ]
         }
         1308 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "ManaOnKill".to_string(),
@@ -28411,8 +28303,6 @@ fn handle_special_mod(
             ]
         }
         1309 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "ManaOnKill".to_string(),
@@ -28426,8 +28316,6 @@ fn handle_special_mod(
             ]
         }
         1310 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "ManaOnKill".to_string(),
@@ -28456,8 +28344,6 @@ fn handle_special_mod(
             ]
         }
         1312 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "EnergyShieldOnKill".to_string(),
@@ -28471,8 +28357,6 @@ fn handle_special_mod(
             ]
         }
         1313 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "EnergyShieldOnKill".to_string(),
@@ -28486,8 +28370,6 @@ fn handle_special_mod(
             ]
         }
         1314 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "EnergyShieldOnKill".to_string(),
@@ -28745,8 +28627,6 @@ fn handle_special_mod(
             ]
         }
         1331 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "firstToUpper(element)..\"ReflectedDamageTaken".to_string(),
@@ -29010,8 +28890,6 @@ fn handle_special_mod(
             ]
         }
         1349 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "LifeOnBlock".to_string(),
@@ -29025,8 +28903,6 @@ fn handle_special_mod(
             ]
         }
         1350 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "LifeOnBlock".to_string(),
@@ -29040,8 +28916,6 @@ fn handle_special_mod(
             ]
         }
         1351 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "ManaOnBlock".to_string(),
@@ -29055,8 +28929,6 @@ fn handle_special_mod(
             ]
         }
         1352 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "EnergyShieldOnBlock".to_string(),
@@ -29070,8 +28942,6 @@ fn handle_special_mod(
             ]
         }
         1353 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "EnergyShieldOnSpellBlock".to_string(),
@@ -29085,8 +28955,6 @@ fn handle_special_mod(
             ]
         }
         1354 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "EnergyShieldOnBlock".to_string(),
@@ -29100,8 +28968,6 @@ fn handle_special_mod(
             ]
         }
         1355 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "EnergyShieldOnBlock".to_string(),
@@ -29115,8 +28981,6 @@ fn handle_special_mod(
             ]
         }
         1356 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "EnergyShieldOnBlock".to_string(),
@@ -29994,8 +29858,6 @@ fn handle_special_mod(
             ]
         }
         1410 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "StunImmune".to_string(),
@@ -30009,8 +29871,6 @@ fn handle_special_mod(
             ]
         }
         1411 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "StunImmune".to_string(),
@@ -30120,8 +29980,6 @@ fn handle_special_mod(
             ]
         }
         1418 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "FreezeImmune".to_string(),
@@ -30756,8 +30614,6 @@ fn handle_special_mod(
             ]
         }
         1464 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "Self\"..ailment:gsub(\"^%l\", string.upper)..\"Effect".to_string(),
@@ -30771,8 +30627,6 @@ fn handle_special_mod(
             ]
         }
         1465 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "ailment:gsub(\"^%l\", string.upper)..\"Immune".to_string(),
@@ -30904,8 +30758,6 @@ fn handle_special_mod(
             ]
         }
         1473 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "CurseImmune".to_string(),
@@ -31106,8 +30958,6 @@ fn handle_special_mod(
             ]
         }
         1487 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "Self\"..ailment:gsub(\"^%l\", string.upper)..\"Effect".to_string(),
@@ -31173,8 +31023,6 @@ fn handle_special_mod(
             ]
         }
         1491 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "MinimumActionSpeed".to_string(),
@@ -31188,8 +31036,6 @@ fn handle_special_mod(
             ]
         }
         1492 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "MinimumActionSpeed".to_string(),
@@ -31520,8 +31366,6 @@ fn handle_special_mod(
             ]
         }
         1511 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "EnemyCannotPen\"..(res:gsub(\"^%l\", string.upper))..\"Resistance".to_string(),
@@ -31885,8 +31729,6 @@ fn handle_special_mod(
             ]
         }
         1538 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "EnemyModifier".to_string(),
@@ -32175,8 +32017,6 @@ fn handle_special_mod(
             ]
         }
         1564 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "FirePenetration".to_string(),
@@ -32190,8 +32030,6 @@ fn handle_special_mod(
             ]
         }
         1565 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "LifeOnKill".to_string(),
@@ -32205,8 +32043,6 @@ fn handle_special_mod(
             ]
         }
         1566 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "ManaOnKill".to_string(),
@@ -32220,8 +32056,6 @@ fn handle_special_mod(
             ]
         }
         1567 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "EnergyShieldOnKill".to_string(),
@@ -32235,8 +32069,6 @@ fn handle_special_mod(
             ]
         }
         1568 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "ChaosDegen".to_string(),
@@ -32534,8 +32366,6 @@ fn handle_special_mod(
             ]
         }
         1586 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "FlaskChargesGenerated".to_string(),
@@ -32549,8 +32379,6 @@ fn handle_special_mod(
             ]
         }
         1587 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "FlaskChargesGenerated".to_string(),
@@ -32564,8 +32392,6 @@ fn handle_special_mod(
             ]
         }
         1588 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "FlaskChargesGenerated".to_string(),
@@ -34249,8 +34075,6 @@ fn handle_special_mod(
             ]
         }
         1696 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "LifeCostBase".to_string(),
@@ -34288,8 +34112,6 @@ fn handle_special_mod(
             ]
         }
         1698 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "LifeCostBase".to_string(),
@@ -34500,8 +34322,6 @@ fn handle_special_mod(
             ]
         }
         1714 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "SocketedCursesHexLimitValue".to_string(),
@@ -34813,8 +34633,6 @@ fn handle_special_mod(
             ]
         }
         1735 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "DisableSkill".to_string(),
@@ -34856,8 +34674,6 @@ fn handle_special_mod(
             ]
         }
         1738 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "FireDegen".to_string(),
@@ -34893,8 +34709,6 @@ fn handle_special_mod(
             ]
         }
         1740 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "Condition:HaveManaStorm".to_string(),
@@ -34917,8 +34731,6 @@ fn handle_special_mod(
             ]
         }
         1741 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "LightningMax".to_string(),
@@ -34932,8 +34744,6 @@ fn handle_special_mod(
             ]
         }
         1742 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "LightningMax".to_string(),
@@ -34947,8 +34757,6 @@ fn handle_special_mod(
             ]
         }
         1743 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "FireMin".to_string(),
@@ -34971,8 +34779,6 @@ fn handle_special_mod(
             ]
         }
         1744 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "ColdMin".to_string(),
@@ -34995,8 +34801,6 @@ fn handle_special_mod(
             ]
         }
         1745 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "LightningMax".to_string(),
@@ -35010,8 +34814,6 @@ fn handle_special_mod(
             ]
         }
         1746 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "FireMin".to_string(),
@@ -35034,8 +34836,6 @@ fn handle_special_mod(
             ]
         }
         1747 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "ChaosMin".to_string(),
@@ -35058,8 +34858,6 @@ fn handle_special_mod(
             ]
         }
         1748 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "ChaosMin".to_string(),
@@ -35390,8 +35188,6 @@ fn handle_special_mod(
             ]
         }
         1771 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "MinionModifier".to_string(),
@@ -35405,8 +35201,6 @@ fn handle_special_mod(
             ]
         }
         1772 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "Condition:ArcaneSurge".to_string(),
@@ -35446,8 +35240,6 @@ fn handle_special_mod(
             ]
         }
         1775 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "Ignore\"..firstToUpper(damageType)..\"Resistance".to_string(),
@@ -35502,8 +35294,6 @@ fn handle_special_mod(
             ]
         }
         1779 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "CooldownRecovery".to_string(),
@@ -35517,8 +35307,6 @@ fn handle_special_mod(
             ]
         }
         1780 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "CooldownRecovery".to_string(),
@@ -35853,8 +35641,6 @@ fn handle_special_mod(
             ]
         }
         1803 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "GrantedAscendancyNode".to_string(),
@@ -35868,8 +35654,6 @@ fn handle_special_mod(
             ]
         }
         1804 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "GrantedPassive".to_string(),
@@ -36064,8 +35848,6 @@ fn handle_special_mod(
             ]
         }
         1817 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "ChanceToIgnoreEnemyPhysicalDamageReduction".to_string(),
@@ -36122,8 +35904,6 @@ fn handle_special_mod(
             ]
         }
         1821 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "EnemyModifier".to_string(),
@@ -36310,8 +36090,6 @@ fn handle_special_mod(
             ]
         }
         1834 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "Condition:OnConsecratedGround".to_string(),
@@ -36504,8 +36282,6 @@ fn handle_special_mod(
             ]
         }
         1847 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "LightningMin".to_string(),
@@ -36528,8 +36304,6 @@ fn handle_special_mod(
             ]
         }
         1848 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "ColdMin".to_string(),
@@ -36552,8 +36326,6 @@ fn handle_special_mod(
             ]
         }
         1849 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "ChaosMin".to_string(),
@@ -36576,8 +36348,6 @@ fn handle_special_mod(
             ]
         }
         1850 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "ChaosMin".to_string(),
@@ -36798,8 +36568,6 @@ fn handle_special_mod(
             ]
         }
         1865 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "Enemy\"..(res:gsub(\"^%l\", string.upper))..\"ResistEqualToYours".to_string(),
@@ -37233,8 +37001,6 @@ fn handle_special_mod(
             ]
         }
         1893 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "Speed".to_string(),
@@ -37248,8 +37014,6 @@ fn handle_special_mod(
             ]
         }
         1894 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "Damage".to_string(),
@@ -37311,8 +37075,6 @@ fn handle_special_mod(
             ]
         }
         1897 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "FirePenetration".to_string(),
@@ -37989,8 +37751,6 @@ fn handle_special_mod(
             ]
         }
         1942 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "ExtraSkillStat".to_string(),
@@ -38735,8 +38495,6 @@ fn handle_special_mod(
             ]
         }
         2014 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "ReduceCritExtraDamage".to_string(),
@@ -38866,8 +38624,6 @@ fn handle_special_mod(
             ]
         }
         2023 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "ExtraAura".to_string(),
@@ -38896,8 +38652,6 @@ fn handle_special_mod(
             ]
         }
         2025 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
             vec![
                 Mod {
                     name: "EnergyShield".to_string(),
