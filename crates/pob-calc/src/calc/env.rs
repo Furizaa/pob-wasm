@@ -251,6 +251,21 @@ pub struct CalcEnv {
     pub enemy: Actor,
     pub mode: CalcMode,
     pub data: Arc<GameData>,
+
+    // ── Buff-mode flags (CalcSetup.lua lines 444–467) ──────────────────────
+    // Set by the buff-mode dispatch based on the requested BuffMode.
+    // For oracle builds (always "EFFECTIVE"), all three are true.
+    //
+    // mode_buffs:     buffs/auras are active (gates warcry exert, aura application)
+    // mode_combat:    in combat (gates flask/tincture, on-hit/on-kill events)
+    // mode_effective: enemy is present (gates enemy-dependent effects, curses, DPS)
+    //
+    // These are also mirrored into mod_db.conditions["Buffed"/"Combat"/"Effective"]
+    // so that Condition-tag mods with var = "Buffed"/"Combat"/"Effective" evaluate
+    // correctly (CalcSetup.lua lines 108–110 inside calcs.initModDB).
+    pub mode_buffs: bool,
+    pub mode_combat: bool,
+    pub mode_effective: bool,
     /// Item and gem attribute requirements. Populated during setup.
     pub requirements_table: Vec<RequirementEntry>,
     /// Mirrors env.allocNodes: set of node IDs that are "allocated" for this env
@@ -303,6 +318,13 @@ impl CalcEnv {
             radius_jewel_list: Vec::new(),
             extra_radius_node_list: HashSet::new(),
             keystones_added: HashSet::new(),
+            // Buff-mode flags: default to EFFECTIVE (all three true).
+            // This matches the oracle build path where mode = "MAIN" → buffMode = "EFFECTIVE".
+            // CalcSetup.lua lines 444–467: for mode != "CALCS", buffMode = "EFFECTIVE",
+            // which sets all three flags to true.
+            mode_buffs: true,
+            mode_combat: true,
+            mode_effective: true,
         }
     }
 }

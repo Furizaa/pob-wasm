@@ -203,6 +203,25 @@ pub fn init_env(build: &Build, data: Arc<GameData>) -> Result<CalcEnv, CalcError
     // Build attribute requirements table
     build_requirements_table(build, &mut env);
 
+    // ── Mirror buff-mode flags into modDB.conditions ──────────────────────
+    // Mirrors CalcSetup.lua lines 108–110 inside calcs.initModDB():
+    //   modDB.conditions["Buffed"]    = env.mode_buffs
+    //   modDB.conditions["Combat"]    = env.mode_combat
+    //   modDB.conditions["Effective"] = env.mode_effective
+    //
+    // Must be called after all other setup (including add_passive_mods which
+    // may add mods that consume these conditions), and after env.mode_* fields
+    // are set. Since CalcEnv::new() defaults all three to true (EFFECTIVE mode),
+    // this call unconditionally enables all three conditions for oracle builds.
+    //
+    // These conditions gate Condition-tag mods with var = "Buffed"/"Combat"/"Effective"
+    // so that condition-gated mods from items, passives, etc. evaluate correctly.
+    env.player.mod_db.set_condition("Buffed", env.mode_buffs);
+    env.player.mod_db.set_condition("Combat", env.mode_combat);
+    env.player
+        .mod_db
+        .set_condition("Effective", env.mode_effective);
+
     Ok(env)
 }
 

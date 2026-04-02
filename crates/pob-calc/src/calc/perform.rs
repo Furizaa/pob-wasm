@@ -1556,6 +1556,9 @@ mod tests {
             radius_jewel_list: Vec::new(),
             extra_radius_node_list: std::collections::HashSet::new(),
             keystones_added: std::collections::HashSet::new(),
+            mode_buffs: true,
+            mode_combat: true,
+            mode_effective: true,
         };
         setup(&mut env);
         env
@@ -2674,6 +2677,9 @@ mod tests {
             radius_jewel_list: Vec::new(),
             extra_radius_node_list: std::collections::HashSet::new(),
             keystones_added: std::collections::HashSet::new(),
+            mode_buffs: true,
+            mode_combat: true,
+            mode_effective: true,
         };
 
         // Add Marauder L90 base stats
@@ -2727,6 +2733,9 @@ mod tests {
             radius_jewel_list: Vec::new(),
             extra_radius_node_list: std::collections::HashSet::new(),
             keystones_added: std::collections::HashSet::new(),
+            mode_buffs: true,
+            mode_combat: true,
+            mode_effective: true,
         };
 
         let base_src = ModSource::new("Base", "Marauder base stats");
