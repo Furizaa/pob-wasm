@@ -4,6 +4,7 @@ pub mod data;
 pub mod error;
 pub mod mod_db;
 pub mod passive_tree;
+pub mod timeless_jewels;
 
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")

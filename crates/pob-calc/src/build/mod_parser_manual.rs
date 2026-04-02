@@ -7,7 +7,7 @@
 use crate::mod_db::types::*;
 
 /// Number of manual handlers implemented — used for compile-time assertion.
-pub const IMPLEMENTED_MANUAL_COUNT: usize = 25;
+pub const IMPLEMENTED_MANUAL_COUNT: usize = 31;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -783,6 +783,96 @@ pub fn handle_manual_special(id: &str, caps: &regex::Captures, source: &ModSourc
         // ═══════════════════════════════════════════════════════════════════
         // Fallback — unknown handler
         // ═══════════════════════════════════════════════════════════════════
+        // ── manual_1976 ─────────────────────────────────────────────────
+        // Lua line 5592: bathed in the blood of (%d+) sacrificed in the name of (.+)
+        // Glorious Vanity (vaal) — conqueredBy implicit
+        "manual_1976" => {
+            let seed: u64 = caps
+                .get(1)
+                .and_then(|m| m.as_str().parse().ok())
+                .unwrap_or(0);
+            let name = caps
+                .get(2)
+                .map(|m| m.as_str().trim().to_lowercase())
+                .unwrap_or_default();
+            crate::timeless_jewels::make_conquered_by_mod(seed, &name, source)
+        }
+
+        // ── manual_1977 ─────────────────────────────────────────────────
+        // Lua line 5595: carved to glorify (%d+) new faithful converted by high templar (.+)
+        // Militant Faith (templar) — conqueredBy implicit
+        "manual_1977" => {
+            let seed: u64 = caps
+                .get(1)
+                .and_then(|m| m.as_str().parse().ok())
+                .unwrap_or(0);
+            let name = caps
+                .get(2)
+                .map(|m| m.as_str().trim().to_lowercase())
+                .unwrap_or_default();
+            crate::timeless_jewels::make_conquered_by_mod(seed, &name, source)
+        }
+
+        // ── manual_1978 ─────────────────────────────────────────────────
+        // Lua line 5598: commanded leadership over (%d+) warriors under (.+)
+        // Lethal Pride (karui) — conqueredBy implicit
+        "manual_1978" => {
+            let seed: u64 = caps
+                .get(1)
+                .and_then(|m| m.as_str().parse().ok())
+                .unwrap_or(0);
+            let name = caps
+                .get(2)
+                .map(|m| m.as_str().trim().to_lowercase())
+                .unwrap_or_default();
+            crate::timeless_jewels::make_conquered_by_mod(seed, &name, source)
+        }
+
+        // ── manual_1979 ─────────────────────────────────────────────────
+        // Lua line 5601: commissioned (%d+) coins to commemorate (.+)
+        // Elegant Hubris (eternal) — conqueredBy implicit
+        "manual_1979" => {
+            let seed: u64 = caps
+                .get(1)
+                .and_then(|m| m.as_str().parse().ok())
+                .unwrap_or(0);
+            let name = caps
+                .get(2)
+                .map(|m| m.as_str().trim().to_lowercase())
+                .unwrap_or_default();
+            crate::timeless_jewels::make_conquered_by_mod(seed, &name, source)
+        }
+
+        // ── manual_1980 ─────────────────────────────────────────────────
+        // Lua line 5604: denoted service of (%d+) dekhara in the akhara of (.+)
+        // Brutal Restraint (maraketh) — conqueredBy implicit
+        "manual_1980" => {
+            let seed: u64 = caps
+                .get(1)
+                .and_then(|m| m.as_str().parse().ok())
+                .unwrap_or(0);
+            let name = caps
+                .get(2)
+                .map(|m| m.as_str().trim().to_lowercase())
+                .unwrap_or_default();
+            crate::timeless_jewels::make_conquered_by_mod(seed, &name, source)
+        }
+
+        // ── manual_1981 ─────────────────────────────────────────────────
+        // Lua line 5607: remembrancing (%d+) songworthy deeds by the line of (.+)
+        // Heroic Tragedy (kalguur) — conqueredBy implicit
+        "manual_1981" => {
+            let seed: u64 = caps
+                .get(1)
+                .and_then(|m| m.as_str().parse().ok())
+                .unwrap_or(0);
+            let name = caps
+                .get(2)
+                .map(|m| m.as_str().trim().to_lowercase())
+                .unwrap_or_default();
+            crate::timeless_jewels::make_conquered_by_mod(seed, &name, source)
+        }
+
         _ => {
             // Unknown manual handler — return empty
             vec![]
@@ -1056,6 +1146,6 @@ mod tests {
 
     #[test]
     fn test_implemented_manual_count() {
-        assert_eq!(IMPLEMENTED_MANUAL_COUNT, 25);
+        assert_eq!(IMPLEMENTED_MANUAL_COUNT, 31);
     }
 }

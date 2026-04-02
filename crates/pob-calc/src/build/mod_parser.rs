@@ -25,7 +25,7 @@ use crate::mod_db::types::{Mod, ModSource};
 
 // Verify all manual handlers are implemented
 const _: () = assert!(
-    mod_parser_manual::IMPLEMENTED_MANUAL_COUNT == 25,
+    mod_parser_manual::IMPLEMENTED_MANUAL_COUNT == 31,
     "Not all manual handlers implemented"
 );
 

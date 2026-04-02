@@ -4,7 +4,7 @@
 //! Implement handlers in mod_parser_manual.rs.
 
 /// Number of entries requiring manual handlers.
-pub const MANUAL_ENTRY_COUNT: usize = 25;
+pub const MANUAL_ENTRY_COUNT: usize = 31;
 
 /// Manual handler stubs.
 /// Format: (handler_id, regex_pattern, capture_count, lua_line)
@@ -59,4 +59,16 @@ pub const MANUAL_ENTRIES: &[(&str, &str, usize, usize)] = &[
     ("manual_1724", r#"^([a-zA-Z\s]+) has no reservation if cast as an aura$"#, 1, 5157),
     // Lua line 5186: function(_, name) return {\n\t\tflag(\"DisableSkill\", { type = \"SkillType\", skillType = SkillType.Travel }),\n\t\tflag(\"EnableS
     ("manual_1736", r#"^travel skills other than ([a-zA-Z\s]+) are disabled$"#, 1, 5186),
+    // Lua line 5592: function(num, _, name)\n\t\treturn { mod(\"JewelData\", \"LIST\",\n\t\t\t\t{ key = \"conqueredBy\", value = { id = num, conqueror = co
+    ("manual_1976", r#"^bathed in the blood of (\d+) sacrificed in the name of (.+)$"#, 2, 5592),
+    // Lua line 5595: function(num, _, name)\n\t\treturn { mod(\"JewelData\", \"LIST\",\n\t\t\t\t{ key = \"conqueredBy\", value = { id = num, conqueror = co
+    ("manual_1977", r#"^carved to glorify (\d+) new faithful converted by high templar (.+)$"#, 2, 5595),
+    // Lua line 5598: function(num, _, name)\n\t\treturn { mod(\"JewelData\", \"LIST\",\n\t\t\t\t{ key = \"conqueredBy\", value = { id = num, conqueror = co
+    ("manual_1978", r#"^commanded leadership over (\d+) warriors under (.+)$"#, 2, 5598),
+    // Lua line 5601: function(num, _, name)\n\t\treturn { mod(\"JewelData\", \"LIST\",\n\t\t\t\t{ key = \"conqueredBy\", value = { id = num, conqueror = co
+    ("manual_1979", r#"^commissioned (\d+) coins to commemorate (.+)$"#, 2, 5601),
+    // Lua line 5604: function(num, _, name)\n\t\treturn { mod(\"JewelData\", \"LIST\",\n\t\t\t\t{ key = \"conqueredBy\", value = { id = num, conqueror = co
+    ("manual_1980", r#"^denoted service of (\d+) dekhara in the akhara of (.+)$"#, 2, 5604),
+    // Lua line 5607: function(num, _, name)\n\t\treturn { mod(\"JewelData\", \"LIST\",\n\t\t\t\t{ key = \"conqueredBy\", value = { id = num, conqueror = co
+    ("manual_1981", r#"^remembrancing (\d+) songworthy deeds by the line of (.+)$"#, 2, 5607),
 ];

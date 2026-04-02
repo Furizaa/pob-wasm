@@ -38500,94 +38500,28 @@ fn handle_special_mod(
             ]
         }
         1976 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
-            vec![
-                Mod {
-                    name: "JewelData".to_string(),
-                    mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: { key = \"conqueredBy\", value = { id = num, conqueror = conquerorList[name:lower()] } } */,
-                    flags: ModFlags::NONE,
-                    keyword_flags: KeywordFlags::NONE,
-                    tags: vec![],
-                    source: source.clone(),
-                },
-            ]
+            // Manual: Lua line 5592 — function(num, _, name)\n\t\treturn { mod(\"JewelData\", \"LIST\",\n\t\t\t\t{ key = \"conquere
+            manual_handler("manual_1976", caps, source)
         }
         1977 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
-            vec![
-                Mod {
-                    name: "JewelData".to_string(),
-                    mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: { key = \"conqueredBy\", value = { id = num, conqueror = conquerorList[name:lower()] } } */,
-                    flags: ModFlags::NONE,
-                    keyword_flags: KeywordFlags::NONE,
-                    tags: vec![],
-                    source: source.clone(),
-                },
-            ]
+            // Manual: Lua line 5595 — function(num, _, name)\n\t\treturn { mod(\"JewelData\", \"LIST\",\n\t\t\t\t{ key = \"conquere
+            manual_handler("manual_1977", caps, source)
         }
         1978 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
-            vec![
-                Mod {
-                    name: "JewelData".to_string(),
-                    mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: { key = \"conqueredBy\", value = { id = num, conqueror = conquerorList[name:lower()] } } */,
-                    flags: ModFlags::NONE,
-                    keyword_flags: KeywordFlags::NONE,
-                    tags: vec![],
-                    source: source.clone(),
-                },
-            ]
+            // Manual: Lua line 5598 — function(num, _, name)\n\t\treturn { mod(\"JewelData\", \"LIST\",\n\t\t\t\t{ key = \"conquere
+            manual_handler("manual_1978", caps, source)
         }
         1979 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
-            vec![
-                Mod {
-                    name: "JewelData".to_string(),
-                    mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: { key = \"conqueredBy\", value = { id = num, conqueror = conquerorList[name:lower()] } } */,
-                    flags: ModFlags::NONE,
-                    keyword_flags: KeywordFlags::NONE,
-                    tags: vec![],
-                    source: source.clone(),
-                },
-            ]
+            // Manual: Lua line 5601 — function(num, _, name)\n\t\treturn { mod(\"JewelData\", \"LIST\",\n\t\t\t\t{ key = \"conquere
+            manual_handler("manual_1979", caps, source)
         }
         1980 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
-            vec![
-                Mod {
-                    name: "JewelData".to_string(),
-                    mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: { key = \"conqueredBy\", value = { id = num, conqueror = conquerorList[name:lower()] } } */,
-                    flags: ModFlags::NONE,
-                    keyword_flags: KeywordFlags::NONE,
-                    tags: vec![],
-                    source: source.clone(),
-                },
-            ]
+            // Manual: Lua line 5604 — function(num, _, name)\n\t\treturn { mod(\"JewelData\", \"LIST\",\n\t\t\t\t{ key = \"conquere
+            manual_handler("manual_1980", caps, source)
         }
         1981 => {
-            let num_str = caps.get(1).map(|m| m.as_str()).unwrap_or("0");
-            let num: f64 = num_str.parse().unwrap_or(0.0);
-            vec![
-                Mod {
-                    name: "JewelData".to_string(),
-                    mod_type: ModType::List,
-                    value: ModValue::Number(0.0) /* TODO: { key = \"conqueredBy\", value = { id = num, conqueror = conquerorList[name:lower()] } } */,
-                    flags: ModFlags::NONE,
-                    keyword_flags: KeywordFlags::NONE,
-                    tags: vec![],
-                    source: source.clone(),
-                },
-            ]
+            // Manual: Lua line 5607 — function(num, _, name)\n\t\treturn { mod(\"JewelData\", \"LIST\",\n\t\t\t\t{ key = \"conquere
+            manual_handler("manual_1981", caps, source)
         }
         1982 => {
             vec![]
@@ -40670,8 +40604,8 @@ fn scan_plain_vec<'a>(line: &str, map: &'a HashMap<&str, Vec<String>>) -> Option
 }
 
 /// Number of templated (auto-generated handler) special mod entries.
-pub const GENERATED_SPECIAL_COUNT: usize = 2066;
+pub const GENERATED_SPECIAL_COUNT: usize = 2060;
 /// Number of manual handler special mod entries.
-pub const MANUAL_SPECIAL_COUNT: usize = 25;
+pub const MANUAL_SPECIAL_COUNT: usize = 31;
 /// Total number of special mod entries.
 pub const TOTAL_SPECIAL_COUNT: usize = 2091;

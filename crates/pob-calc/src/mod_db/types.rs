@@ -140,12 +140,69 @@ impl std::ops::BitAnd for KeywordFlags {
     }
 }
 
+/// Conqueror type for timeless jewels.
+/// Mirrors the `conquerorList` table in ModParser.lua.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ConquerorType {
+    Vaal,
+    Karui,
+    Maraketh,
+    Templar,
+    Eternal,
+    Kalguur,
+}
+
+impl ConquerorType {
+    /// Parse from a lowercase string (as used in PoB's conquerorList).
+    pub fn from_str(s: &str) -> Option<Self> {
+        match s {
+            "vaal" => Some(Self::Vaal),
+            "karui" => Some(Self::Karui),
+            "maraketh" => Some(Self::Maraketh),
+            "templar" => Some(Self::Templar),
+            "eternal" => Some(Self::Eternal),
+            "kalguur" => Some(Self::Kalguur),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Vaal => "vaal",
+            Self::Karui => "karui",
+            Self::Maraketh => "maraketh",
+            Self::Templar => "templar",
+            Self::Eternal => "eternal",
+            Self::Kalguur => "kalguur",
+        }
+    }
+}
+
+/// Structured `conqueredBy` data carried by a timeless jewel's implicit mod.
+/// Mirrors `{ id = num, conqueror = { id = conqueror_id, type = conqueror_type } }`
+/// from ModParser.lua's conquerorList.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ConqueredBy {
+    /// The jewel's numeric seed (the "N" from the implicit text, e.g. "100" in
+    /// "Bathed in the blood of 100 sacrificed..."). For Elegant Hubris this is
+    /// the raw seed (not yet divided by 20).
+    pub seed: u64,
+    /// Conqueror type (vaal, karui, etc.)
+    pub conqueror_type: ConquerorType,
+    /// Conqueror ID — either a numeric string like "1", "2", "3" or a variant
+    /// string like "2_v2", "1_v2", "3_v2".
+    pub conqueror_id: String,
+}
+
 /// The value a modifier carries.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ModValue {
     Number(f64),
     Bool(bool),
     String(String),
+    /// Structured jewel data (key-value pairs from JewelData LIST mods).
+    /// Used for `conqueredBy` and other jewel-specific data.
+    ConqueredBy(ConqueredBy),
 }
 
 impl ModValue {
@@ -159,7 +216,7 @@ impl ModValue {
                     0.0
                 }
             }
-            _ => 0.0,
+            Self::String(_) | Self::ConqueredBy(_) => 0.0,
         }
     }
 
@@ -167,7 +224,15 @@ impl ModValue {
         match self {
             Self::Bool(b) => *b,
             Self::Number(n) => *n != 0.0,
-            _ => false,
+            Self::String(_) | Self::ConqueredBy(_) => false,
+        }
+    }
+
+    /// Extract the ConqueredBy data if this is a ConqueredBy variant.
+    pub fn as_conquered_by(&self) -> Option<&ConqueredBy> {
+        match self {
+            Self::ConqueredBy(cb) => Some(cb),
+            _ => None,
         }
     }
 }

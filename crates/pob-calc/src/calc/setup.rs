@@ -318,6 +318,11 @@ fn add_passive_mods(build: &Build, db: &mut ModDb, data: &GameData) {
     // Use the version-specific tree if available, otherwise fall back to default.
     let tree = data.tree_for_version(&build.passive_spec.tree_version);
 
+    // Apply timeless jewel node replacements (SETUP-06).
+    // This returns a map of node_id → overridden stats for nodes conquered by
+    // timeless jewels. Nodes not in the map use their original stats.
+    let timeless_overrides = crate::timeless_jewels::apply_timeless_jewels(build, tree, data);
+
     // Find nodes that are reachable from a start node through the allocated node graph.
     // This mirrors PoB's BuildAllDependsAndPaths pruning: nodes not connected to a
     // class/ascendancy start are orphans and should not contribute mods.
@@ -328,7 +333,15 @@ fn add_passive_mods(build: &Build, db: &mut ModDb, data: &GameData) {
             continue;
         };
         let source = ModSource::new("Passive", &node.name);
-        for stat_text in &node.stats {
+
+        // Use overridden stats if this node was replaced by a timeless jewel.
+        let stats: &[String] = if let Some(override_stats) = timeless_overrides.get(&node_id) {
+            override_stats
+        } else {
+            &node.stats
+        };
+
+        for stat_text in stats {
             let mods = crate::build::mod_parser::parse_mod(stat_text, source.clone());
             for m in mods {
                 db.add(m);

@@ -1,6 +1,6 @@
 use crate::error::DataError;
 use serde::Deserialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// Classification of a passive-tree node.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -69,6 +69,16 @@ struct RawNode {
     skill_points_granted: i32,
     #[serde(default)]
     expansion_jewel: Option<RawExpansionJewel>,
+    /// X coordinate (pre-computed from group/orbit data).
+    #[serde(default)]
+    x: Option<f64>,
+    /// Y coordinate (pre-computed from group/orbit data).
+    #[serde(default)]
+    y: Option<f64>,
+    /// For jewel sockets: maps radius_index (string) → list of node IDs in that radius.
+    /// Pre-computed during data extraction.
+    #[serde(default)]
+    nodes_in_radius: std::collections::HashMap<String, Vec<u32>>,
 }
 
 impl RawNode {
@@ -112,6 +122,15 @@ pub struct PassiveNode {
     /// For cluster jewel socket nodes: metadata about the expansion jewel slot.
     /// `None` for regular passive nodes.
     pub expansion_jewel: Option<ExpansionJewelMeta>,
+    /// X coordinate in the passive tree canvas (computed from group position + orbit).
+    /// Used for radius computations (nodesInRadius).
+    pub x: Option<f64>,
+    /// Y coordinate in the passive tree canvas.
+    pub y: Option<f64>,
+    /// For jewel socket nodes: maps radius_index (1-based) → set of node IDs
+    /// within that radius. Precomputed during tree loading.
+    /// Empty for non-socket nodes.
+    pub nodes_in_radius: HashMap<usize, HashSet<u32>>,
 }
 
 /// Per-class base attributes from the passive tree data.
@@ -160,6 +179,17 @@ impl PassiveTree {
                     index: ej.index,
                     parent: ej.parent,
                 });
+                // Convert nodes_in_radius from String keys to usize keys
+                let nodes_in_radius: HashMap<usize, HashSet<u32>> = raw
+                    .nodes_in_radius
+                    .into_iter()
+                    .filter_map(|(k, v)| {
+                        k.parse::<usize>()
+                            .ok()
+                            .map(|idx| (idx, v.into_iter().collect()))
+                    })
+                    .collect();
+
                 let node = PassiveNode {
                     id: raw.id,
                     name: raw.name,
@@ -171,6 +201,9 @@ impl PassiveTree {
                     skill_points_granted: raw.skill_points_granted,
                     class_start_index: raw.class_start_index,
                     expansion_jewel,
+                    x: raw.x,
+                    y: raw.y,
+                    nodes_in_radius,
                 };
                 (raw.id, node)
             })
