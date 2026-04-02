@@ -1884,6 +1884,24 @@ fn lua_value_to_rust(value: &str, mod_type: &str) -> String {
         return "ModValue::Number(-num)".to_string();
     }
 
+    // ── Special LIST mod patterns ──────────────────────────────────────────
+    //
+    // Pattern: mod("GrantedPassive", "LIST", passive)
+    // The Lua function parameter `passive` is cap group 1 (the notable name).
+    // Store as lowercase string so CalcSetup can look it up in notableMap.
+    if trimmed == "passive" {
+        return "ModValue::String(caps.get(1).map(|m| m.as_str()).unwrap_or(\"\").to_lowercase())"
+            .to_string();
+    }
+
+    // Pattern: mod("GrantedAscendancyNode", "LIST", { side = side, name = ascendancy })
+    // The Lua function has signature `function(_, ascendancy, side)` — cap1 is the
+    // ascendancy notable name, cap2 is the forbidden side ("flesh" or "flame").
+    // Encode as "<side>:<name>" so CalcSetup can split them back out.
+    if trimmed.contains("side") && trimmed.contains("name") && trimmed.contains("ascendancy") {
+        return "ModValue::String(format!(\"{}:{}\", caps.get(2).map(|m| m.as_str()).unwrap_or(\"\").to_lowercase(), caps.get(1).map(|m| m.as_str()).unwrap_or(\"\").to_lowercase()))".to_string();
+    }
+
     // Numeric literal
     if let Ok(n) = trimmed.parse::<f64>() {
         return format!("ModValue::Number({:.1})", n);
