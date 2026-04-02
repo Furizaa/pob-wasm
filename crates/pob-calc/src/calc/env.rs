@@ -1,4 +1,5 @@
 use crate::data::GameData;
+use crate::mod_db::types::Mod;
 use crate::mod_db::ModDb;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -205,6 +206,44 @@ pub struct RequirementEntry {
     pub source_name: String,
 }
 
+/// Classification of a radius jewel's per-node callback type.
+/// Mirrors PoB's funcList `type` field on jewel data.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RadiusJewelType {
+    /// Fires for any node in radius, allocated or not.
+    Threshold,
+    /// Fires only when the node is **allocated** (env.allocNodes[node.id] is set).
+    SelfAlloc,
+    /// Fires only when the node is **not allocated**.
+    SelfUnalloc,
+    /// Runs in the first pass, before effect scaling.
+    /// Used by timeless jewels (Glorious Vanity in Maraketh mode, etc.).
+    Other,
+}
+
+/// A single entry in the radius jewel list.
+/// Mirrors one element of `env.radiusJewelList` in CalcSetup.lua.
+///
+/// Each entry represents one jewel socket with a radius effect, and holds:
+/// - The set of passive node IDs within that jewel's radius.
+/// - A callback function that runs per-node (and once with node=None to finalise).
+/// - Mutable per-pass accumulator data (e.g. total Str/Dex/Int tallied in radius).
+pub struct RadiusJewelEntry {
+    /// Set of passive node IDs within this jewel's radius.
+    /// Mirrors `rad.nodes` — keyed by node_id.
+    pub nodes: HashSet<u32>,
+    /// The per-node callback. Signature: `(node_id: Option<u32>, mods: &mut Vec<Mod>, data: &mut HashMap<String, f64>)`.
+    /// When `node_id` is None, this is the "finalise" call (after all nodes processed).
+    pub func: Box<dyn Fn(Option<u32>, &mut Vec<Mod>, &mut HashMap<String, f64>) + Send + Sync>,
+    /// Whether this is a Threshold, Self (allocated), SelfUnalloc, or Other jewel.
+    pub jewel_type: RadiusJewelType,
+    /// The passive tree socket node ID where this jewel is socketed.
+    /// Used to set `rad.data.modSource = "Tree:{node_id}"`.
+    pub node_id: u32,
+    /// Mutable per-pass accumulator (e.g. `{"Str": 45, "Dex": 30, "Int": 20}`).
+    pub data: HashMap<String, f64>,
+}
+
 /// The full calculation environment for one pass.
 /// Mirrors POB's `env` table from CalcSetup.lua.
 pub struct CalcEnv {
@@ -220,6 +259,15 @@ pub struct CalcEnv {
     /// Mirrors env.grantedPassives: set of node IDs that were granted via anointments
     /// or Forbidden Flesh/Flame (i.e. NOT part of the original passive spec allocation).
     pub granted_passives: HashSet<u32>,
+    /// Mirrors env.radiusJewelList: list of radius jewel descriptors.
+    /// Populated during jewel slot processing in init_env.
+    /// Each entry has a callback that is called for each passive node in its radius.
+    pub radius_jewel_list: Vec<RadiusJewelEntry>,
+    /// Mirrors env.extraRadiusNodeList: unallocated nodes that are in the radius of
+    /// non-Self jewels (Threshold, SelfUnalloc). These nodes' mods are processed by
+    /// buildModListForNodeList when finishJewels=true, but do NOT contribute to the
+    /// player's modDB directly.
+    pub extra_radius_node_list: HashSet<u32>,
 }
 
 /// Get a numeric output value, returning 0.0 if absent or not a number.
@@ -246,6 +294,8 @@ impl CalcEnv {
             requirements_table: Vec::new(),
             alloc_nodes: HashSet::new(),
             granted_passives: HashSet::new(),
+            radius_jewel_list: Vec::new(),
+            extra_radius_node_list: HashSet::new(),
         }
     }
 }

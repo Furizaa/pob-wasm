@@ -81,15 +81,14 @@ pub fn init_env(build: &Build, data: Arc<GameData>) -> Result<CalcEnv, CalcError
     // Mirrors CalcSetup.lua lines 1230-1258.
     apply_granted_passives(build, &mut env);
 
+    // Build the radius jewel list from jewel slots.
+    // Mirrors CalcSetup.lua lines 751-808: for each jewel slot with a radius,
+    // add entries to env.radiusJewelList and populate env.extraRadiusNodeList.
+    build_radius_jewel_list(build, &mut env);
+
     // Add passive tree node mods (including granted nodes from anointments).
     // Mirrors CalcSetup.lua lines 1260-1265: buildModListForNodeList(env, env.allocNodes, true).
-    let granted_nodes = env.granted_passives.clone();
-    add_passive_mods_with_granted(
-        build,
-        &mut env.player.mod_db,
-        &env.data.clone(),
-        &granted_nodes,
-    );
+    apply_passive_mods(build, &mut env);
 
     // Initialize enemy ModDb
     init_enemy_db(build, &mut env.enemy.mod_db, &env.data.clone());
@@ -450,62 +449,457 @@ fn apply_granted_passives(build: &Build, env: &mut CalcEnv) {
     }
 }
 
-#[allow(dead_code)]
-fn add_passive_mods(build: &Build, db: &mut ModDb, data: &GameData) {
-    add_passive_mods_with_granted(build, db, data, &std::collections::HashSet::new());
-}
-
-/// Core implementation that applies passive mods for both connected (reachable) nodes
-/// and explicitly granted nodes (from anointments and Forbidden Flesh/Flame).
+/// Apply passive tree mods to the player ModDb, implementing the full two-pass
+/// radius jewel framework from CalcSetup.lua.
 ///
-/// Mirrors CalcSetup.lua lines 1260-1265: buildModListForNodeList(env, env.allocNodes, true).
-fn add_passive_mods_with_granted(
-    build: &Build,
-    db: &mut ModDb,
-    data: &GameData,
-    granted_nodes: &std::collections::HashSet<u32>,
-) {
-    // Use the version-specific tree if available, otherwise fall back to default.
+/// Mirrors calcs.buildModListForNodeList(env, env.allocNodes, true).
+fn apply_passive_mods(build: &Build, env: &mut super::env::CalcEnv) {
+    let data = env.data.clone();
     let tree = data.tree_for_version(&build.passive_spec.tree_version);
 
     // Apply timeless jewel node replacements (SETUP-06).
-    // This returns a map of node_id → overridden stats for nodes conquered by
-    // timeless jewels. Nodes not in the map use their original stats.
-    let timeless_overrides = crate::timeless_jewels::apply_timeless_jewels(build, tree, data);
+    let timeless_overrides = crate::timeless_jewels::apply_timeless_jewels(build, tree, &data);
 
-    // Find nodes that are reachable from a start node through the allocated node graph.
-    // This mirrors PoB's BuildAllDependsAndPaths pruning: nodes not connected to a
-    // class/ascendancy start are orphans and should not contribute mods.
+    // Find reachable (connected) nodes.
     let reachable = connected_passive_nodes(build, tree);
 
-    // Combine reachable (connected) nodes with explicitly granted nodes.
-    // Granted nodes bypass the connectivity check (they are anointment/jewel grants).
-    let all_nodes: std::collections::HashSet<u32> = reachable
+    // Combine reachable nodes with explicitly granted nodes.
+    let granted_nodes = env.granted_passives.clone();
+    let all_alloc_nodes: std::collections::HashSet<u32> = reachable
         .iter()
         .copied()
         .chain(granted_nodes.iter().copied())
         .collect();
 
-    for &node_id in &all_nodes {
-        let Some(node) = tree.nodes.get(&node_id) else {
+    // Update env.alloc_nodes to include all allocated nodes (for radius jewel checks).
+    env.alloc_nodes = all_alloc_nodes.clone();
+
+    // Reset radius jewel accumulators and set modSource.
+    // Mirrors CalcSetup.lua: for _, rad in pairs(env.radiusJewelList) do wipeTable(rad.data); ...
+    for rad in &mut env.radius_jewel_list {
+        rad.data.clear();
+        rad.data.insert("modSource".to_string(), 0.0); // placeholder; modSource is string in Lua
+    }
+
+    // Collect mods from all allocated nodes using the two-pass radius jewel framework.
+    let mut all_mods: Vec<crate::mod_db::types::Mod> = Vec::new();
+
+    // Process all allocated nodes.
+    for &node_id in &all_alloc_nodes {
+        let node_mods = build_mod_list_for_node(
+            node_id,
+            true, // is_allocated
+            tree,
+            &timeless_overrides,
+            &mut env.radius_jewel_list,
+            &env.alloc_nodes,
+        );
+        all_mods.extend(node_mods);
+    }
+
+    // Process extra radius nodes (unallocated nodes near non-Self jewels).
+    // These nodes' mods do NOT go into the player ModDb — they are only processed
+    // so radius jewel callbacks can read their stats.
+    let extra_nodes = env.extra_radius_node_list.clone();
+    for &node_id in &extra_nodes {
+        // Only process if not already in alloc_nodes (to avoid double-processing).
+        if all_alloc_nodes.contains(&node_id) {
             continue;
-        };
-        let source = ModSource::new("Passive", &node.name);
+        }
+        build_mod_list_for_node(
+            node_id,
+            false, // is_allocated
+            tree,
+            &timeless_overrides,
+            &mut env.radius_jewel_list,
+            &env.alloc_nodes,
+        );
+        // Note: we discard the returned mods — extra radius nodes don't contribute to modDB.
+    }
 
-        // Use overridden stats if this node was replaced by a timeless jewel.
-        let stats: &[String] = if let Some(override_stats) = timeless_overrides.get(&node_id) {
-            override_stats
-        } else {
-            &node.stats
-        };
+    // Finalise radius jewels: call func(None, &mut mods, &mut data) for each.
+    // Mirrors: for _, rad in pairs(env.radiusJewelList) do rad.func(nil, modList, rad.data) end
+    for rad in &mut env.radius_jewel_list {
+        (rad.func)(None, &mut all_mods, &mut rad.data);
+    }
 
-        for stat_text in stats {
-            let mods = crate::build::mod_parser::parse_mod(stat_text, source.clone());
-            for m in mods {
-                db.add(m);
+    // Add all collected mods to the player ModDb.
+    for m in all_mods {
+        env.player.mod_db.add(m);
+    }
+}
+
+/// Build the mod list for a single passive node, implementing the two-pass
+/// radius jewel dispatch, PassiveSkillEffect scaling, and suppression checks.
+///
+/// Mirrors calcs.buildModListForNode(env, node) from CalcSetup.lua lines 113-167.
+///
+/// Returns the final Vec<Mod> for this node.
+fn build_mod_list_for_node(
+    node_id: u32,
+    is_allocated: bool,
+    tree: &crate::passive_tree::PassiveTree,
+    timeless_overrides: &HashMap<u32, Vec<String>>,
+    radius_jewel_list: &mut Vec<super::env::RadiusJewelEntry>,
+    _alloc_nodes: &std::collections::HashSet<u32>,
+) -> Vec<crate::mod_db::types::Mod> {
+    use crate::calc::env::RadiusJewelType;
+    use crate::mod_db::types::{ModType, ModValue};
+    use crate::passive_tree::NodeType;
+
+    let Some(node) = tree.nodes.get(&node_id) else {
+        return Vec::new();
+    };
+
+    // Skip mastery nodes entirely (they have no stats that should be applied).
+    if node.node_type == NodeType::Mastery {
+        return Vec::new();
+    }
+
+    let source = ModSource::new("Passive", &node.name);
+
+    // Collect base mods from the node's stats (or timeless overrides).
+    let stats: &[String] = if let Some(override_stats) = timeless_overrides.get(&node_id) {
+        override_stats
+    } else {
+        &node.stats
+    };
+
+    let mut mod_list: Vec<crate::mod_db::types::Mod> = Vec::new();
+    for stat_text in stats {
+        let parsed = crate::build::mod_parser::parse_mod(stat_text, source.clone());
+        mod_list.extend(parsed);
+    }
+
+    // ── FIRST PASS: "Other"-type radius jewels ─────────────────────────────
+    // Only fires for non-Mastery nodes in the jewel's radius.
+    // Mirrors: for _, rad in pairs(env.radiusJewelList) do
+    //   if rad.type == "Other" and rad.nodes[node.id] and ... then
+    //     rad.func(node, modList, rad.data)
+    for rad in radius_jewel_list.iter_mut() {
+        if rad.jewel_type == RadiusJewelType::Other && rad.nodes.contains(&node_id) {
+            (rad.func)(Some(node_id), &mut mod_list, &mut rad.data);
+        }
+    }
+
+    // ── SUPPRESSION CHECK ───────────────────────────────────────────────────
+    // PassiveSkillHasNoEffect: wipe all mods (node contributes nothing).
+    // AllocatedPassiveSkillHasNoEffect: wipe only if this node is allocated.
+    // Mirrors: if modList:Flag(nil, "PassiveSkillHasNoEffect") or
+    //   (env.allocNodes[node.id] and modList:Flag(nil, "AllocatedPassiveSkillHasNoEffect"))
+    let has_no_effect = mod_list_flag(&mod_list, "PassiveSkillHasNoEffect");
+    let has_alloc_no_effect =
+        is_allocated && mod_list_flag(&mod_list, "AllocatedPassiveSkillHasNoEffect");
+
+    if has_no_effect || has_alloc_no_effect {
+        mod_list.clear();
+    }
+
+    // ── EFFECT SCALING ─────────────────────────────────────────────────────
+    // PassiveSkillEffect multiplier from INC+MORE mods on this node's modList.
+    // Mirrors: local scale = calcLib.mod(modList, nil, "PassiveSkillEffect")
+    //   which expands to: (1 + sum_inc/100) * product_more
+    let scale = mod_list_calc_mod(&mod_list, "PassiveSkillEffect");
+    if (scale - 1.0).abs() > 1e-9 {
+        // ScaleAddList: multiply all BASE values by scale.
+        for m in &mut mod_list {
+            if m.mod_type == ModType::Base {
+                if let ModValue::Number(ref mut v) = m.value {
+                    *v *= scale;
+                }
             }
         }
     }
+
+    // ── SECOND PASS: Threshold / SelfAlloc / SelfUnalloc jewels ────────────
+    // Mirrors: for _, rad in pairs(env.radiusJewelList) do
+    //   if rad.nodes[node.id] and ... then rad.func(node, modList, rad.data) end
+    for rad in radius_jewel_list.iter_mut() {
+        if !rad.nodes.contains(&node_id) {
+            continue;
+        }
+        let fires = match rad.jewel_type {
+            RadiusJewelType::Threshold => true,
+            RadiusJewelType::SelfAlloc => is_allocated,
+            RadiusJewelType::SelfUnalloc => !is_allocated,
+            RadiusJewelType::Other => false, // already handled in first pass
+        };
+        if fires {
+            (rad.func)(Some(node_id), &mut mod_list, &mut rad.data);
+        }
+    }
+
+    // ── PassiveSkillHasOtherEffect ──────────────────────────────────────────
+    // Replaces the entire modList with NodeModifier LIST entries.
+    // Mirrors: if modList:Flag(nil, "PassiveSkillHasOtherEffect") then
+    //   for i, mod in ipairs(modList:List(skillCfg, "NodeModifier")) do
+    //     if i == 1 then wipeTable(modList) end
+    //     modList:AddMod(mod.mod)
+    //   end
+    if mod_list_flag(&mod_list, "PassiveSkillHasOtherEffect") {
+        let node_modifier_mods: Vec<crate::mod_db::types::Mod> = mod_list
+            .iter()
+            .filter(|m| m.name == "NodeModifier" && m.mod_type == ModType::List)
+            .filter_map(|_m| {
+                // NodeModifier LIST entries store the replacement mod as their value.
+                // In Rust this is not yet fully implemented; skip for now.
+                // In Lua: mod.mod contains the replacement mod to add.
+                None::<crate::mod_db::types::Mod>
+            })
+            .collect();
+        if !node_modifier_mods.is_empty() {
+            mod_list.clear();
+            mod_list.extend(node_modifier_mods);
+        } else {
+            // If no NodeModifier entries (because this isn't implemented yet),
+            // clear the modList to suppress the original node stats.
+            // This is the correct behavior: PassiveSkillHasOtherEffect means
+            // "replace with something else", so the original stats must be gone.
+            mod_list.clear();
+        }
+    }
+
+    mod_list
+}
+
+/// Compute the sum of INC mods for a given stat in a local mod list.
+fn mod_list_sum_inc(mods: &[crate::mod_db::types::Mod], stat: &str) -> f64 {
+    use crate::mod_db::types::ModType;
+    mods.iter()
+        .filter(|m| m.name == stat && m.mod_type == ModType::Inc && m.tags.is_empty())
+        .map(|m| m.value.as_f64())
+        .sum()
+}
+
+/// Compute the product of MORE mods for a given stat in a local mod list.
+fn mod_list_more(mods: &[crate::mod_db::types::Mod], stat: &str) -> f64 {
+    use crate::mod_db::types::ModType;
+    mods.iter()
+        .filter(|m| m.name == stat && m.mod_type == ModType::More && m.tags.is_empty())
+        .fold(1.0_f64, |acc, m| acc * (1.0 + m.value.as_f64() / 100.0))
+}
+
+/// Compute calcLib.mod equivalent for a local mod list:
+/// (1 + sum_inc/100) * product_more.
+/// Returns 1.0 when no mods affect the named stat.
+fn mod_list_calc_mod(mods: &[crate::mod_db::types::Mod], stat: &str) -> f64 {
+    let inc = mod_list_sum_inc(mods, stat);
+    let more = mod_list_more(mods, stat);
+    (1.0 + inc / 100.0) * more
+}
+
+/// Check if a FLAG mod with given name is present in a local mod list.
+fn mod_list_flag(mods: &[crate::mod_db::types::Mod], stat: &str) -> bool {
+    use crate::mod_db::types::{ModType, ModValue};
+    mods.iter()
+        .filter(|m| m.name == stat && m.mod_type == ModType::Flag && m.tags.is_empty())
+        .any(|m| matches!(&m.value, ModValue::Bool(true)))
+}
+
+/// Build the radius jewel list for all jewel slots in the active item set.
+/// Mirrors CalcSetup.lua lines 751-808.
+fn build_radius_jewel_list(build: &Build, env: &mut super::env::CalcEnv) {
+    use crate::build::types::ItemSlot;
+    use crate::calc::env::{RadiusJewelEntry, RadiusJewelType};
+
+    let item_set = match build.item_sets.get(build.active_item_set) {
+        Some(set) => set,
+        None => return,
+    };
+
+    let data = env.data.clone();
+    let tree = data.tree_for_version(&build.passive_spec.tree_version);
+
+    // Build reverse lookup: item_id → socket_node_id from passive spec jewels.
+    // env.spec.nodes[slot.nodeId] in Lua maps to the socket's node in the tree.
+    // build.passive_spec.jewels maps socket_node_id → item_id.
+    let mut item_to_socket: HashMap<u32, u32> = HashMap::new();
+    for (&socket_node_id, &item_id) in &build.passive_spec.jewels {
+        item_to_socket.insert(item_id, socket_node_id);
+    }
+
+    for (slot_name, &item_id) in &item_set.slots {
+        let slot = match ItemSlot::from_str(slot_name) {
+            Some(s) => s,
+            None => continue,
+        };
+
+        if !slot.is_jewel() {
+            continue;
+        }
+
+        let item = match build.items.get(&item_id) {
+            Some(i) => i,
+            None => continue,
+        };
+
+        // Check if this item has a radius.
+        let radius_index = extract_radius_index(item);
+        let radius_idx = match radius_index {
+            Some(idx) => idx,
+            None => continue,
+        };
+
+        // Find the socket node ID for this jewel item.
+        // Mirrors env.spec.nodes[slot.nodeId] in Lua.
+        let socket_node_id = match item_to_socket.get(&item_id) {
+            Some(&id) => id,
+            None => continue, // jewel not socketed in the passive tree
+        };
+
+        // Get the socket node from the tree.
+        let socket_node = match tree.nodes.get(&socket_node_id) {
+            Some(n) => n,
+            None => continue,
+        };
+
+        // Get nodes in radius for this jewel.
+        // Mirrors: node.nodesInRadius and node.nodesInRadius[item.jewelRadiusIndex] or {}
+        // Note: nodes_in_radius is empty in current tree data (no x/y coords extracted yet).
+        let nodes_in_radius: std::collections::HashSet<u32> = socket_node
+            .nodes_in_radius
+            .get(&radius_idx)
+            .cloned()
+            .unwrap_or_default();
+
+        // Determine the jewel type from the item's name.
+        let jewel_type = determine_jewel_type(item);
+
+        // Default callback: tally Str/Dex/Int in radius.
+        // Mirrors PoB's default funcList entry for jewels without custom funcList.
+        let func = Box::new(
+            move |node_id: Option<u32>,
+                  mod_list: &mut Vec<crate::mod_db::types::Mod>,
+                  data: &mut HashMap<String, f64>| {
+                if node_id.is_none() {
+                    // Finalise call — default func does nothing on finalise.
+                    return;
+                }
+                // Per-node: tally Str/Dex/Int BASE mods from the node's modList.
+                // Mirrors PoB's default: data[stat] = (data[stat] or 0) + out:Sum("BASE", nil, stat)
+                for stat in &["Str", "Dex", "Int"] {
+                    let sum: f64 = mod_list
+                        .iter()
+                        .filter(|m| {
+                            m.name == *stat
+                                && m.mod_type == crate::mod_db::types::ModType::Base
+                                && m.tags.is_empty()
+                        })
+                        .map(|m| m.value.as_f64())
+                        .sum();
+                    if sum != 0.0 {
+                        let entry = data.entry(stat.to_string()).or_insert(0.0);
+                        *entry += sum;
+                    }
+                }
+            },
+        );
+
+        // Add non-SelfAlloc jewels' unallocated nodes to extraRadiusNodeList.
+        // Mirrors: if func.type ~= "Self" and node.nodesInRadius then ...
+        if jewel_type != RadiusJewelType::SelfAlloc {
+            for &nid in &nodes_in_radius {
+                if !env.alloc_nodes.contains(&nid) {
+                    env.extra_radius_node_list.insert(nid);
+                }
+            }
+        }
+
+        env.radius_jewel_list.push(RadiusJewelEntry {
+            nodes: nodes_in_radius,
+            func,
+            jewel_type,
+            node_id: socket_node_id,
+            data: HashMap::new(),
+        });
+    }
+}
+
+/// Extract the radius index from an item's mod lines.
+/// Returns None if the item has no radius.
+/// Returns Some(index) where index is 1-based: Small=1, Medium=2, Large=3, VeryLarge=4, Massive=5.
+fn extract_radius_index(item: &crate::build::types::Item) -> Option<usize> {
+    // Check all mod lines for a "Radius:" or "Only affects Passives in X Ring" line.
+    // First try explicit "Radius: X" from item text (stored in item.base_type or implicits).
+    // In the build XML, the radius is encoded as "Radius: Variable" or "Radius: Large" etc.
+    // as a property line on the item.
+
+    // Check the item's `radius` field if present (set by XML parser).
+    // For now check the implicits/explicits for radius-related text.
+    let all_lines = item
+        .implicits
+        .iter()
+        .chain(item.explicits.iter())
+        .chain(item.crafted_mods.iter());
+
+    for line in all_lines {
+        let lower = line.to_lowercase();
+        // Thread of Hope: "Only affects Passives in X Ring"
+        if lower.contains("only affects passives in small ring") {
+            return Some(1); // Small radius index
+        }
+        if lower.contains("only affects passives in medium ring") {
+            return Some(2);
+        }
+        if lower.contains("only affects passives in large ring") {
+            return Some(3);
+        }
+        if lower.contains("only affects passives in very large ring") {
+            return Some(4);
+        }
+        if lower.contains("only affects passives in massive ring") {
+            return Some(5);
+        }
+    }
+
+    // Check item radius field from XML parser (stored as a property).
+    // This is the "Radius: Small" etc. line from the item description.
+    match item.radius.as_deref() {
+        Some("Small") => Some(1),
+        Some("Medium") => Some(2),
+        Some("Large") => Some(3),
+        Some("Very Large") | Some("VeryLarge") => Some(4),
+        Some("Massive") => Some(5),
+        Some("Variable") => {
+            // Variable radius: needs special handling (Thread of Hope's ring variants).
+            // The ring determines which radius band applies.
+            // Default to the "Variable Medium" band (index 7 in 3_16 data for medium band).
+            // For now, return None until full variable radius support is implemented.
+            None
+        }
+        _ => None,
+    }
+}
+
+/// Determine the RadiusJewelType for an item.
+/// Thread of Hope → SelfUnalloc (allows allocating unconnected nodes).
+/// Intuitive Leap → SelfAlloc (allocated nodes in radius count without connectivity).
+/// Timeless jewels → Other (handled by SETUP-06, but registered here for PassiveSkillHasNoEffect).
+/// Default → SelfAlloc.
+fn determine_jewel_type(item: &crate::build::types::Item) -> super::env::RadiusJewelType {
+    use super::env::RadiusJewelType;
+
+    let name_lower = item.name.to_lowercase();
+    let _base_lower = item.base_type.to_lowercase();
+
+    // Check by item name for known unique jewels.
+    if name_lower.contains("thread of hope") {
+        return RadiusJewelType::SelfUnalloc;
+    }
+    if name_lower.contains("intuitive leap") {
+        return RadiusJewelType::SelfAlloc;
+    }
+    if name_lower.contains("impossible escape") {
+        return RadiusJewelType::SelfAlloc;
+    }
+    // Unnatural Instinct: grants all bonuses of unallocated small passives in radius,
+    // allocated small passives grant nothing.
+    if name_lower.contains("unnatural instinct") {
+        return RadiusJewelType::SelfUnalloc;
+    }
+
+    // Default for regular jewels: SelfAlloc (only fires when node is allocated).
+    RadiusJewelType::SelfAlloc
 }
 
 /// Compute the set of passive node IDs that are reachable from a class or
