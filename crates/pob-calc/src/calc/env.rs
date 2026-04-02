@@ -252,6 +252,30 @@ pub struct CalcEnv {
     pub mode: CalcMode,
     pub data: Arc<GameData>,
 
+    // ── SETUP-16: Special unique item mod lists ───────────────────────────────
+    // Mirrors CalcSetup.lua lines 961–1049.
+    // These are populated during add_item_mods() when the corresponding special
+    // unique item is equipped. Downstream calculations (animated weapons, minions)
+    // read from these lists instead of / in addition to the player mod_db.
+    /// Necromantic Aegis: shield mods that redirect to minions.
+    /// Populated when a shield is equipped AND the Necromantic Aegis keystone
+    /// (node 45175) is allocated. Non-SocketedIn mods go here instead of player.
+    /// Mirrors `env.aegisModList` (CalcSetup.lua line 963).
+    pub aegis_mod_list: Option<ModDb>,
+
+    /// The Iron Mass: animated weapon mods.
+    /// Populated when "The Iron Mass, Gladius" is in Weapon 1.
+    /// Non-SocketedIn mods go here AND to the player mod_db.
+    /// Mirrors `env.theIronMass` (CalcSetup.lua line 1016).
+    pub the_iron_mass: Option<ModDb>,
+
+    /// Dancing Dervish: animated weapon mods.
+    /// Populated when a weapon with UniqueAnimateWeapon granted skill is in Weapon 1.
+    /// Non-SocketedIn mods go here; SocketedIn mods go to player.
+    /// (Non-SocketedIn do NOT go to player — unlike The Iron Mass.)
+    /// Mirrors `env.weaponModList1` (CalcSetup.lua line 1034).
+    pub weapon_mod_list1: Option<ModDb>,
+
     // ── Buff-mode flags (CalcSetup.lua lines 444–467) ──────────────────────
     // Set by the buff-mode dispatch based on the requested BuffMode.
     // For oracle builds (always "EFFECTIVE"), all three are true.
@@ -318,6 +342,10 @@ impl CalcEnv {
             radius_jewel_list: Vec::new(),
             extra_radius_node_list: HashSet::new(),
             keystones_added: HashSet::new(),
+            // SETUP-16: Special unique mod lists — None until populated by add_item_mods().
+            aegis_mod_list: None,
+            the_iron_mass: None,
+            weapon_mod_list1: None,
             // Buff-mode flags: default to EFFECTIVE (all three true).
             // This matches the oracle build path where mode = "MAIN" → buffMode = "EFFECTIVE".
             // CalcSetup.lua lines 444–467: for mode != "CALCS", buffMode = "EFFECTIVE",
