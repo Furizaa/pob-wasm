@@ -15,6 +15,24 @@ pub fn calc_mod(mod_db: &ModDb, cfg: Option<&SkillCfg>, output: &OutputTable, st
     base * (1.0 + inc / 100.0) * more
 }
 
+/// Calculate the combined INC+MORE multiplier for multiple stat names (no base).
+/// Mirrors PoB's calcLib.mod(modDB, cfg, stat1, stat2, ...) — returns (1 + sum_of_INC/100) * product_of_MORE.
+/// Used for defence calculations where a base value is multiplied by INC and MORE from multiple stat names.
+pub fn calc_def_mod(
+    mod_db: &ModDb,
+    cfg: Option<&SkillCfg>,
+    output: &OutputTable,
+    stats: &[&str],
+) -> f64 {
+    let mut total_inc = 0.0_f64;
+    let mut total_more = 1.0_f64;
+    for &stat in stats {
+        total_inc += mod_db.sum_cfg(ModType::Inc, stat, cfg, output);
+        total_more *= mod_db.more_cfg(stat, cfg, output);
+    }
+    (1.0 + total_inc / 100.0) * total_more
+}
+
 /// Sum only BASE mods for a given stat.
 /// Mirrors PoB's calcLib.val(modDB, cfg, stat).
 pub fn calc_val(mod_db: &ModDb, cfg: Option<&SkillCfg>, output: &OutputTable, stat: &str) -> f64 {

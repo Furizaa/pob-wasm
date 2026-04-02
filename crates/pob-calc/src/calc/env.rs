@@ -109,6 +109,12 @@ pub struct Actor {
     pub reserved_life_percent: f64,
     pub reserved_mana: f64,
     pub reserved_mana_percent: f64,
+    /// Uncancellable life reservation percentage (from HasUncancellableReservation skills).
+    /// Mirrors env.player["uncancellable_LifeReservation"] in Lua.
+    pub uncancellable_life_reservation: f64,
+    /// Uncancellable mana reservation percentage (from HasUncancellableReservation skills).
+    /// Mirrors env.player["uncancellable_ManaReservation"] in Lua.
+    pub uncancellable_mana_reservation: f64,
 
     // Buff/debuff/curse lists
     pub buffs: Vec<BuffEntry>,
@@ -142,6 +148,8 @@ impl Actor {
             reserved_life_percent: 0.0,
             reserved_mana: 0.0,
             reserved_mana_percent: 0.0,
+            uncancellable_life_reservation: 0.0,
+            uncancellable_mana_reservation: 0.0,
             buffs: Vec::new(),
             guards: Vec::new(),
             debuffs: Vec::new(),
