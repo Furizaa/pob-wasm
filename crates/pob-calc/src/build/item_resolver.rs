@@ -98,6 +98,7 @@ mod tests {
             armour_data: None,
             flask_data: None,
             requirements: ItemRequirements::default(),
+            radius: None,
         }
     }
 

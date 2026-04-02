@@ -379,6 +379,7 @@ fn parse_item_text(id: u32, text: &str) -> Item {
     let mut explicits: Vec<String> = Vec::new();
     let mut crafted_mods: Vec<String> = Vec::new();
     let mut enchant_mods: Vec<String> = Vec::new();
+    let mut radius: Option<String> = None;
 
     let mut implicits_remaining: Option<usize> = None;
     let mut in_mods = false; // true once we've passed the Implicits: line and consumed all implicits
@@ -480,6 +481,10 @@ fn parse_item_text(id: u32, text: &str) -> Item {
             }
             continue;
         }
+        if let Some(rest) = line.strip_prefix("Radius: ") {
+            radius = Some(rest.to_string());
+            continue;
+        }
         if line == "Corrupted" {
             corrupted = true;
             continue;
@@ -557,6 +562,7 @@ fn parse_item_text(id: u32, text: &str) -> Item {
         armour_data: None,
         flask_data: None,
         requirements: ItemRequirements::default(),
+        radius,
     }
 }
 

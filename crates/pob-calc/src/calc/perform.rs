@@ -1544,6 +1544,8 @@ mod tests {
             requirements_table: Vec::new(),
             alloc_nodes: std::collections::HashSet::new(),
             granted_passives: std::collections::HashSet::new(),
+            radius_jewel_list: Vec::new(),
+            extra_radius_node_list: std::collections::HashSet::new(),
         };
         setup(&mut env);
         env
@@ -2659,6 +2661,8 @@ mod tests {
             requirements_table: Vec::new(),
             alloc_nodes: std::collections::HashSet::new(),
             granted_passives: std::collections::HashSet::new(),
+            radius_jewel_list: Vec::new(),
+            extra_radius_node_list: std::collections::HashSet::new(),
         };
 
         // Add Marauder L90 base stats
@@ -2709,6 +2713,8 @@ mod tests {
             requirements_table: Vec::new(),
             alloc_nodes: std::collections::HashSet::new(),
             granted_passives: std::collections::HashSet::new(),
+            radius_jewel_list: Vec::new(),
+            extra_radius_node_list: std::collections::HashSet::new(),
         };
 
         let base_src = ModSource::new("Base", "Marauder base stats");

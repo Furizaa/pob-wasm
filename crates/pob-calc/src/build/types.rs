@@ -136,6 +136,10 @@ pub struct Item {
     pub flask_data: Option<ItemFlaskData>,
     /// Level/attribute requirements
     pub requirements: ItemRequirements,
+    /// Jewel radius label (e.g. "Small", "Medium", "Large", "Very Large", "Massive", "Variable").
+    /// Parsed from "Radius: X" property line in the item text.
+    /// None for non-jewel items.
+    pub radius: Option<String>,
 }
 
 /// Item rarity levels.
@@ -465,6 +469,7 @@ mod tests {
                 dex_req: 50,
                 int_req: 0,
             },
+            radius: None,
         };
 
         assert_eq!(item.id, 1);

@@ -41,7 +41,18 @@ pub fn fields_for_chunk(chunk: &str) -> Option<&'static [&'static str]> {
         // processing exists in Rust. Affects realworld_coc_trigger. HIGH PRIORITY.
         "SETUP-08-radius-jewels" => &[],
 
-        // SETUP-09: Mastery selections. 3.16+ tree feature. Mastery nodes have
+        // SETUP-09: Radius jewel framework — full implementation. This chunk
+        // implements the complete two-pass radius jewel processing from
+        // CalcSetup.lua lines 113-210: PassiveSkillEffect scaling, suppression
+        // checks, and the per-jewel-type callback dispatch. Requires
+        // nodes_in_radius data in the passive tree JSON. Affects
+        // realworld_coc_trigger (Thread of Hope). HIGH PRIORITY.
+        // No direct output fields — correctness is verified by downstream chunks
+        // (DEF-01-resistances, PERF-01-attributes, etc.) passing for
+        // realworld_coc_trigger.
+        "SETUP-09-radius-jewels" => &[],
+
+        // SETUP-10 (was SETUP-09): Mastery selections. 3.16+ tree feature. Mastery nodes have
         // stats replaced by player-selected effect. Stored as masteryEffects on
         // <Spec>. XML parser does not parse this. No oracle builds use masteries
         // (all pre-3.16 trees). MEDIUM PRIORITY.
@@ -474,6 +485,7 @@ pub fn all_chunk_ids() -> &'static [&'static str] {
         "SETUP-06-timeless-jewels",
         "SETUP-07-anointments",
         "SETUP-08-radius-jewels",
+        "SETUP-09-radius-jewels",
         "SETUP-09-mastery-selections",
         "SETUP-10-keystone-merging",
         "SETUP-11-item-conditions",
