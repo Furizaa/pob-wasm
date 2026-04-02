@@ -343,6 +343,19 @@ impl PassiveTree {
         Ok(())
     }
 
+    /// Look up a keystone node by name.
+    ///
+    /// Mirrors `env.spec.tree.keystoneMap[name]` in Lua — performs a linear scan
+    /// over all nodes looking for a Keystone with the given name. This is O(n)
+    /// but keystones are looked up rarely (only during mergeKeystones calls).
+    ///
+    /// Returns `None` if no keystone with that name exists in this tree version.
+    pub fn keystone_by_name(&self, name: &str) -> Option<&PassiveNode> {
+        self.nodes
+            .values()
+            .find(|n| n.node_type == NodeType::Keystone && n.name == name)
+    }
+
     /// Get the class start node IDs for all classes.
     /// Returns a HashSet of node IDs that are class start or ascendancy start nodes.
     pub fn get_start_node_ids(&self) -> std::collections::HashSet<u32> {

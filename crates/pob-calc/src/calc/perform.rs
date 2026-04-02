@@ -4,6 +4,12 @@ use crate::mod_db::types::{KeywordFlags, Mod, ModFlags, ModSource, ModType, ModV
 /// Run all CalcPerform passes in order.
 /// Mirrors CalcPerform.lua's main execution flow.
 pub fn run(env: &mut CalcEnv) {
+    // Mirrors CalcPerform.lua lines 1096-1097:
+    // Reset keystonesAdded at the START of every perform pass, then merge keystones.
+    // This ensures re-entrant calls pick up any newly-added "Keystone" LIST mods.
+    env.keystones_added.clear();
+    crate::calc::setup::merge_keystones(env);
+
     do_actor_attribs_conditions(env);
     do_actor_life_mana(env);
     do_actor_life_mana_reservation(env);
@@ -11,6 +17,9 @@ pub fn run(env: &mut CalcEnv) {
     do_actor_misc(env);
     apply_buffs(env);
     apply_curses(env);
+    // Mirrors CalcPerform.lua line 3257: re-merge keystones after aura/buff application
+    // to catch any keystones added by buffs or auras.
+    crate::calc::setup::merge_keystones(env);
     do_non_damaging_ailments(env);
     apply_exposure(env);
     do_regen_recharge_leech(env);
@@ -1546,6 +1555,7 @@ mod tests {
             granted_passives: std::collections::HashSet::new(),
             radius_jewel_list: Vec::new(),
             extra_radius_node_list: std::collections::HashSet::new(),
+            keystones_added: std::collections::HashSet::new(),
         };
         setup(&mut env);
         env
@@ -2663,6 +2673,7 @@ mod tests {
             granted_passives: std::collections::HashSet::new(),
             radius_jewel_list: Vec::new(),
             extra_radius_node_list: std::collections::HashSet::new(),
+            keystones_added: std::collections::HashSet::new(),
         };
 
         // Add Marauder L90 base stats
@@ -2715,6 +2726,7 @@ mod tests {
             granted_passives: std::collections::HashSet::new(),
             radius_jewel_list: Vec::new(),
             extra_radius_node_list: std::collections::HashSet::new(),
+            keystones_added: std::collections::HashSet::new(),
         };
 
         let base_src = ModSource::new("Base", "Marauder base stats");
