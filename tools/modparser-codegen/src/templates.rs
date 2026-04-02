@@ -65,6 +65,8 @@ fn is_complex_function(source: &str) -> bool {
         "ExtraJewelFunc",
         // String iteration
         "gmatch",
+        // Timeless jewel conqueror lookup (requires conquerorList table)
+        "conquerorList[",
     ];
 
     for marker in &complex_markers {
