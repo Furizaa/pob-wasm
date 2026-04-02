@@ -2,7 +2,13 @@ use super::types::*;
 use crate::error::ParseError;
 use quick_xml::events::Event;
 use quick_xml::Reader;
+use regex::Regex;
 use std::collections::HashMap;
+
+/// Compiled regex for parsing `masteryEffects` attribute values.
+/// Matches `{nodeId,effectId}` pairs.
+static RE_MASTERY_EFFECTS: once_cell::sync::Lazy<Regex> =
+    once_cell::sync::Lazy::new(|| Regex::new(r"\{(\d+),(\d+)\}").unwrap());
 
 pub fn parse_xml(xml: &str) -> Result<Build, ParseError> {
     let mut reader = Reader::from_str(xml);
@@ -146,6 +152,32 @@ pub fn parse_xml(xml: &str) -> Result<Build, ParseError> {
                             .get("ascendClassId")
                             .and_then(|v| v.parse().ok())
                             .unwrap_or(0);
+
+                        // Parse masteryEffects attribute: "{nodeId,effectId},{nodeId,effectId},..."
+                        // Mirrors PassiveSpec.lua:137-141 and ImportFromNodeList:251-257.
+                        // Effect IDs >= 65536 are GGG profile import codes and are filtered out.
+                        let mut mastery_selections: HashMap<u32, u32> = HashMap::new();
+                        if let Some(mastery_str) = attrs.get("masteryEffects") {
+                            for cap in RE_MASTERY_EFFECTS.captures_iter(mastery_str) {
+                                if let (Ok(node_id), Ok(effect_id)) =
+                                    (cap[1].parse::<u32>(), cap[2].parse::<u32>())
+                                {
+                                    // Filter out GGG profile import codes (effect_id >= 65536)
+                                    if effect_id < 65536 {
+                                        mastery_selections.insert(node_id, effect_id);
+                                    }
+                                }
+                            }
+                        }
+
+                        // Parse nodes attribute and gate mastery nodes on having a selection.
+                        // Mirrors ImportFromNodeList:266-277:
+                        //   if node.type ~= "Mastery" or (node.type == "Mastery" and self.masterySelections[id])
+                        //     then node.alloc = true
+                        // At XML parse time we don't have tree data, so we conservatively
+                        // admit all nodes; the mastery gate is enforced in setup.rs
+                        // where tree data is available. Mastery nodes without a selection
+                        // will be skipped in apply_passive_mods.
                         let mut allocated_nodes = std::collections::HashSet::new();
                         if let Some(nodes_str) = attrs.get("nodes") {
                             for n in nodes_str.split(',') {
@@ -154,12 +186,14 @@ pub fn parse_xml(xml: &str) -> Result<Build, ParseError> {
                                 }
                             }
                         }
+
                         passive_spec = PassiveSpec {
                             tree_version,
                             allocated_nodes,
                             class_id,
                             ascend_class_id,
                             jewels: HashMap::new(),
+                            mastery_selections,
                         };
                     }
                     "Sockets" => {
@@ -732,6 +766,92 @@ Implicits: 0
         assert_eq!(item.rarity, ItemRarity::Unique);
         assert_eq!(item.name, "Goldrim");
         assert_eq!(item.base_type, "Leather Cap");
+    }
+}
+
+#[cfg(test)]
+mod mastery_tests {
+    use super::*;
+
+    #[test]
+    fn parses_mastery_effects_attribute() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_27" bandit="None" mainSocketGroup="1"
+         className="Marauder" ascendClassName="Juggernaut"/>
+  <Skills activeSkillSet="1"><SkillSet id="1"/></Skills>
+  <Tree activeSpec="1">
+    <Spec treeVersion="3_27" nodes="12345,67890,99999" classId="1" ascendClassId="1"
+          masteryEffects="{12345,48385},{67890,4119}"/>
+  </Tree>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config/>
+</PathOfBuilding>"#;
+        let build = parse_xml(xml).unwrap();
+        let spec = &build.passive_spec;
+
+        // Both mastery selections should be parsed
+        assert_eq!(
+            spec.mastery_selections.len(),
+            2,
+            "Should have 2 mastery selections"
+        );
+        assert_eq!(spec.mastery_selections.get(&12345), Some(&48385));
+        assert_eq!(spec.mastery_selections.get(&67890), Some(&4119));
+
+        // Node 99999 has no selection — still in allocated_nodes (mastery gate is in setup.rs)
+        assert!(spec.allocated_nodes.contains(&99999));
+        // Nodes with selections are in allocated_nodes
+        assert!(spec.allocated_nodes.contains(&12345));
+        assert!(spec.allocated_nodes.contains(&67890));
+    }
+
+    #[test]
+    fn filters_ggg_profile_mastery_codes() {
+        // Effect IDs >= 65536 are GGG profile import codes and should be filtered
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_27" bandit="None" mainSocketGroup="1"
+         className="Marauder" ascendClassName="None"/>
+  <Skills activeSkillSet="1"><SkillSet id="1"/></Skills>
+  <Tree activeSpec="1">
+    <Spec treeVersion="3_27" nodes="12345" classId="1" ascendClassId="0"
+          masteryEffects="{12345,65536},{67890,100}"/>
+  </Tree>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config/>
+</PathOfBuilding>"#;
+        let build = parse_xml(xml).unwrap();
+        let spec = &build.passive_spec;
+
+        // Effect 65536 (GGG code) should be filtered; effect 100 should be kept
+        assert!(
+            !spec.mastery_selections.contains_key(&12345),
+            "Effect >= 65536 should be filtered"
+        );
+        assert_eq!(spec.mastery_selections.get(&67890), Some(&100));
+        assert_eq!(spec.mastery_selections.len(), 1);
+    }
+
+    #[test]
+    fn handles_missing_mastery_effects_attribute() {
+        // Builds without masteryEffects attribute should work fine
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_13" bandit="None" mainSocketGroup="1"
+         className="Marauder" ascendClassName="None"/>
+  <Skills activeSkillSet="1"><SkillSet id="1"/></Skills>
+  <Tree activeSpec="1">
+    <Spec treeVersion="3_13" nodes="50459,47175" classId="1" ascendClassId="0"/>
+  </Tree>
+  <Items activeItemSet="1"><ItemSet id="1"/></Items>
+  <Config/>
+</PathOfBuilding>"#;
+        let build = parse_xml(xml).unwrap();
+        assert!(
+            build.passive_spec.mastery_selections.is_empty(),
+            "No masteryEffects attribute should result in empty mastery_selections"
+        );
     }
 }
 

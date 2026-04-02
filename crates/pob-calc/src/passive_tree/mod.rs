@@ -79,6 +79,12 @@ struct RawNode {
     /// Pre-computed during data extraction.
     #[serde(default)]
     nodes_in_radius: std::collections::HashMap<String, Vec<u32>>,
+    /// Mastery effect IDs available for this mastery node.
+    /// Each entry is an effect ID (u32) that can be selected.
+    /// Only set for `is_mastery = true` nodes.
+    /// Populated from `mastery_effects` field in the tree JSON (if present).
+    #[serde(default)]
+    mastery_effects: Vec<u32>,
 }
 
 impl RawNode {
@@ -131,6 +137,10 @@ pub struct PassiveNode {
     /// within that radius. Precomputed during tree loading.
     /// Empty for non-socket nodes.
     pub nodes_in_radius: HashMap<usize, HashSet<u32>>,
+    /// For mastery nodes: the effect IDs available to select.
+    /// Populated from tree JSON `mastery_effects` field.
+    /// Empty for non-mastery nodes.
+    pub mastery_effect_ids: Vec<u32>,
 }
 
 /// Per-class base attributes from the passive tree data.
@@ -165,6 +175,12 @@ pub struct PassiveTree {
     /// Maps lowercase ascendancy notable name → node_id for ascendancy notable nodes.
     /// Mirrors PoB's PassiveTree.ascendancyMap.
     pub ascendancy_map: HashMap<String, u32>,
+    /// Global mastery effect lookup: effect_id → stat strings.
+    /// Mirrors `self.masteryEffects` in PassiveTree.lua:460.
+    /// Populated from tree JSON `mastery_effects` top-level key (if present),
+    /// or from a separate `mastery_effects.json` sidecar file loaded via
+    /// `PassiveTree::load_mastery_effects`.
+    pub mastery_effects: HashMap<u32, Vec<String>>,
 }
 
 impl PassiveTree {
@@ -174,8 +190,22 @@ impl PassiveTree {
             nodes: HashMap<String, RawNode>,
             #[serde(default)]
             classes: HashMap<String, RawClassData>,
+            /// Optional top-level mastery effects table: effect_id (string) → stat strings.
+            /// Mirrors `self.masteryEffects` in PassiveTree.lua.
+            #[serde(default)]
+            mastery_effects: HashMap<String, Vec<String>>,
         }
         let root: Root = serde_json::from_str(json)?;
+
+        // Build global mastery_effects lookup: effect_id (u32) → stat strings.
+        // First from the top-level field (if present in the JSON), then supplemented
+        // by any per-node masteryEffects arrays.
+        let mastery_effects: HashMap<u32, Vec<String>> = root
+            .mastery_effects
+            .into_iter()
+            .filter_map(|(k, v)| k.parse::<u32>().ok().map(|id| (id, v)))
+            .collect();
+
         let nodes: HashMap<u32, PassiveNode> = root
             .nodes
             .into_values()
@@ -211,6 +241,7 @@ impl PassiveTree {
                     x: raw.x,
                     y: raw.y,
                     nodes_in_radius,
+                    mastery_effect_ids: raw.mastery_effects,
                 };
                 (raw.id, node)
             })
@@ -281,7 +312,35 @@ impl PassiveTree {
             classes,
             notable_map,
             ascendancy_map,
+            mastery_effects,
         })
+    }
+
+    /// Load mastery effects from a sidecar JSON file.
+    ///
+    /// The sidecar JSON has the structure:
+    /// ```json
+    /// {
+    ///   "effects": { "<effect_id>": ["stat string", ...], ... }
+    /// }
+    /// ```
+    ///
+    /// Merges into `self.mastery_effects`. Existing entries are not overwritten.
+    /// This is used to augment a tree JSON that lacks mastery effect stats.
+    pub fn load_mastery_effects_from_json(&mut self, json: &str) -> Result<(), DataError> {
+        #[derive(Deserialize)]
+        struct MasterySidecar {
+            /// effect_id (string) → stat strings
+            effects: HashMap<String, Vec<String>>,
+        }
+        let sidecar: MasterySidecar = serde_json::from_str(json)?;
+        for (k, v) in sidecar.effects {
+            if let Ok(id) = k.parse::<u32>() {
+                // Only insert if not already present (JSON top-level wins)
+                self.mastery_effects.entry(id).or_insert(v);
+            }
+        }
+        Ok(())
     }
 
     /// Get the class start node IDs for all classes.

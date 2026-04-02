@@ -122,6 +122,7 @@ impl GameData {
                 classes: Vec::new(),
                 notable_map: std::collections::HashMap::new(),
                 ascendancy_map: std::collections::HashMap::new(),
+                mastery_effects: std::collections::HashMap::new(),
             }
         };
         let bases = BaseItemMap::from_vec(raw.bases.unwrap_or_default());
@@ -157,6 +158,25 @@ impl GameData {
         json: &str,
     ) -> Result<(), crate::error::DataError> {
         self.legion = LegionData::from_json(json)?;
+        Ok(())
+    }
+
+    /// Load mastery effects from a mastery_effects.json sidecar file.
+    ///
+    /// The JSON format is:
+    /// ```json
+    /// { "effects": { "<effect_id>": ["stat string", ...], ... } }
+    /// ```
+    ///
+    /// Merges effects into both the default tree and all versioned trees.
+    pub fn load_mastery_effects_from_json(
+        &mut self,
+        json: &str,
+    ) -> Result<(), crate::error::DataError> {
+        self.passive_tree.load_mastery_effects_from_json(json)?;
+        for tree in self.versioned_trees.values_mut() {
+            tree.load_mastery_effects_from_json(json)?;
+        }
         Ok(())
     }
 }
