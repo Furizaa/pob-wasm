@@ -482,6 +482,22 @@ fn add_base_constants(db: &mut ModDb, data: &GameData) {
         db.add(Mod::new_base(*name, resist_max, src.clone()));
     }
 
+    // --- Totem resist caps (CalcSetup.lua:23-26) ---
+    // TotemXxxResistMax defaults to the same as player resist caps.
+    // These are separate from player ResistMax so player max bonuses don't affect totems.
+    for name in &[
+        "TotemFireResistMax",
+        "TotemColdResistMax",
+        "TotemLightningResistMax",
+        "TotemChaosResistMax",
+    ] {
+        db.add(Mod::new_base(*name, resist_max, src.clone()));
+    }
+
+    // --- Enemy curse limit base (CalcSetup.lua:512) ---
+    // Default curse limit is 1. Additional curses come from passives/items.
+    db.add(Mod::new_base("EnemyCurseLimit", 1.0, src.clone()));
+
     // --- Block caps ---
     let block_max = gc_or(gc, "maximum_block_%", 75.0);
     db.add(Mod::new_base("BlockChanceMax", block_max, src.clone()));
@@ -2260,7 +2276,7 @@ pub fn normalize_gem_skill_id(skill_id: &str) -> &str {
         "SupportPowerChargeOnCrit" => "SupportPowerChargeOnCritical",
         "SupportChaosAttacks" => "SupportWitheringTouch",
         "SupportMeleeDamageOnFullLife" => "SupportDamageOnFullLife",
-        "SupportRemoteMine" => "SupportBlastchainMine",
+        "SupportRemoteMine" => "SupportHighImpactMine",
         "SupportDamageAgainstChilled" => "SupportHypothermia",
         "SupportStormBarrier" => "SupportInfusedChannelling",
         "SupportAdditionalXP" => "SupportEnlighten",

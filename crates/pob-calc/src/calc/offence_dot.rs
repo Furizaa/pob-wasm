@@ -150,7 +150,7 @@ pub fn calc_skill_dot(env: &mut CalcEnv, cfg: &SkillCfg) {
 /// Calculate combined DPS from all sources.
 ///
 /// TotalDotDPS = ignite + bleed + poison + total_dot + decay.
-/// CombinedDPS = (TotalDPS + TotalDotDPS + ImpaleDPS) * CullMultiplier.
+/// CombinedDPS = (TotalDPS + TotalDotDPS + ImpaleDPS) * CullMultiplier * ReservationDpsMultiplier.
 pub fn calc_combined_dps(env: &mut CalcEnv) {
     let output = &env.player.output.clone();
 
@@ -190,7 +190,36 @@ pub fn calc_combined_dps(env: &mut CalcEnv) {
     };
     env.player.set_output("CullMultiplier", cull_multiplier);
 
-    let combined_dps = (total_dps + total_dot_dps + impale_dps) * cull_multiplier;
+    // Reservation DPS multiplier: CalcOffence.lua:3057
+    // globalOutput.ReservationDpsMultiplier = 100 / (100 - enemyDB:Sum("BASE", nil, "LifeReservationPercent"))
+    // This models skills that cause the enemy to "reserve" life (e.g. Arakaali's Fang).
+    // At 0% enemy life reservation: 100 / (100 - 0) = 1.0 (no change).
+    let enemy_life_reservation = {
+        let enemy_output = env.enemy.output.clone();
+        env.enemy
+            .mod_db
+            .sum_cfg(ModType::Base, "LifeReservationPercent", None, &enemy_output)
+    };
+    let reservation_mult = if enemy_life_reservation < 100.0 {
+        100.0 / (100.0 - enemy_life_reservation)
+    } else {
+        1.0
+    };
+    env.player
+        .set_output("ReservationDpsMultiplier", reservation_mult);
+
+    // CombinedDPS before reservation: (TotalDPS + TotalDotDPS + ImpaleDPS) * CullMultiplier
+    // CalcOffence.lua:5952: output.CombinedDPS = output.CombinedDPS * bestCull * output.ReservationDpsMultiplier
+    let combined_before_reservation = (total_dps + total_dot_dps + impale_dps) * cull_multiplier;
+
+    // ReservationDPS: CalcOffence.lua:5951
+    // output.ReservationDPS = output.CombinedDPS * (output.ReservationDpsMultiplier - 1)
+    // where output.CombinedDPS is the pre-reservation value (bestCull already applied)
+    let reservation_dps = combined_before_reservation * (reservation_mult - 1.0);
+    env.player.set_output("ReservationDPS", reservation_dps);
+
+    // Final CombinedDPS includes reservation multiplier
+    let combined_dps = combined_before_reservation * reservation_mult;
     env.player.set_output("CombinedDPS", combined_dps);
 }
 

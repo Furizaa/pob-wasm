@@ -2264,21 +2264,40 @@ fn apply_buffs(env: &mut CalcEnv) {
 /// Apply curses to the enemy's mod database, respecting the curse limit.
 /// Mirrors the curse processing in CalcPerform.lua.
 fn apply_curses(env: &mut CalcEnv) {
+    // CalcPerform.lua:3020: EnemyCurseLimit — written UNCONDITIONALLY even when no curses.
+    // output.EnemyCurseLimit = modDB:Flag(nil, "CurseLimitIsMaximumPowerCharges")
+    //   and output.PowerChargesMax
+    //   or modDB:Sum("BASE", nil, "EnemyCurseLimit")
+    // Note: The game constant "EnemyCurseLimit BASE 1" is added by setup.rs (CalcSetup.lua:512).
+    // In production, the sum returns at least 1. For tests that don't go through setup,
+    // fall back to 1 so curse processing still works.
+    let curse_limit_value =
+        if env
+            .player
+            .mod_db
+            .flag_cfg("CurseLimitIsMaximumPowerCharges", None, &env.player.output)
+        {
+            get_output_f64(&env.player.output, "PowerChargesMax")
+        } else {
+            let base = env.player.mod_db.sum_cfg(
+                ModType::Base,
+                "EnemyCurseLimit",
+                None,
+                &env.player.output,
+            );
+            if base > 0.0 {
+                base
+            } else {
+                1.0
+            }
+        };
+    env.player.set_output("EnemyCurseLimit", curse_limit_value);
+    let curse_limit = curse_limit_value as i32;
+
     let mut curses = env.player.curses.clone();
     if curses.is_empty() {
         return;
     }
-
-    // Get curse limit (default 1)
-    let curse_limit_base =
-        env.player
-            .mod_db
-            .sum_cfg(ModType::Base, "EnemyCurseLimit", None, &env.player.output);
-    let curse_limit = if curse_limit_base > 0.0 {
-        curse_limit_base as i32
-    } else {
-        1
-    };
 
     // Sort curses by priority descending (highest priority first)
     curses.sort_by(|a, b| {
