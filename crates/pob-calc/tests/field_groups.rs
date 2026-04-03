@@ -15,6 +15,13 @@ pub fn fields_for_chunk(chunk: &str) -> Option<&'static [&'static str]> {
         // SETUP-01 through SETUP-04 don't produce output fields directly.
         // They populate the ModDb which downstream chunks query.
 
+        // SETUP-02: Active skill construction pipeline. Builds active_skill_list
+        // from socket groups: creates active skills, matches supports, applies
+        // addSkillTypes, builds skillModList. BLOCKER for PERF-04 (reservation),
+        // OFF-* (damage), TRIG-* (triggers). No direct output fields — verified
+        // by PERF-04 passing 30/30 after restart.
+        "SETUP-02-active-skills" => &[],
+
         // SETUP-05: Cluster jewel subgraph generation. Cluster jewels generate
         // dynamic sub-tree nodes (large/medium/small) with notables and small
         // passives. Without this, builds using cluster jewels will fail parity
@@ -537,6 +544,7 @@ pub fn fields_for_chunk(chunk: &str) -> Option<&'static [&'static str]> {
 /// Returns all known chunk IDs in dependency order.
 pub fn all_chunk_ids() -> &'static [&'static str] {
     &[
+        "SETUP-02-active-skills",
         "SETUP-05-cluster-jewels",
         "SETUP-06-timeless-jewels",
         "SETUP-07-anointments",

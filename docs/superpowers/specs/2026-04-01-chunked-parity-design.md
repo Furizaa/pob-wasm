@@ -97,7 +97,7 @@ breakdown based on Lua module structure:
 
 ```
 SETUP-01  Item mod parsing & slot assignment                  setup.rs
-SETUP-02  Support gem matching & active skill construction    active_skill.rs
+SETUP-02  Support gem matching & active skill construction    active_skill.rs, setup.rs  *** BLOCKER ***
 SETUP-03  Flask, jewel, & aura/curse buff setup               setup.rs
 SETUP-04  eval_mod stub completion (5 tag types)              eval_mod.rs
 SETUP-05  Cluster jewel subgraph generation                   passive_tree/, setup.rs
@@ -160,6 +160,19 @@ Total: ~50 chunks, plus a variable number of TAIL chunks for edge cases discover
 during execution.
 
 ### 5.2 SETUP Chunk Details
+
+**SETUP-02 (active skill construction) — BLOCKER:** The pipeline that builds
+`env.player.active_skill_list`. Currently `active_skill_list` is an empty Vec
+that is never populated. The Lua equivalent spans CalcSetup.lua lines 1292-1754
+and CalcActiveSkill.lua (full file). It covers: (a) iterating socket groups to
+create active skills from non-support gems, (b) finding applicable supports
+(explicit gem supports AND implicit item-granted supports like Heretic's Veil
+Blasphemy), (c) applying `addSkillTypes` from supports (e.g., Blasphemy adds
+`HasReservation` to curses), (d) building `skillModList` with merged support
+mods, (e) populating `skill.skillData` fields (manaReservationPercent, etc.).
+Without this: PERF-04 can't iterate proper skills for reservation, OFF-* can't
+get skill-specific damage data, TRIG-* can't get trigger info. **This is the
+highest-priority remaining work.**
 
 **SETUP-05 (cluster jewels):** Cluster jewels generate a dynamic sub-tree of
 passive nodes (large/medium/small clusters with notables and small passives).
