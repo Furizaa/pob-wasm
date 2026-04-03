@@ -160,7 +160,27 @@ static RE_ADORNED_RARE: Lazy<Regex> = Lazy::new(|| {
 
 /// Build the CalcEnv for a build.
 /// Mirrors calcs.initEnv() in CalcSetup.lua.
+///
+/// Implements the two-pass Energy Blade re-init (CalcSetup.lua lines 1731–1741):
+/// after all setup, if an enabled non-support "Energy Blade" gem is found in any
+/// enabled skill group and `AffectedByEnergyBlade` is NOT yet set, the function
+/// sets the condition and recurses once. The second pass has the condition set
+/// in `player_db` before items are processed, so `add_item_mods` will replace
+/// weapon slots with the synthetic Energy Blade item (Check 2).
 pub fn init_env(build: &Build, data: Arc<GameData>) -> Result<CalcEnv, CalcError> {
+    init_env_inner(build, data, false)
+}
+
+/// Inner implementation of init_env.
+///
+/// `energy_blade_pass`: when `true`, `AffectedByEnergyBlade` is pre-set on the
+/// player ModDb before items are processed. This is the second pass triggered by
+/// the Energy Blade gem detection in the first pass.
+fn init_env_inner(
+    build: &Build,
+    data: Arc<GameData>,
+    energy_blade_pass: bool,
+) -> Result<CalcEnv, CalcError> {
     let mut player_db = ModDb::new();
     let enemy_db = ModDb::new();
 
@@ -173,6 +193,17 @@ pub fn init_env(build: &Build, data: Arc<GameData>) -> Result<CalcEnv, CalcError
     // Add config conditions
     add_config_conditions(build, &mut player_db);
 
+    // ── FIX-07: Energy Blade second pass ─────────────────────────────────────
+    // Mirrors CalcSetup.lua lines 1736–1737:
+    //   override.conditions = override.conditions or { }
+    //   t_insert(override.conditions, "AffectedByEnergyBlade")
+    // On the second pass the condition is set before items are processed so
+    // that add_item_mods (Check 2) replaces weapon slots with the synthetic
+    // Energy Blade item.
+    if energy_blade_pass {
+        player_db.set_condition("AffectedByEnergyBlade", true);
+    }
+
     // Add bandit reward mods (CalcSetup.lua lines 531-540)
     add_bandit_mods(build, &mut player_db);
 
@@ -180,7 +211,7 @@ pub fn init_env(build: &Build, data: Arc<GameData>) -> Result<CalcEnv, CalcError
     add_pantheon_mods(build, &mut player_db, &data);
 
     // Create the env first so add_item_mods can populate weapon data on the Actor
-    let mut env = CalcEnv::new(player_db, enemy_db, data);
+    let mut env = CalcEnv::new(player_db, enemy_db, data.clone());
 
     // Add item mods from equipped items and extract weapon data
     // (CalcSetup.lua line 1228: mergeDB(env.modDB, env.itemModDB))
@@ -236,7 +267,97 @@ pub fn init_env(build: &Build, data: Arc<GameData>) -> Result<CalcEnv, CalcError
         .mod_db
         .set_condition("Effective", env.mode_effective);
 
+    // ── FIX-07: Energy Blade re-run trigger (CalcSetup.lua lines 1731–1741) ─
+    // After all setup: scan socket groups for an enabled, non-support Energy Blade
+    // gem.  If found and AffectedByEnergyBlade is not yet set, re-initialise with
+    // the condition pre-set so that weapon slots are replaced on the second pass.
+    //
+    // Lua (CalcSetup.lua lines 1731–1741):
+    //   if not modDB.conditions["AffectedByEnergyBlade"]
+    //          and group.enabled and group.slotEnabled then
+    //     for _, gemInstance in ipairs(group.gemList) do
+    //       local grantedEffect = gemInstance.gemData and
+    //                             gemInstance.gemData.grantedEffect or
+    //                             gemInstance.grantedEffect
+    //       if grantedEffect and not grantedEffect.support
+    //              and gemInstance.enabled
+    //              and grantedEffect.name == "Energy Blade" then
+    //         override.conditions = override.conditions or {}
+    //         t_insert(override.conditions, "AffectedByEnergyBlade")
+    //         return calcs.initEnv(build, mode, override, specEnv)
+    //       end
+    //     end
+    //   end
+    //
+    // Guard: only run on the first pass (energy_blade_pass == false) to prevent
+    // infinite recursion — the second pass has AffectedByEnergyBlade set from the
+    // start, so the `not modDB.conditions["AffectedByEnergyBlade"]` check would
+    // already be false, but being explicit is clearer.
+    if !energy_blade_pass {
+        if let Some(energy_blade_env) = check_energy_blade_rerun(build, data) {
+            return Ok(energy_blade_env);
+        }
+    }
+
     Ok(env)
+}
+
+/// Scan all enabled socket groups for an enabled, non-support Energy Blade gem.
+///
+/// Mirrors CalcSetup.lua lines 1731–1741.  Returns `Some(env)` if Energy Blade
+/// was found and a second-pass env was successfully built; `None` otherwise.
+///
+/// `group.slotEnabled` in Lua means the group's slot has an equipped item. In
+/// Rust we check that the skill's `slot` name maps to an item in the active item
+/// set (or that the skill has no slot, i.e. it is unlinked / always-active).
+fn check_energy_blade_rerun(build: &Build, data: Arc<GameData>) -> Option<CalcEnv> {
+    // Guard: AffectedByEnergyBlade must NOT already be set.
+    // (This is guaranteed by the caller, but re-checked here for clarity.)
+
+    // Get the active item set for slot-enabled checks.
+    let item_set = build.item_sets.get(build.active_item_set);
+
+    // Get the active skill set.
+    let active_skill_set = build
+        .skill_sets
+        .get(build.active_skill_set)
+        .or_else(|| build.skill_sets.first())?;
+
+    for skill in &active_skill_set.skills {
+        // Mirrors: group.enabled
+        if !skill.enabled {
+            continue;
+        }
+
+        // Mirrors: group.slotEnabled — the slot has an equipped item.
+        // A skill with an empty slot name is treated as always slot-enabled
+        // (unlinked skills, granted skills with no slot).
+        let slot_enabled = if skill.slot.is_empty() {
+            true
+        } else if let Some(ref iset) = item_set {
+            iset.slots.contains_key(&skill.slot)
+        } else {
+            false
+        };
+
+        if !slot_enabled {
+            continue;
+        }
+
+        // Scan gems in this group for an active (non-support), enabled Energy Blade.
+        // Mirrors: gemInstance.enabled and not grantedEffect.support
+        //          and grantedEffect.name == "Energy Blade"
+        for gem in &skill.gems {
+            if gem.enabled && !gem.is_support && gem.skill_id == "EnergyBlade" {
+                // Energy Blade found — trigger second pass with AffectedByEnergyBlade set.
+                // Mirrors: return calcs.initEnv(build, mode, override, specEnv)
+                //   where override.conditions includes "AffectedByEnergyBlade".
+                return init_env_inner(build, data, true).ok();
+            }
+        }
+    }
+
+    None
 }
 
 /// Merge keystone modifiers into the player's mod_db.
@@ -3753,13 +3874,35 @@ fn add_item_mods(build: &Build, env: &mut CalcEnv) {
         }
         // ── Check 2: Energy Blade weapon replacement (lines 979–1013) ─────────
         // When AffectedByEnergyBlade condition is set (second pass), the weapon
-        // item is replaced with a synthetic Energy Blade item. The original weapon's
-        // mods are NOT added — the new item's mods will be added on re-processing.
-        // Detection: slot is Weapon 1 or Weapon 2 AND AffectedByEnergyBlade condition set.
-        // NOTE: Full Energy Blade weapon replacement (synthetic item creation) requires
-        // the game data's itemBases table which is not yet populated in Rust. We handle
-        // the condition check and skip the original mods when the condition is set.
-        // A full two-pass init is not implemented yet; this handles the dispatch guard.
+        // item is replaced with a synthetic Energy Blade item.
+        //
+        // Lua (CalcSetup.lua lines 979–1013):
+        //   elseif (slotName == "Weapon 1" or slotName == "Weapon 2")
+        //          and modDB.conditions["AffectedByEnergyBlade"] then
+        //     local previousItem = env.player.itemList[slotName]
+        //     local type = previousItem and previousItem.weaponData
+        //                  and previousItem.weaponData[1].type
+        //     local info = env.data.weaponTypeInfo[type]
+        //     if info and type ~= "Bow" then
+        //       local name = info.oneHand and "Energy Blade One Handed"
+        //                                 or "Energy Blade Two Handed"
+        //       local item = new("Item")
+        //       item.name = name ; item.base = data.itemBases[name] ; ...
+        //       item:NormaliseQuality() ; item:BuildAndParseRaw()
+        //       item.sockets = previousItem.sockets
+        //       item.abyssalSocketCount = previousItem.abyssalSocketCount
+        //       env.player.itemList[slotName] = item
+        //     else
+        //       env.itemModDB:ScaleAddList(srcList, scale)  -- Bow falls through
+        //     end
+        //
+        // In Rust:
+        //   - Bow → fall through to default (add src_list mods as normal).
+        //   - Non-bow → determine one-handed from item_type, look up the Energy
+        //     Blade base, create a synthetic item, update resolved_item.weapon_data
+        //     so that the weapon-data extraction below (task 8) picks up the new
+        //     stats.  Do NOT add src_list (original weapon mods are discarded).
+        //     The synthetic base has no implicits so no mods are added.
         else if (slot == ItemSlot::Weapon1 || slot == ItemSlot::Weapon2)
             && env
                 .player
@@ -3769,19 +3912,83 @@ fn add_item_mods(build: &Build, env: &mut CalcEnv) {
                 .copied()
                 .unwrap_or(false)
         {
-            // On the second pass, the weapon slots have been replaced with Energy Blade
-            // synthetic items. Skip the original weapon mods — the replacement item's
-            // mods will be added separately. (In practice Rust's two-pass init is not
-            // yet implemented, so this branch prevents double-adding original weapon mods
-            // if somehow AffectedByEnergyBlade is set externally.)
-            // Bow weapons fall through to default dispatch.
+            // Mirrors: local type = previousItem.weaponData[1].type
+            // In Rust, item_type is already the resolved weapon type string.
             let is_bow = resolved_item.item_type.contains("Bow");
+
             if is_bow {
+                // Bows fall through: add the original weapon's mods normally.
+                // Mirrors: else  env.itemModDB:ScaleAddList(srcList, scale)
                 for m in src_list {
                     env.player.mod_db.add(m);
                 }
+            } else {
+                // Mirrors: info = env.data.weaponTypeInfo[type]
+                // Determine one-handed from item_type. Mirrors weaponTypeInfo.oneHand:
+                //   oneHand = true  for: Claw, Dagger, Wand, Sceptre, One Handed Axe,
+                //                        One Handed Mace, One Handed Sword,
+                //                        Thrusting One Handed Sword, None (unarmed)
+                //   oneHand = false for: Bow, Staff, Two Handed Axe, Two Handed Mace,
+                //                        Two Handed Sword, Fishing Rod
+                let is_one_hand = !matches!(
+                    resolved_item.item_type.as_str(),
+                    "Two Handed Axe"
+                        | "Two Handed Mace"
+                        | "Two Handed Sword"
+                        | "Staff"
+                        | "Bow"
+                        | "Fishing Rod"
+                );
+
+                // Mirrors: local name = info.oneHand and "Energy Blade One Handed"
+                //                                     or "Energy Blade Two Handed"
+                let eb_name = if is_one_hand {
+                    "Energy Blade One Handed"
+                } else {
+                    "Energy Blade Two Handed"
+                };
+
+                // Look up the Energy Blade base in game data.
+                // Mirrors: item.base = data.itemBases[name]
+                if let Some(eb_base) = env.data.bases.get(eb_name) {
+                    // Create a synthetic resolved item from the Energy Blade base.
+                    // quality = 0 (item:NormaliseQuality() → no scaling),
+                    // sockets copied from original (item.sockets = previousItem.sockets).
+                    let eb_weapon_data = eb_base.weapon.as_ref().map(|w| {
+                        crate::build::types::ItemWeaponData {
+                            phys_min: w.physical_min, // 0 for Energy Blade
+                            phys_max: w.physical_max, // 0 for Energy Blade
+                            attack_rate: w.attack_rate_base,
+                            crit_chance: w.crit_chance_base,
+                            range: w.range,
+                        }
+                    });
+
+                    // Update resolved_item.weapon_data so that task 8 below sets
+                    // env.player.weapon_data1 / weapon_data2 from the Energy Blade base.
+                    resolved_item.weapon_data = eb_weapon_data;
+                    // Also update item_type for any subsequent checks.
+                    resolved_item.item_type = eb_base.item_type.clone();
+
+                    // The synthetic Energy Blade item has no implicits or explicits —
+                    // both bases in data have empty implicit lists.  If a future data
+                    // update adds implicits to the base they would be added here.
+                    // Mirrors: item:BuildAndParseRaw() → item.modList (empty for EB)
+                    for line in &eb_base.implicit {
+                        let eb_source = ModSource::new("Item", eb_name);
+                        for m in crate::build::mod_parser::parse_mod(line, eb_source) {
+                            env.player.mod_db.add(m);
+                        }
+                    }
+                    // src_list (original weapon mods) is intentionally discarded.
+                } else {
+                    // Energy Blade base not found in data — fall back to adding the
+                    // original weapon's mods so the build does not silently break.
+                    for m in src_list {
+                        env.player.mod_db.add(m);
+                    }
+                }
             }
-            // else: skip — Energy Blade replacement item mods handled on re-init
         }
         // ── Check 3: The Iron Mass (CalcSetup.lua lines 1014–1031) ────────────
         // Mods go to BOTH theIronMass (for animated weapons) AND the player.
