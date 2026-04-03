@@ -536,7 +536,7 @@ fn class_base_attributes(class_name: &str) -> (f64, f64, f64) {
 
 /// Mirrors calcs.initEnv() in CalcSetup.lua.
 /// Adds class base stats, resistance penalty, accuracy, and evasion.
-fn add_class_base_stats(build: &Build, db: &mut ModDb, _data: &GameData) {
+fn add_class_base_stats(build: &Build, db: &mut ModDb, data: &GameData) {
     let level = build.level as f64;
     let src = ModSource::new("Base", format!("{} base stats", build.class_name));
 
@@ -564,9 +564,17 @@ fn add_class_base_stats(build: &Build, db: &mut ModDb, _data: &GameData) {
     let acc_src = ModSource::new("Base", "base accuracy");
     db.add(Mod::new_base("Accuracy", 2.0 * level, acc_src));
 
-    // Base evasion: 53 + 3 * level
+    // Base evasion rating: data.characterConstants["base_evasion_rating"] (= 15 in PoE1).
+    // CalcSetup.lua:481: modDB:NewMod("Evasion", "BASE", data.characterConstants["base_evasion_rating"], "Base")
+    // This is a flat constant, NOT a per-level formula.
+    let base_evasion = data
+        .misc
+        .character_constants
+        .get("base_evasion_rating")
+        .copied()
+        .unwrap_or(15.0);
     let eva_src = ModSource::new("Base", "base evasion");
-    db.add(Mod::new_base("Evasion", 53.0 + 3.0 * level, eva_src));
+    db.add(Mod::new_base("Evasion", base_evasion, eva_src));
 }
 
 /// Process anointments (GrantedPassive mods) and Forbidden Flesh/Flame
@@ -2099,8 +2107,10 @@ mod tests {
             env.player
                 .mod_db
                 .sum(ModType::Base, "Evasion", ModFlags::NONE, KeywordFlags::NONE);
-        // For L90: evasion = 53 + 3 * 90 = 323
-        assert_eq!(evasion, 323.0, "Evasion should be 53 + 3*90 = 323");
+        // Base evasion = data.misc.character_constants["base_evasion_rating"] = 15
+        // (CalcSetup.lua:481: modDB:NewMod("Evasion", "BASE", data.characterConstants["base_evasion_rating"], "Base"))
+        // The test data has no game data loaded so defaults to 15.0.
+        assert_eq!(evasion, 15.0, "Evasion should be base_evasion_rating = 15");
     }
 
     #[test]
@@ -2810,6 +2820,201 @@ Implicits: 0
     }
 }
 
+/// Apply LOCAL defence mods from an armour item's explicit text to its base armour_data.
+///
+/// Mirrors PoB's Item.lua lines 1496–1540: the `calcLocal(modList, "Armour", "BASE", 0)` etc.
+/// calls that extract local flat and INC mods and fold them into armourData.
+///
+/// In PoB:
+///   armourData.Armour = (ArmourBaseMax + local_flat_Armour + local_flat_AE) * (1 + local_INC/100) * (1 + quality/100)
+///
+/// The `base_ad` already has quality applied (from item_resolver using armour_max * quality).
+/// So we need to:
+/// 1. Reverse the quality scaling to get the unscaled max value
+/// 2. Add the local flat mods (unscaled base)
+/// 3. Apply local INC (item's own "% increased Armour" etc.)
+/// 4. Re-apply quality
+///
+/// Or equivalently: adjusted = base_ad + local_flat_BASE * quality * (1 + local_INC/100)
+/// plus adjustments for ArmourAndEvasion flat and INC mods.
+///
+/// Note: the `quality` parameter is the item's quality percentage (0–30).
+fn apply_local_armour_mods(
+    base_ad: &crate::build::types::ItemArmourData,
+    local_mods: &[&Mod],
+    quality: f64,
+) -> crate::build::types::ItemArmourData {
+    // Check for AlternateQuality flags that zero out quality scaling.
+    // Mirrors PoB's Item.lua:1516-1518:
+    //   local qualityScalar = self.quality
+    //   if calcLocal(modList, "AlternateQualityArmour", "BASE", 0) > 0 then qualityScalar = 0 end
+    //
+    // When any AlternateQuality flag is set, qualityScalar = 0 for ALL defences.
+    // This covers "{crafted}Quality does not increase Defences" on armour items.
+    let alt_quality_no_defences = local_mods.iter().any(|m| {
+        matches!(
+            m.name.as_str(),
+            "AlternateQualityArmour"
+                | "AlternateQualityEvasion"
+                | "AlternateQualityEnergyShield"
+                | "AlternateQualityWard"
+        ) && m.value.as_f64() > 0.0
+    });
+
+    // effective_quality_factor is 1.0 (no quality) when quality doesn't affect defences,
+    // otherwise it's the normal 1 + quality/100.
+    let effective_quality_factor = if alt_quality_no_defences {
+        1.0
+    } else {
+        1.0 + quality / 100.0
+    };
+    // item_resolver used quality_factor = 1.0 + quality/100.0 for ALL defences unconditionally.
+    let quality_factor = 1.0 + quality / 100.0;
+
+    // Convenience aliases for readability
+    let armour_quality_factor = effective_quality_factor;
+    let evasion_quality_factor = effective_quality_factor;
+    let es_quality_factor = effective_quality_factor;
+    let ward_quality_factor = 1.0_f64; // Ward has no quality scaling in item_resolver
+
+    // Sum local flat BASE mods for each defence stat.
+    // These are: "Armour", "Evasion", "EnergyShield", "Ward" plus combined stats.
+    let mut flat_armour = 0.0_f64;
+    let mut flat_evasion = 0.0_f64;
+    let mut flat_es = 0.0_f64;
+    let mut flat_ward = 0.0_f64;
+    let mut flat_armour_evasion = 0.0_f64; // adds to both armour and evasion
+    let mut flat_evasion_es = 0.0_f64; // adds to both evasion and ES
+    let mut flat_armour_es = 0.0_f64; // adds to both armour and ES
+
+    // Sum local INC mods for each defence stat.
+    let mut inc_armour = 0.0_f64;
+    let mut inc_evasion = 0.0_f64;
+    let mut inc_es = 0.0_f64;
+    let mut inc_ward = 0.0_f64;
+    let mut inc_armour_evasion = 0.0_f64;
+    let mut inc_evasion_es = 0.0_f64;
+    let mut inc_armour_es = 0.0_f64;
+    let mut inc_defences = 0.0_f64; // applies to all defences
+
+    for m in local_mods {
+        let val = m.value.as_f64();
+        match (m.name.as_str(), &m.mod_type) {
+            ("Armour", ModType::Base) => flat_armour += val,
+            ("Evasion", ModType::Base) => flat_evasion += val,
+            ("EnergyShield", ModType::Base) => flat_es += val,
+            ("Ward", ModType::Base) => flat_ward += val,
+            ("ArmourAndEvasion", ModType::Base) => flat_armour_evasion += val,
+            ("EvasionAndEnergyShield", ModType::Base) => flat_evasion_es += val,
+            ("ArmourAndEnergyShield", ModType::Base) => flat_armour_es += val,
+            ("Defences", ModType::Base) => {
+                // "Defences" flat applies to all defence stats
+                flat_armour += val;
+                flat_evasion += val;
+                flat_es += val;
+                flat_ward += val;
+            }
+            ("Armour", ModType::Inc) => inc_armour += val,
+            ("Evasion", ModType::Inc) => inc_evasion += val,
+            ("EnergyShield", ModType::Inc) => inc_es += val,
+            ("Ward", ModType::Inc) => inc_ward += val,
+            ("ArmourAndEvasion", ModType::Inc) => inc_armour_evasion += val,
+            ("EvasionAndEnergyShield", ModType::Inc) => inc_evasion_es += val,
+            ("ArmourAndEnergyShield", ModType::Inc) => inc_armour_es += val,
+            ("Defences", ModType::Inc) => inc_defences += val,
+            _ => {}
+        }
+    }
+
+    // The base armour_data from item_resolver already has quality applied:
+    //   base_ad.armour = armour_max * quality_factor
+    //
+    // We need to reconstruct using the possibly-different quality factor for each stat:
+    //   new_armour = (armour_max + local_flat_armour) * (1 + INC/100) * armour_quality_factor
+    //
+    // Since base_ad.armour = armour_max * quality_factor (from item_resolver),
+    // armour_max = base_ad.armour / quality_factor. Then:
+    //   new_armour = (base_ad.armour / quality_factor + flat) * (1 + INC/100) * armour_quality_factor
+    //
+    // When AlternateQualityArmour is set, armour_quality_factor = 1.0 (no quality scaling).
+
+    // Build a recalc closure that takes the per-stat quality factor as a parameter.
+    let recalc = |base_scaled: f64, flat: f64, inc_total: f64, stat_quality_factor: f64| -> f64 {
+        let base = base_scaled / quality_factor; // undo item_resolver's quality_factor
+        ((base + flat) * (1.0 + inc_total / 100.0) * stat_quality_factor)
+            .round()
+            .max(0.0)
+    };
+
+    let armour_flat = flat_armour + flat_armour_evasion + flat_armour_es;
+    let armour_inc = inc_armour + inc_armour_evasion + inc_armour_es + inc_defences;
+    let evasion_flat = flat_evasion + flat_armour_evasion + flat_evasion_es;
+    let evasion_inc = inc_evasion + inc_armour_evasion + inc_evasion_es + inc_defences;
+    let es_flat = flat_es + flat_evasion_es + flat_armour_es;
+    let es_inc = inc_es + inc_evasion_es + inc_armour_es + inc_defences;
+    // Ward: only "Ward" and "Defences" affect it (no ArmourAndEvasion etc.)
+    let ward_inc = inc_ward + inc_defences;
+
+    // PoB's Item.lua line 1537: armourData.Armour = round(...)
+    // The armourData values are always stored as rounded integers in PoB.
+    // This matters when MORE mods (like Acrobatics 50% less Armour) are applied per-slot:
+    //   round(167 * 1.24 * 0.5) = round(103.54) = 104  -- PoB
+    //   vs (166.8 * 1.24 * 0.5 = 103.4) → round = 103  -- without rounding armourData
+
+    let round_non_zero = |v: f64| -> f64 {
+        if v > 0.0 {
+            v.round()
+        } else {
+            v
+        }
+    };
+
+    crate::build::types::ItemArmourData {
+        armour: round_non_zero(
+            if armour_flat != 0.0 || armour_inc != 0.0 || alt_quality_no_defences {
+                recalc(
+                    base_ad.armour,
+                    armour_flat,
+                    armour_inc,
+                    armour_quality_factor,
+                )
+            } else {
+                base_ad.armour
+            },
+        ),
+        evasion: round_non_zero(
+            if evasion_flat != 0.0 || evasion_inc != 0.0 || alt_quality_no_defences {
+                recalc(
+                    base_ad.evasion,
+                    evasion_flat,
+                    evasion_inc,
+                    evasion_quality_factor,
+                )
+            } else {
+                base_ad.evasion
+            },
+        ),
+        energy_shield: round_non_zero(
+            if es_flat != 0.0 || es_inc != 0.0 || alt_quality_no_defences {
+                recalc(base_ad.energy_shield, es_flat, es_inc, es_quality_factor)
+            } else {
+                base_ad.energy_shield
+            },
+        ),
+        ward: if flat_ward != 0.0 || ward_inc != 0.0 {
+            // Ward: no quality scaling on base (per item_resolver, ward_max is unscaled)
+            let base = base_ad.ward;
+            ((base + flat_ward) * (1.0 + ward_inc / 100.0) * ward_quality_factor)
+                .round()
+                .max(0.0)
+        } else {
+            // Ward doesn't have quality applied in item_resolver, so it's already "rounded" (integer from data)
+            base_ad.ward
+        },
+        block: base_ad.block,
+    }
+}
+
 /// Scale a mod's numeric value by `scale` and return the result.
 /// Mirrors `ScaleAddMod(mod, scale)` from ModDB.lua: the mod value is multiplied by
 /// scale before being added to the database. For scale = 1.0, this is a no-op.
@@ -2864,8 +3069,66 @@ fn add_item_mods(build: &Build, env: &mut CalcEnv) {
             .chain(resolved_item.crafted_mods.iter())
             .chain(resolved_item.enchant_mods.iter());
 
-        let src_list: Vec<Mod> = mod_lines
+        // For armour-slot items (Helmet, Gloves, Boots, Body Armour, Weapon 2), local defence
+        // mods (Armour/Evasion/EnergyShield/Ward/ArmourAndEvasion flat BASE and INC) are
+        // applied to the item's armourData, NOT added to the global modDb.
+        //
+        // All other mods (flat Life, Fire Resist, etc.) remain in src_list and go to modDb.
+        //
+        // The local_armour_stat_names set mirrors PoB's calcLocal() stat names in Item.lua:
+        // "Armour", "Evasion", "EnergyShield", "Ward", "ArmourAndEvasion",
+        // "EvasionAndEnergyShield", "ArmourAndEnergyShield", "Defences"
+        let is_armour_slot_for_mods = matches!(
+            slot,
+            ItemSlot::Helmet
+                | ItemSlot::Gloves
+                | ItemSlot::Boots
+                | ItemSlot::BodyArmour
+                | ItemSlot::Weapon2
+        ) && resolved_item.armour_data.is_some();
+
+        // Parse all mods, then split into local defence mods and global mods.
+        let all_mods: Vec<Mod> = mod_lines
             .flat_map(|line| crate::build::mod_parser::parse_mod(line, source.clone()))
+            .collect();
+
+        // Predicate: is this mod a LOCAL defence mod for an armour slot?
+        // In PoB, Item.lua's calcLocal() extracts these and applies them to armourData.
+        // They must NOT be added to the global modDb.
+        let is_local_defence_mod = |m: &Mod| -> bool {
+            is_armour_slot_for_mods
+                && matches!(m.mod_type, ModType::Base | ModType::Inc)
+                && matches!(
+                    m.name.as_str(),
+                    "Armour"
+                        | "Evasion"
+                        | "EnergyShield"
+                        | "Ward"
+                        | "ArmourAndEvasion"
+                        | "EvasionAndEnergyShield"
+                        | "ArmourAndEnergyShield"
+                        | "Defences"
+                        // Quality override mods: item-local, should not go to global modDb.
+                        // Mirrors PoB's Item.lua calcLocal() checks for quality scaling.
+                        | "AlternateQualityArmour"
+                        | "AlternateQualityEvasion"
+                        | "AlternateQualityEnergyShield"
+                        | "AlternateQualityWard"
+                )
+                && m.tags.is_empty()
+            // Only skip UNTAGGED local mods. Tagged mods (e.g. conditional +Armour) stay global.
+        };
+
+        let src_list: Vec<Mod> = all_mods
+            .iter()
+            .filter(|m| !is_local_defence_mod(m))
+            .cloned()
+            .collect();
+
+        // Collect local defence mods separately for armour_data adjustment below.
+        let local_defence_mods: Vec<&Mod> = all_mods
+            .iter()
+            .filter(|m| is_local_defence_mod(m))
             .collect();
 
         // ── SETUP-16: Special unique item mod dispatch ─────────────────────────
@@ -3215,29 +3478,53 @@ fn add_item_mods(build: &Build, env: &mut CalcEnv) {
             }
         }
 
-        // Add base armour/evasion/ES/block from resolved armour data
+        // Store per-slot armour base data for per-slot defence accumulation.
+        // Mirrors actor.itemList[slot].armourData used in CalcDefence.lua:843-923.
+        //
+        // PoB's Item.lua (lines 1494-1557) computes armourData.Armour/Evasion/ES/Ward as:
+        //   (base_type_value + local_flat_mods + local_ArmourAndEvasion_flat) * (1 + local_INC/100) * (1 + quality/100)
+        //
+        // Local mods are those on the item itself with stat names: Armour, Evasion, EnergyShield,
+        // Ward, ArmourAndEvasion, EvasionAndEnergyShield, ArmourAndEnergyShield, Defences.
+        // These mods ONLY affect the item's displayed armourData values and are NOT added to
+        // the global modDb.
+        //
+        // The item_resolver already applied quality scaling on the base type values.
+        // Here we additionally apply local flat and local INC mods from the item's explicit lines.
+        //
+        // Block chance is still added as a global BASE mod (ShieldBlockChance)
+        // because it is not subject to per-slot INC/MORE in the Lua slot loop.
         if let Some(ref ad) = resolved_item.armour_data {
-            if ad.armour > 0.0 {
-                env.player
-                    .mod_db
-                    .add(Mod::new_base("Armour", ad.armour, source.clone()));
-            }
-            if ad.evasion > 0.0 {
-                env.player
-                    .mod_db
-                    .add(Mod::new_base("Evasion", ad.evasion, source.clone()));
-            }
-            if ad.energy_shield > 0.0 {
-                env.player.mod_db.add(Mod::new_base(
-                    "EnergyShield",
-                    ad.energy_shield,
-                    source.clone(),
-                ));
-            }
             if ad.block > 0.0 {
                 env.player
                     .mod_db
                     .add(Mod::new_base("ShieldBlockChance", ad.block, source.clone()));
+            }
+            // Only armour slots carry defence base values.
+            // The Lua loop covers: Helmet, Gloves, Boots, Body Armour, Weapon 2, Weapon 3.
+            let is_armour_slot = matches!(
+                slot,
+                ItemSlot::Helmet
+                    | ItemSlot::Gloves
+                    | ItemSlot::Boots
+                    | ItemSlot::BodyArmour
+                    | ItemSlot::Weapon2
+            );
+            if is_armour_slot {
+                // Apply local defence mods to armour_data.
+                // item_resolver already set armour_data from base type max values × quality.
+                // Now apply LOCAL flat (+X) and LOCAL INC (% increased) mods from the item text.
+                let adjusted_ad =
+                    apply_local_armour_mods(ad, &local_defence_mods, item.quality as f64);
+                if adjusted_ad.armour > 0.0
+                    || adjusted_ad.evasion > 0.0
+                    || adjusted_ad.energy_shield > 0.0
+                    || adjusted_ad.ward > 0.0
+                {
+                    env.player
+                        .gear_slot_armour
+                        .push((slot_name.clone(), adjusted_ad));
+                }
             }
         }
 

@@ -1,6 +1,6 @@
 use super::env::{get_output_f64, CalcEnv};
 use crate::calc::calc_tools::calc_def_mod;
-use crate::mod_db::types::ModType;
+use crate::mod_db::types::{ModType, SkillCfg};
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -336,92 +336,345 @@ fn calc_block(env: &mut CalcEnv) {
 
 // ── Task 5: Primary defences ─────────────────────────────────────────────────
 
+/// Build a SkillCfg that only has a slot_name set (used for per-slot INC/MORE queries).
+/// Mirrors the `slotCfg` table in CalcDefence.lua:842 (`local slotCfg = wipeTable(tempTable1)`).
+fn slot_cfg(slot_name: &str) -> SkillCfg {
+    SkillCfg {
+        slot_name: Some(slot_name.to_string()),
+        ..Default::default()
+    }
+}
+
 fn calc_primary_defences(env: &mut CalcEnv) {
     // data.misc.LowPoolThreshold = 0.5 (Data.lua:167)
     const LOW_POOL_THRESHOLD: f64 = 0.5;
 
     let output = env.player.output.clone();
 
-    // ── Ward (CalcDefence.lua:827, 925-948, 1050) ─────────────────────────────
-    // Ward uses m_floor, NOT round. Mirrors line 1050:
-    //   output.Ward = m_max(m_floor(ward), 0)
-    //
-    // Ward global base: sum "Ward" BASE mods, multiplied by INC+MORE from "Ward"+"Defences".
-    // (Per-slot ward accumulation is already included in the global BASE sum since setup.rs
-    //  adds all armour data as global BASE mods.)
-    //
-    // When EnergyShieldToWard is set, ward INC also includes "EnergyShield" (line 929):
-    //   inc = modDB:Sum("INC", nil, "Ward", "Defences", "EnergyShield")
-    let ward_base = env
+    // Pre-compute flags needed by the slot loop and global sections.
+    let iron_reflexes = env.player.mod_db.flag_cfg("IronReflexes", None, &output);
+    let es_to_ward = env
         .player
         .mod_db
-        .sum_cfg(ModType::Base, "Ward", None, &output);
-    let ward = if ward_base > 0.0 {
-        let es_to_ward = env
-            .player
+        .flag_cfg("EnergyShieldToWard", None, &output);
+    let convert_armour_es_to_life =
+        env.player
             .mod_db
-            .flag_cfg("EnergyShieldToWard", None, &output);
-        let ward_mult = if es_to_ward {
-            calc_def_mod(
-                &env.player.mod_db,
-                None,
-                &output,
-                &["Ward", "Defences", "EnergyShield"],
-            )
-        } else {
-            calc_def_mod(&env.player.mod_db, None, &output, &["Ward", "Defences"])
-        };
-        (ward_base * ward_mult).floor().max(0.0)
-    } else {
-        0.0
-    };
-    env.player.set_output("Ward", ward);
+            .flag_cfg("ConvertArmourESToLife", None, &output);
 
-    // ── Energy Shield (CalcDefence.lua:949-1034, 1044) ────────────────────────
-    // ES uses round(), NOT floor(). Mirrors line 1044:
-    //   output.EnergyShield = modDB:Override(nil, "EnergyShield") or m_max(round(energyShield), 0)
-    //
-    // Accumulation:
-    //   1. Gear-slot ES: already added as BASE mods to modDB by setup.rs.
-    //      Applied with INC/MORE from "EnergyShield"+"Defences".
-    //   2. Global (non-slot) ES BASE mods: same multiplier.
-    //   3. Mana → ES conversion (ManaGainAsEnergyShield).
-    //   4. Life → ES conversion (LifeConvertToEnergyShield + LifeGainAsEnergyShield).
-    //
-    // In Rust, all slot ES is already in the modDB as "EnergyShield" BASE mods.
-    // So steps 1 and 2 reduce to: sum_cfg(Base, "EnergyShield") * calc_def_mod("EnergyShield","Defences").
-    // Steps 3 and 4 are additive on top.
-
+    // Accumulators — mirrors `local ward, energyShield, armour, evasion = 0, 0, 0, 0`
+    // at CalcDefence.lua:827-830.
+    let mut ward = 0.0_f64;
     let mut energy_shield = 0.0_f64;
+    let mut armour = 0.0_f64;
+    let mut evasion = 0.0_f64;
 
-    // Main ES accumulation (slots + global BASE ES, with EnergyShield+Defences INC/MORE)
-    let es_base = env
-        .player
-        .mod_db
-        .sum_cfg(ModType::Base, "EnergyShield", None, &output);
-    if es_base > 0.0 {
-        let es_to_ward = env
-            .player
-            .mod_db
-            .flag_cfg("EnergyShieldToWard", None, &output);
-        if es_to_ward {
-            // EnergyShieldToWard: slot ES uses More only (no INC). Global ES: More only.
-            // Lua line 952: energyShield += esBase * modDB:More(nil, "EnergyShield", "Defences")
-            let es_more = env.player.mod_db.more_cfg("EnergyShield", None, &output)
-                * env.player.mod_db.more_cfg("Defences", None, &output);
-            energy_shield += es_base * es_more;
-        } else {
-            let es_mult = calc_def_mod(
-                &env.player.mod_db,
+    // Gear trackers for Gear:* output fields (CalcDefence.lua:838-841).
+    let mut gear_ward = 0.0_f64;
+    let mut gear_energy_shield = 0.0_f64;
+    let mut gear_armour = 0.0_f64;
+    let mut gear_evasion = 0.0_f64;
+
+    // ── Per-slot gear loop (CalcDefence.lua:843-923) ──────────────────────────
+    // Iterates armour slots, queries INC/MORE with slotCfg.slotName = slot so
+    // that mods like "100% increased Energy Shield from Body Armour" are scoped
+    // correctly.
+    //
+    // gear_slot_armour was populated by setup.rs instead of adding global BASE
+    // mods, so this is the only place those base values are multiplied.
+    let gear_slots: Vec<(String, crate::build::types::ItemArmourData)> =
+        env.player.gear_slot_armour.clone();
+
+    for (slot, ad) in &gear_slots {
+        let cfg = slot_cfg(slot);
+
+        // CalcDefence.lua:847-850 — GainNo{Defence}From{Slot} checks (Gap B).
+        let es_base =
+            if !env
+                .player
+                .mod_db
+                .flag_cfg(&format!("GainNoEnergyShieldFrom{slot}"), None, &output)
+            {
+                ad.energy_shield
+            } else {
+                0.0
+            };
+        let mut arm_base =
+            if !env
+                .player
+                .mod_db
+                .flag_cfg(&format!("GainNoArmourFrom{slot}"), None, &output)
+            {
+                ad.armour
+            } else {
+                0.0
+            };
+        let mut eva_base =
+            if !env
+                .player
+                .mod_db
+                .flag_cfg(&format!("GainNoEvasionFrom{slot}"), None, &output)
+            {
+                ad.evasion
+            } else {
+                0.0
+            };
+        let mut ward_base =
+            if !env
+                .player
+                .mod_db
+                .flag_cfg(&format!("GainNoWardFrom{slot}"), None, &output)
+            {
+                ad.ward
+            } else {
+                0.0
+            };
+
+        // CalcDefence.lua:851-858 — Body Armour Armour/Evasion → Ward conversion.
+        if slot == "Body Armour"
+            && env
+                .player
+                .mod_db
+                .flag_cfg("ConvertBodyArmourArmourEvasionToWard", None, &output)
+        {
+            let pct = env.player.mod_db.sum_cfg(
+                ModType::Base,
+                "BodyArmourArmourEvasionToWardPercent",
                 None,
                 &output,
-                &["EnergyShield", "Defences"],
-            );
-            energy_shield += es_base * es_mult;
+            ) / 100.0;
+            let conversion = pct.min(1.0);
+            let converted_armour = arm_base * conversion;
+            let converted_evasion = eva_base * conversion;
+            arm_base -= converted_armour;
+            eva_base -= converted_evasion;
+            ward_base += converted_evasion + converted_armour;
+        }
+
+        // CalcDefence.lua:859-882 — Ward from slot.
+        if ward_base > 0.0 {
+            if es_to_ward {
+                // EnergyShieldToWard: ward uses INC from "Ward"+"Defences"+"EnergyShield".
+                let slot_ward = ward_base
+                    * calc_def_mod(
+                        &env.player.mod_db,
+                        Some(&cfg),
+                        &output,
+                        &["Ward", "Defences", "EnergyShield"],
+                    );
+                ward += slot_ward;
+            } else {
+                let slot_ward = ward_base
+                    * calc_def_mod(
+                        &env.player.mod_db,
+                        Some(&cfg),
+                        &output,
+                        &["Ward", "Defences"],
+                    );
+                ward += slot_ward;
+            }
+            gear_ward += ward_base;
+        }
+
+        // CalcDefence.lua:883-903 — ES from slot.
+        if es_base > 0.0 {
+            if es_to_ward {
+                // EnergyShieldToWard: ES contributes only via More (no INC).
+                // Lua line 885-886: energyShield += esBase * modDB:More(slotCfg, "EnergyShield", "Defences")
+                let more = env
+                    .player
+                    .mod_db
+                    .more_cfg("EnergyShield", Some(&cfg), &output)
+                    * env.player.mod_db.more_cfg("Defences", Some(&cfg), &output);
+                energy_shield += es_base * more;
+            } else if !convert_armour_es_to_life {
+                // CalcDefence.lua:898 — slot ES uses "{slot}ESAndArmour" as extra INC/MORE stat (Gap C).
+                let slot_es_and_armour = format!("{slot}ESAndArmour");
+                let slot_es = es_base
+                    * calc_def_mod(
+                        &env.player.mod_db,
+                        Some(&cfg),
+                        &output,
+                        &["EnergyShield", "Defences", &slot_es_and_armour],
+                    );
+                energy_shield += slot_es;
+            }
+            gear_energy_shield += es_base;
+        }
+
+        // CalcDefence.lua:905-910 — Armour from slot.
+        // Uses "{slot}ESAndArmour" as extra INC/MORE stat (Gap C).
+        if arm_base > 0.0 {
+            let slot_es_and_armour = format!("{slot}ESAndArmour");
+            let slot_arm = arm_base
+                * calc_def_mod(
+                    &env.player.mod_db,
+                    Some(&cfg),
+                    &output,
+                    &[
+                        "Armour",
+                        "ArmourAndEvasion",
+                        "Defences",
+                        &slot_es_and_armour,
+                    ],
+                );
+            armour += slot_arm;
+            gear_armour += arm_base;
+        }
+
+        // CalcDefence.lua:912-921 — Evasion from slot.
+        // Gap D: Iron Reflexes per-slot conversion uses "Armour" INC/MORE in addition.
+        if eva_base > 0.0 {
+            gear_evasion += eva_base;
+            if iron_reflexes {
+                // CalcDefence.lua:917-918: IronReflexes converts per-slot evasion to armour
+                // using slot-scoped Armour+Evasion+ArmourAndEvasion+Defences INC/MORE.
+                let slot_arm = eva_base
+                    * calc_def_mod(
+                        &env.player.mod_db,
+                        Some(&cfg),
+                        &output,
+                        &["Armour", "Evasion", "ArmourAndEvasion", "Defences"],
+                    );
+                armour += slot_arm;
+            } else {
+                // CalcDefence.lua:919-920
+                let slot_eva = eva_base
+                    * calc_def_mod(
+                        &env.player.mod_db,
+                        Some(&cfg),
+                        &output,
+                        &["Evasion", "ArmourAndEvasion", "Defences"],
+                    );
+                evasion += slot_eva;
+            }
         }
     }
 
-    // Mana → ES conversion (CalcDefence.lua:999-1006)
+    // ── Global (non-slot) Ward (CalcDefence.lua:925-948) ─────────────────────
+    // modDB:Sum("BASE", nil, "Ward") — picks up non-slot Ward sources.
+    let global_ward_base = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "Ward", None, &output);
+    if global_ward_base > 0.0 {
+        if es_to_ward {
+            let inc = env
+                .player
+                .mod_db
+                .sum_cfg(ModType::Inc, "Ward", None, &output)
+                + env
+                    .player
+                    .mod_db
+                    .sum_cfg(ModType::Inc, "Defences", None, &output)
+                + env
+                    .player
+                    .mod_db
+                    .sum_cfg(ModType::Inc, "EnergyShield", None, &output);
+            let more = env.player.mod_db.more_cfg("Ward", None, &output)
+                * env.player.mod_db.more_cfg("Defences", None, &output);
+            ward += global_ward_base * (1.0 + inc / 100.0) * more;
+        } else {
+            ward += global_ward_base
+                * calc_def_mod(&env.player.mod_db, None, &output, &["Ward", "Defences"]);
+        }
+    }
+
+    // ── Global (non-slot) ES (CalcDefence.lua:949-968) ────────────────────────
+    // modDB:Sum("BASE", nil, "EnergyShield") — passives, buffs, flasks, non-slot sources.
+    let global_es_base = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "EnergyShield", None, &output);
+    if global_es_base > 0.0 {
+        if es_to_ward {
+            // Lua line 952: energyShield += esBase * modDB:More(nil, "EnergyShield", "Defences")
+            let more = env.player.mod_db.more_cfg("EnergyShield", None, &output)
+                * env.player.mod_db.more_cfg("Defences", None, &output);
+            energy_shield += global_es_base * more;
+        } else {
+            energy_shield += global_es_base
+                * calc_def_mod(
+                    &env.player.mod_db,
+                    None,
+                    &output,
+                    &["EnergyShield", "Defences"],
+                );
+        }
+    }
+
+    // ── Global (non-slot) Armour (CalcDefence.lua:969-975) ───────────────────
+    let global_arm_base = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "Armour", None, &output)
+        + env
+            .player
+            .mod_db
+            .sum_cfg(ModType::Base, "ArmourAndEvasion", None, &output);
+    if global_arm_base > 0.0 {
+        armour += global_arm_base
+            * calc_def_mod(
+                &env.player.mod_db,
+                None,
+                &output,
+                &["Armour", "ArmourAndEvasion", "Defences"],
+            );
+    }
+
+    // ── Global (non-slot) Evasion (CalcDefence.lua:976-988) ──────────────────
+    let global_eva_base = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "Evasion", None, &output)
+        + env
+            .player
+            .mod_db
+            .sum_cfg(ModType::Base, "ArmourAndEvasion", None, &output);
+    if global_eva_base > 0.0 {
+        if iron_reflexes {
+            // Global evasion also converted to armour under Iron Reflexes.
+            armour += global_eva_base
+                * calc_def_mod(
+                    &env.player.mod_db,
+                    None,
+                    &output,
+                    &["Armour", "Evasion", "ArmourAndEvasion", "Defences"],
+                );
+        } else {
+            evasion += global_eva_base
+                * calc_def_mod(
+                    &env.player.mod_db,
+                    None,
+                    &output,
+                    &["Evasion", "ArmourAndEvasion", "Defences"],
+                );
+        }
+    }
+
+    // ── Mana → Armour conversion (CalcDefence.lua:990-998) ───────────────────
+    // Lua: armourBase = 2 * Mana_BASE * convManaToArmour / 100
+    //      total = armourBase * calcLib.mod(modDB, nil, "Mana", "Armour", "ArmourAndEvasion", "Defences")
+    let conv_mana_to_armour =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "ManaConvertToArmour", None, &output);
+    if conv_mana_to_armour > 0.0 {
+        let mana_base = env
+            .player
+            .mod_db
+            .sum_cfg(ModType::Base, "Mana", None, &output);
+        let arm_from_mana_base = 2.0 * mana_base * conv_mana_to_armour / 100.0;
+        let arm_from_mana_mult = calc_def_mod(
+            &env.player.mod_db,
+            None,
+            &output,
+            &["Mana", "Armour", "ArmourAndEvasion", "Defences"],
+        );
+        armour += arm_from_mana_base * arm_from_mana_mult;
+    }
+
+    // ── Mana → ES conversion (CalcDefence.lua:999-1006) ──────────────────────
     // Lua: energyShieldBase = Mana_BASE * convManaToES / 100
     //      energyShield += esBase * calcLib.mod(modDB, nil, "Mana", "EnergyShield", "Defences")
     let conv_mana_to_es =
@@ -443,7 +696,38 @@ fn calc_primary_defences(env: &mut CalcEnv) {
         energy_shield += es_from_mana_base * es_from_mana_mult;
     }
 
-    // Life → ES conversion (CalcDefence.lua:1021-1034)
+    // ── Life → Armour conversion (CalcDefence.lua:1007-1020) ─────────────────
+    // Lua: convLifeToArmour = sum("LifeGainAsArmour")
+    //      if CI: total = 1 else: total = Life_BASE * conv/100 * calcLib.mod(...)
+    let conv_life_to_armour =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "LifeGainAsArmour", None, &output);
+    if conv_life_to_armour > 0.0 {
+        let arm_from_life = if env
+            .player
+            .mod_db
+            .flag_cfg("ChaosInoculation", None, &output)
+        {
+            1.0
+        } else {
+            let life_base = env
+                .player
+                .mod_db
+                .sum_cfg(ModType::Base, "Life", None, &output);
+            let arm_from_life_base = life_base * conv_life_to_armour / 100.0;
+            let arm_from_life_mult = calc_def_mod(
+                &env.player.mod_db,
+                None,
+                &output,
+                &["Life", "Armour", "ArmourAndEvasion", "Defences"],
+            );
+            arm_from_life_base * arm_from_life_mult
+        };
+        armour += arm_from_life;
+    }
+
+    // ── Life → ES conversion (CalcDefence.lua:1021-1034) ─────────────────────
     // Lua: convLifeToES = sum("LifeConvertToEnergyShield") + sum("LifeGainAsEnergyShield")
     //      if CI: total = 1
     //      else: total = Life_BASE * convLifeToES / 100 * calcLib.mod("Life","EnergyShield","Defences")
@@ -479,146 +763,18 @@ fn calc_primary_defences(env: &mut CalcEnv) {
         energy_shield += life_es_total;
     }
 
-    // Apply override or round+clamp
-    let energy_shield = env
-        .player
-        .mod_db
-        .override_value("EnergyShield", None, &output)
-        .unwrap_or_else(|| energy_shield.round().max(0.0));
-    env.player.set_output("EnergyShield", energy_shield);
-
-    // ── Evasion (CalcDefence.lua:912-921, 976-988) ────────────────────────────
-    // Evasion uses round(), NOT floor(). Lua line 1046:
-    //   output.Evasion = m_max(round(evasion), 0)
-    let eva_base = env
-        .player
-        .mod_db
-        .sum_cfg(ModType::Base, "Evasion", None, &output);
-    let eva_more = env.player.mod_db.more_cfg("Evasion", None, &output);
-    let eva_ae_more = env
-        .player
-        .mod_db
-        .more_cfg("ArmourAndEvasion", None, &output);
-    let eva_def_more = env.player.mod_db.more_cfg("Defences", None, &output);
-    let eva_inc = env
-        .player
-        .mod_db
-        .sum_cfg(ModType::Inc, "Evasion", None, &output)
-        + env
-            .player
-            .mod_db
-            .sum_cfg(ModType::Inc, "ArmourAndEvasion", None, &output)
-        + env
-            .player
-            .mod_db
-            .sum_cfg(ModType::Inc, "Defences", None, &output);
-    let mut evasion = (eva_base * (1.0 + eva_inc / 100.0) * eva_more * eva_ae_more * eva_def_more)
-        .round()
-        .max(0.0);
-
-    // ── Armour (CalcDefence.lua:905-910, 969-975, 990-1043) ──────────────────
-    // Armour uses round(). Lua line 1045:
-    //   output.Armour = m_max(round(armour), 0)
-    let arm_base = env
-        .player
-        .mod_db
-        .sum_cfg(ModType::Base, "Armour", None, &output)
-        + env
-            .player
-            .mod_db
-            .sum_cfg(ModType::Base, "ArmourAndEvasion", None, &output);
-    let arm_more = env.player.mod_db.more_cfg("Armour", None, &output);
-    let arm_ae_more = env
-        .player
-        .mod_db
-        .more_cfg("ArmourAndEvasion", None, &output);
-    let arm_def_more = eva_def_more; // same Defences more
-    let arm_inc = env
-        .player
-        .mod_db
-        .sum_cfg(ModType::Inc, "Armour", None, &output)
-        + env
-            .player
-            .mod_db
-            .sum_cfg(ModType::Inc, "ArmourAndEvasion", None, &output)
-        + env
-            .player
-            .mod_db
-            .sum_cfg(ModType::Inc, "Defences", None, &output);
-    let mut armour = (arm_base * (1.0 + arm_inc / 100.0) * arm_more * arm_ae_more * arm_def_more)
-        .round()
-        .max(0.0);
-
-    // Mana → Armour conversion (CalcDefence.lua:990-998)
-    // Lua: armourBase = 2 * Mana_BASE * convManaToArmour / 100
-    //      total = armourBase * calcLib.mod(modDB, nil, "Mana", "Armour", "ArmourAndEvasion", "Defences")
-    let conv_mana_to_armour =
-        env.player
-            .mod_db
-            .sum_cfg(ModType::Base, "ManaConvertToArmour", None, &output);
-    if conv_mana_to_armour > 0.0 {
-        let mana_base = env
-            .player
-            .mod_db
-            .sum_cfg(ModType::Base, "Mana", None, &output);
-        let arm_from_mana_base = 2.0 * mana_base * conv_mana_to_armour / 100.0;
-        let arm_from_mana_mult = calc_def_mod(
-            &env.player.mod_db,
-            None,
-            &output,
-            &["Mana", "Armour", "ArmourAndEvasion", "Defences"],
-        );
-        armour += arm_from_mana_base * arm_from_mana_mult;
-    }
-
-    // Life → Armour conversion (CalcDefence.lua:1007-1020)
-    // Lua: convLifeToArmour = sum("LifeGainAsArmour")
-    //      if CI: total = 1 else: total = Life_BASE * conv/100 * calcLib.mod("Life","Armour","ArmourAndEvasion","Defences")
-    let conv_life_to_armour =
-        env.player
-            .mod_db
-            .sum_cfg(ModType::Base, "LifeGainAsArmour", None, &output);
-    if conv_life_to_armour > 0.0 {
-        let arm_from_life = if env
-            .player
-            .mod_db
-            .flag_cfg("ChaosInoculation", None, &output)
-        {
-            1.0
-        } else {
-            let life_base = env
-                .player
-                .mod_db
-                .sum_cfg(ModType::Base, "Life", None, &output);
-            let arm_from_life_base = life_base * conv_life_to_armour / 100.0;
-            let arm_from_life_mult = calc_def_mod(
-                &env.player.mod_db,
-                None,
-                &output,
-                &["Life", "Armour", "ArmourAndEvasion", "Defences"],
-            );
-            arm_from_life_base * arm_from_life_mult
-        };
-        armour += arm_from_life;
-    }
-
-    // Evasion → Armour conversion (CalcDefence.lua:1035-1043)
-    // Lua: armourBase = (Evasion_BASE + gearEvasion) * convEvasionToArmour / 100
-    // Note: in Rust, gearEvasion is already in the BASE sum, so we just use evasion base.
+    // ── Evasion → Armour conversion (CalcDefence.lua:1035-1043) ──────────────
+    // Gap F: Lua line 1037 uses `(modDB:Sum("BASE", nil, "Evasion", "ArmourAndEvasion") + gearEvasion)`
+    // as the base for this conversion.  gearEvasion is the sum of raw evasion from gear slots
+    // BEFORE per-slot INC/MORE was applied — it is NOT the same as the global_eva_base sum.
+    // In Rust, global_eva_base is the sum of non-slot Evasion+ArmourAndEvasion BASE mods
+    // (passives, buffs, etc.), and gear_evasion tracks the raw gear base values.
     let conv_evasion_to_armour =
         env.player
             .mod_db
             .sum_cfg(ModType::Base, "EvasionGainAsArmour", None, &output);
     if conv_evasion_to_armour > 0.0 {
-        let eva_base_only = env
-            .player
-            .mod_db
-            .sum_cfg(ModType::Base, "Evasion", None, &output)
-            + env
-                .player
-                .mod_db
-                .sum_cfg(ModType::Base, "ArmourAndEvasion", None, &output);
-        let arm_from_eva_base = eva_base_only * conv_evasion_to_armour / 100.0;
+        let arm_from_eva_base = (global_eva_base + gear_evasion) * conv_evasion_to_armour / 100.0;
         let arm_from_eva_mult = calc_def_mod(
             &env.player.mod_db,
             None,
@@ -628,20 +784,20 @@ fn calc_primary_defences(env: &mut CalcEnv) {
         armour += arm_from_eva_base * arm_from_eva_mult;
     }
 
-    // Iron Reflexes: convert all evasion to armour
-    if env.player.mod_db.flag_cfg("IronReflexes", None, &output) {
-        armour += evasion;
-        evasion = 0.0;
-    }
-
-    // Final rounding (Lua uses round for both, already done above for evasion)
+    // ── Final output (CalcDefence.lua:1044-1054) ──────────────────────────────
+    let energy_shield = env
+        .player
+        .mod_db
+        .override_value("EnergyShield", None, &output)
+        .unwrap_or_else(|| energy_shield.round().max(0.0));
     let armour = armour.round().max(0.0);
-    let evasion = evasion; // already rounded above
+    let evasion = evasion.round().max(0.0);
+    let ward = ward.floor().max(0.0);
 
+    env.player.set_output("EnergyShield", energy_shield);
     env.player.set_output("Armour", armour);
     env.player.set_output("Evasion", evasion);
-    env.player
-        .set_output("LowestOfArmourAndEvasion", armour.min(evasion));
+    env.player.set_output("Ward", ward);
 
     // MeleeEvasion and ProjectileEvasion (CalcDefence.lua:1047-1048)
     let melee_eva_mult = calc_def_mod(&env.player.mod_db, None, &output, &["MeleeEvasion"]);
@@ -653,12 +809,20 @@ fn calc_primary_defences(env: &mut CalcEnv) {
         (evasion * proj_eva_mult).round().max(0.0),
     );
 
+    env.player
+        .set_output("LowestOfArmourAndEvasion", armour.min(evasion));
+
+    // Gap E: Gear:* output fields (CalcDefence.lua:1051-1054).
+    env.player.set_output("Gear:Ward", gear_ward);
+    env.player
+        .set_output("Gear:EnergyShield", gear_energy_shield);
+    env.player.set_output("Gear:Armour", gear_armour);
+    env.player.set_output("Gear:Evasion", gear_evasion);
+
     // ── EnergyShieldRecoveryCap (CalcDefence.lua:1055-1062) ───────────────────
     // CappingES: true when ArmourESRecoveryCap or EvasionESRecoveryCap flag is set
     //            AND the respective defence is less than ES,
     //            OR the "conditionLowEnergyShield" config checkbox is set.
-    //
-    // In Rust, we expose "conditionLowEnergyShield" as a mod_db flag.
     let armour_es_cap = env
         .player
         .mod_db

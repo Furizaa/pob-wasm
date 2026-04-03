@@ -35,15 +35,25 @@ pub fn resolve_item_base(item: &mut Item, bases: &BaseItemMap) {
         });
     }
 
-    // 4. Armour data with quality scaling on armour/evasion/ES, no scaling on ward/block
+    // 4. Armour data with quality scaling on armour/evasion/ES, no scaling on ward/block.
+    //
+    // PoB's Item.lua (line 1537) computes armourData as:
+    //   (ArmourBaseMin + local_flat + armourVariance * ArmourBasePercentile) * (1 + INC/100) * (1 + quality/100)
+    //
+    // When no ArmourBasePercentile is present in the item text (which is the common case for
+    // items stored in PoB XML format), PoB defaults to percentile=1 (maximum roll). This means:
+    //   armour = (ArmourBaseMin + local_flat + (ArmourBaseMax - ArmourBaseMin)) * quality_factor
+    //          = (ArmourBaseMax + local_flat) * quality_factor
+    //
+    // We use armour_max here to match PoB's default-to-max-roll behaviour.
+    // Local flat mods (e.g. "+300 to Armour" from item explicits) are applied separately
+    // in setup.rs via apply_local_armour_mods().
     if let Some(ref armour) = base.armour {
-        let avg = |min: f64, max: f64| (min + max) / 2.0;
-
         item.armour_data = Some(ItemArmourData {
-            armour: avg(armour.armour_min, armour.armour_max) * quality_factor,
-            evasion: avg(armour.evasion_min, armour.evasion_max) * quality_factor,
-            energy_shield: avg(armour.energy_shield_min, armour.energy_shield_max) * quality_factor,
-            ward: avg(armour.ward_min, armour.ward_max),
+            armour: armour.armour_max * quality_factor,
+            evasion: armour.evasion_max * quality_factor,
+            energy_shield: armour.energy_shield_max * quality_factor,
+            ward: armour.ward_max,
             block: armour.block_chance as f64,
         });
     }
@@ -238,9 +248,10 @@ mod tests {
             .armour_data
             .as_ref()
             .expect("armour_data should be set");
-        // ES avg = (175 + 210) / 2 = 192.5, scaled = 192.5 * 1.2 = 231.0
+        // ES max = 210, scaled = 210 * 1.2 = 252.0
+        // PoB defaults to max roll (percentile=1): armour_data uses armour_max * quality_factor.
         assert!(
-            (ad.energy_shield - 231.0).abs() < 1e-9,
+            (ad.energy_shield - 252.0).abs() < 1e-9,
             "energy_shield: {}",
             ad.energy_shield
         );
@@ -329,9 +340,10 @@ mod tests {
             .armour_data
             .as_ref()
             .expect("armour_data should be set");
-        // ES avg = 192.5, factor = 1.0 → 192.5
+        // ES max = 210, factor = 1.0 → 210.0
+        // PoB defaults to max roll (percentile=1): armour_data uses armour_max * quality_factor.
         assert!(
-            (ad.energy_shield - 192.5).abs() < 1e-9,
+            (ad.energy_shield - 210.0).abs() < 1e-9,
             "energy_shield: {}",
             ad.energy_shield
         );
@@ -367,8 +379,8 @@ mod tests {
         resolve_item_base(&mut item, &bases);
 
         let ad = item.armour_data.as_ref().unwrap();
-        // ward avg = (80 + 100) / 2 = 90, NO quality scaling
-        assert!((ad.ward - 90.0).abs() < 1e-9, "ward: {}", ad.ward);
+        // ward max = 100, NO quality scaling (PoB: ward_max, no quality factor applied)
+        assert!((ad.ward - 100.0).abs() < 1e-9, "ward: {}", ad.ward);
         // block = 30, no quality scaling
         assert!((ad.block - 30.0).abs() < 1e-9, "block: {}", ad.block);
     }

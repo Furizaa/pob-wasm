@@ -1,3 +1,4 @@
+use crate::build::types::ItemArmourData;
 use crate::data::GameData;
 use crate::mod_db::types::Mod;
 use crate::mod_db::ModDb;
@@ -129,6 +130,16 @@ pub struct Actor {
     /// Indices: 0=Physical, 1=Lightning, 2=Cold, 3=Fire, 4=Chaos.
     /// Initialised as identity (100% stays as original type).
     pub damage_shift_table: [[f64; 5]; 5],
+
+    /// Per-slot armour item base data, populated by setup.rs.
+    ///
+    /// Mirrors `actor.itemList[slot].armourData` from CalcDefence.lua:843-923.
+    /// The slot name is one of: "Helmet", "Gloves", "Boots", "Body Armour",
+    /// "Weapon 2", "Weapon 3".  For players "Weapon 3" is always empty.
+    ///
+    /// These base values are **not** added to mod_db as global BASE mods —
+    /// instead defence.rs iterates this list and applies per-slot INC/MORE.
+    pub gear_slot_armour: Vec<(String, ItemArmourData)>,
 }
 
 impl Actor {
@@ -162,6 +173,7 @@ impl Actor {
                 [0.0, 0.0, 0.0, 100.0, 0.0],
                 [0.0, 0.0, 0.0, 0.0, 100.0],
             ],
+            gear_slot_armour: Vec::new(),
         }
     }
 
