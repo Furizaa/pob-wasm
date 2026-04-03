@@ -708,9 +708,9 @@ mod tests {
         let build = parse_xml(xml).unwrap();
         let data = make_data();
         let mut env = init_env(&build, data).unwrap();
+        active_skill::run(&mut env, &build);
         perform::run(&mut env);
         defence::run(&mut env);
-        active_skill::run(&mut env, &build);
         run(&mut env, &build);
         env
     }
@@ -832,6 +832,9 @@ mod tests {
             disable_reason: None,
             weapon1_flags: 0,
             weapon2_flags: 0,
+            active_mine_count: None,
+            active_stage_count: None,
+            display_name: String::new(),
         });
         env.player.set_output("Accuracy", 1000.0);
         env.player.action_speed_mod = 1.0;
@@ -899,6 +902,9 @@ mod tests {
             disable_reason: None,
             weapon1_flags: 0,
             weapon2_flags: 0,
+            active_mine_count: None,
+            active_stage_count: None,
+            display_name: String::new(),
         });
         env.player.set_output("Accuracy", 1000.0);
         env.player.action_speed_mod = 1.0;
@@ -971,6 +977,9 @@ mod tests {
             disable_reason: None,
             weapon1_flags: 0,
             weapon2_flags: 0,
+            active_mine_count: None,
+            active_stage_count: None,
+            display_name: String::new(),
         });
         env.player.action_speed_mod = 1.0;
 
@@ -1044,6 +1053,9 @@ mod tests {
             disable_reason: None,
             weapon1_flags: 0,
             weapon2_flags: 0,
+            active_mine_count: None,
+            active_stage_count: None,
+            display_name: String::new(),
         });
         env.player.action_speed_mod = 1.0;
 
@@ -1111,6 +1123,9 @@ mod tests {
             disable_reason: None,
             weapon1_flags: 0,
             weapon2_flags: 0,
+            active_mine_count: None,
+            active_stage_count: None,
+            display_name: String::new(),
         });
         env.player.set_output("Accuracy", 1000.0);
         env.player.action_speed_mod = 1.0;
@@ -1185,6 +1200,9 @@ mod tests {
             disable_reason: None,
             weapon1_flags: 0,
             weapon2_flags: 0,
+            active_mine_count: None,
+            active_stage_count: None,
+            display_name: String::new(),
         });
         env.player.set_output("Accuracy", 10000.0);
         env.player.action_speed_mod = 1.0;
@@ -1260,6 +1278,9 @@ mod tests {
             disable_reason: None,
             weapon1_flags: 0,
             weapon2_flags: 0,
+            active_mine_count: None,
+            active_stage_count: None,
+            display_name: String::new(),
         });
         env.player.action_speed_mod = 1.0;
 
@@ -1325,6 +1346,9 @@ mod tests {
             disable_reason: None,
             weapon1_flags: 0,
             weapon2_flags: 0,
+            active_mine_count: None,
+            active_stage_count: None,
+            display_name: String::new(),
         });
         env.player.set_output("Accuracy", 10000.0);
         env.player.action_speed_mod = 1.0;
@@ -1389,6 +1413,9 @@ mod tests {
             disable_reason: None,
             weapon1_flags: 0,
             weapon2_flags: 0,
+            active_mine_count: None,
+            active_stage_count: None,
+            display_name: String::new(),
         });
         env.player.action_speed_mod = 1.0;
 
@@ -1452,6 +1479,9 @@ mod tests {
             disable_reason: None,
             weapon1_flags: 0,
             weapon2_flags: 0,
+            active_mine_count: None,
+            active_stage_count: None,
+            display_name: String::new(),
         });
         env.player.action_speed_mod = 1.0;
 
@@ -1524,6 +1554,9 @@ mod tests {
             disable_reason: None,
             weapon1_flags: 0,
             weapon2_flags: 0,
+            active_mine_count: None,
+            active_stage_count: None,
+            display_name: String::new(),
         });
         env.player.action_speed_mod = 1.0;
 
@@ -1599,6 +1632,9 @@ mod tests {
             disable_reason: None,
             weapon1_flags: 0,
             weapon2_flags: 0,
+            active_mine_count: None,
+            active_stage_count: None,
+            display_name: String::new(),
         });
         env.player.action_speed_mod = 1.0;
 
@@ -1663,6 +1699,9 @@ mod tests {
             disable_reason: None,
             weapon1_flags: 0,
             weapon2_flags: 0,
+            active_mine_count: None,
+            active_stage_count: None,
+            display_name: String::new(),
         });
         env.player.action_speed_mod = 1.0;
 

@@ -204,6 +204,20 @@ pub struct ActiveSkill {
     /// Weapon ModFlags bit-OR for the off-hand attack.
     /// Set when skill uses weapon2 (weapon2Attack flag).
     pub weapon2_flags: u32,
+
+    /// Active mine count for mine skills.
+    /// Mirrors activeSkill.activeMineCount in Lua (CalcActiveSkill.lua:596).
+    /// Used by reservation calculation to scale reservation per active mine.
+    pub active_mine_count: Option<f64>,
+
+    /// Active stage count for channelled/staged skills (e.g. Blood Sacrament).
+    /// Mirrors activeSkill.activeStageCount in Lua (CalcActiveSkill.lua:620).
+    /// Used by reservation calculation to scale reservation per stage.
+    pub active_stage_count: Option<f64>,
+
+    /// Human-readable display name from gem data (e.g. "Discipline", "Grace").
+    /// Mirrors activeSkill.activeEffect.grantedEffect.name in Lua.
+    pub display_name: String,
 }
 
 impl Default for ActiveSkill {
@@ -234,6 +248,9 @@ impl Default for ActiveSkill {
             disable_reason: None,
             weapon1_flags: 0,
             weapon2_flags: 0,
+            active_mine_count: None,
+            active_stage_count: None,
+            display_name: String::new(),
         }
     }
 }

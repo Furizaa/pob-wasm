@@ -59,9 +59,9 @@ pub fn calculate(pob_xml: String) -> Result<String, JsValue> {
     let mut env = pob_calc::calc::setup::init_env(&build, Arc::clone(&data))
         .map_err(|e| JsValue::from_str(&format!("setup error: {e}")))?;
 
+    pob_calc::calc::active_skill::run(&mut env, &build);
     pob_calc::calc::perform::run(&mut env);
     pob_calc::calc::defence::run(&mut env);
-    pob_calc::calc::active_skill::run(&mut env, &build);
     pob_calc::calc::offence::run(&mut env, &build);
     pob_calc::calc::triggers::run(&mut env, &build);
     pob_calc::calc::mirages::run(&mut env, &build);
@@ -95,9 +95,9 @@ pub fn calculate_skill(pob_xml: String, skill_index: u32) -> Result<String, JsVa
 
     let mut env = pob_calc::calc::setup::init_env(&build, Arc::clone(&data))
         .map_err(|e| JsValue::from_str(&format!("setup error: {e}")))?;
+    pob_calc::calc::active_skill::run(&mut env, &build);
     pob_calc::calc::perform::run(&mut env);
     pob_calc::calc::defence::run(&mut env);
-    pob_calc::calc::active_skill::run(&mut env, &build);
     pob_calc::calc::offence::run(&mut env, &build);
     pob_calc::calc::triggers::run(&mut env, &build);
     pob_calc::calc::mirages::run(&mut env, &build);

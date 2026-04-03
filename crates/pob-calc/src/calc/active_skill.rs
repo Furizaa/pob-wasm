@@ -56,14 +56,31 @@ static KNOWN_SUMMONER_SKILLS: LazyLock<std::collections::HashSet<&'static str>> 
 
 /// Look up a gem in the gems map by trying:
 /// 1. Exact match on `skill_id`
-/// 2. Lowercase match
-/// 3. Lowercase with spaces replaced by underscores
+/// 2. Normalized ID (legacy renames like "AngerAura" → "Anger")
+/// 3. Lowercase match
+/// 4. Lowercase with spaces replaced by underscores
 fn lookup_gem<'a>(gems: &'a GemsMap, skill_id: &str) -> Option<&'a GemData> {
-    gems.get(skill_id).or_else(|| {
-        let lower = skill_id.to_lowercase();
-        gems.get(&lower)
-            .or_else(|| gems.get(&lower.replace(' ', "_")))
-    })
+    gems.get(skill_id)
+        .or_else(|| {
+            let normalized = crate::calc::setup::normalize_gem_skill_id(skill_id);
+            if normalized != skill_id {
+                gems.get(normalized)
+            } else {
+                None
+            }
+        })
+        .or_else(|| {
+            let lower = skill_id.to_lowercase();
+            gems.get(&lower)
+                .or_else(|| gems.get(&lower.replace(' ', "_")))
+        })
+}
+
+/// Returns the normalized skill ID for an active skill, applying legacy renames.
+/// This is the ID stored in the gems data map.
+fn normalize_skill_id(skill_id: &str) -> String {
+    let normalized = crate::calc::setup::normalize_gem_skill_id(skill_id);
+    normalized.to_string()
 }
 
 // ── Support gem matching ────────────────────────────────────────────────────
@@ -430,6 +447,10 @@ fn create_active_skill(
         }
     }
 
+    let display_name = gem_data
+        .map(|gd| gd.display_name.clone())
+        .unwrap_or_default();
+
     ActiveSkill {
         skill_id,
         level,
@@ -456,6 +477,9 @@ fn create_active_skill(
         disable_reason: None,
         weapon1_flags: 0,
         weapon2_flags: 0,
+        active_mine_count: None,
+        active_stage_count: None,
+        display_name,
     }
 }
 
@@ -471,6 +495,24 @@ pub fn build_active_skill_mod_list(
     env_mode_buffs: bool,
     env_mode_combat: bool,
     env_mode_effective: bool,
+) {
+    build_active_skill_mod_list_with_gems(
+        skill,
+        env_mode_buffs,
+        env_mode_combat,
+        env_mode_effective,
+        None,
+    );
+}
+
+/// Full version of build_active_skill_mod_list that accepts an optional gems map
+/// for populating SupportManaMultiplier mods on skill_mod_db.
+pub fn build_active_skill_mod_list_with_gems(
+    skill: &mut ActiveSkill,
+    env_mode_buffs: bool,
+    env_mode_combat: bool,
+    env_mode_effective: bool,
+    gems_for_mod_list: Option<&GemsMap>,
 ) {
     // ── Mode flags (CalcActiveSkill.lua:235–243) ───────────────────────────
     if env_mode_buffs {
@@ -673,6 +715,48 @@ pub fn build_active_skill_mod_list(
         skill_id: Some(skill.skill_id.clone()),
         ..Default::default()
     });
+
+    // ── Add SupportManaMultiplier MORE mods from support gems ──────────────
+    // Mirrors CalcActiveSkill.lua:500–506: for each support in effectList,
+    // add SupportManaMultiplier MORE mod with the support's mana_multiplier.
+    if let Some(gems) = gems_for_mod_list {
+        use crate::mod_db::types::{Mod, ModSource, ModType, ModValue};
+        for se in &skill.support_list {
+            // Look up the support gem's level data
+            if let Some(sup_gd) = lookup_gem(gems, &se.skill_id) {
+                if sup_gd.is_support {
+                    let sup_level = sup_gd
+                        .levels
+                        .iter()
+                        .find(|l| l.level == se.level)
+                        .or_else(|| sup_gd.levels.last());
+                    if let Some(sl) = sup_level {
+                        // Lua: level.manaMultiplier is the delta from 100 (e.g. -12 for Enlighten L4)
+                        // Lua adds: NewMod("SupportManaMultiplier", "MORE", level.manaMultiplier, ...)
+                        // MORE semantics: product of (1 + value/100) for each
+                        if sl.mana_multiplier != 0.0 {
+                            skill.skill_mod_db.add(Mod {
+                                name: "SupportManaMultiplier".into(),
+                                mod_type: ModType::More,
+                                value: ModValue::Number(sl.mana_multiplier),
+                                flags: ModFlags::NONE,
+                                keyword_flags: KeywordFlags::NONE,
+                                tags: vec![],
+                                source: ModSource::new("Support", &se.skill_id),
+                            });
+                        }
+                        // Lua: if level.manaReservationPercent then skillData.manaReservationPercent = level.manaReservationPercent
+                        if sl.mana_reservation_percent > 0.0 {
+                            skill.skill_data.insert(
+                                "manaReservationPercent".into(),
+                                sl.mana_reservation_percent,
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 // ── set_skill_conditions ───────────────────────────────────────────────────
@@ -876,8 +960,11 @@ pub fn run(env: &mut CalcEnv, build: &crate::build::Build) {
                 None
             };
 
+            // Normalize the skill ID to resolve legacy renames (e.g. "AngerAura" → "Anger").
+            // This ensures the ActiveSkill's skill_id matches the gems data key.
+            let normalized_id = normalize_skill_id(&gem.skill_id);
             let active_skill = create_active_skill(
-                gem.skill_id.clone(),
+                normalized_id,
                 gem.level,
                 gem.quality,
                 gem_data,
@@ -926,11 +1013,12 @@ pub fn run(env: &mut CalcEnv, build: &crate::build::Build) {
             // We can't clone ActiveSkill (ModDb doesn't Clone), so we move and replace.
             // Use swap-remove and re-insert at end:
             let mut cloned = rebuild_active_skill_from_gem(&env.data.gems, skill);
-            build_active_skill_mod_list(
+            build_active_skill_mod_list_with_gems(
                 &mut cloned,
                 env.mode_buffs,
                 env.mode_combat,
                 env.mode_effective,
+                Some(&env.data.gems),
             );
             env.player.main_skill = Some(cloned);
         }
@@ -939,7 +1027,13 @@ pub fn run(env: &mut CalcEnv, build: &crate::build::Build) {
     // ── Build mod lists for all active skills ───────────────────────────────
     // (CalcSetup.lua:1756–1759) — build_active_skill_mod_list for every skill
     for skill in &mut env.player.active_skill_list {
-        build_active_skill_mod_list(skill, env.mode_buffs, env.mode_combat, env.mode_effective);
+        build_active_skill_mod_list_with_gems(
+            skill,
+            env.mode_buffs,
+            env.mode_combat,
+            env.mode_effective,
+            Some(&env.data.gems),
+        );
     }
 
     // ── Fallback: if still no main skill, create default Melee skill ────────
@@ -999,11 +1093,12 @@ fn build_fallback_main_skill(env: &mut CalcEnv) {
         None,
         &env.data.gems,
     );
-    build_active_skill_mod_list(
+    build_active_skill_mod_list_with_gems(
         &mut skill,
         env.mode_buffs,
         env.mode_combat,
         env.mode_effective,
+        Some(&env.data.gems),
     );
 
     // Fallback Melee: treat as physical melee attack
@@ -1023,11 +1118,12 @@ fn build_fallback_main_skill(env: &mut CalcEnv) {
     main.skill_flags.insert("attack".to_string(), true);
     main.skill_flags.insert("melee".to_string(), true);
     main.skill_flags.insert("hit".to_string(), true);
-    build_active_skill_mod_list(
+    build_active_skill_mod_list_with_gems(
         &mut main,
         env.mode_buffs,
         env.mode_combat,
         env.mode_effective,
+        Some(&env.data.gems),
     );
     env.player.main_skill = Some(main);
 }

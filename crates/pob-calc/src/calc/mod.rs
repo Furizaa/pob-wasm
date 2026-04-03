@@ -32,10 +32,12 @@ pub struct CalcResult {
 pub fn calculate(build: &Build, data: Arc<GameData>) -> Result<CalcResult, CalcError> {
     let mut env = setup::init_env(build, data)?;
 
-    perform::run_with_build(&mut env, Some(build));
+    // Build active skill list BEFORE perform, so reservation accumulation
+    // can iterate env.player.active_skill_list (mirrors Lua CalcSetup order).
+    active_skill::run(&mut env, build);
+    perform::run(&mut env);
     defence::run(&mut env);
     defence_ehp::run(&mut env);
-    active_skill::run(&mut env, build);
     offence::run(&mut env, build);
     triggers::run(&mut env, build);
     mirages::run(&mut env, build);
