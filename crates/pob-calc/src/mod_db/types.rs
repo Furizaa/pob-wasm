@@ -194,6 +194,19 @@ pub struct ConqueredBy {
     pub conqueror_id: String,
 }
 
+/// Embedded sub-mod carried inside a LIST mod value.
+/// Mirrors the `{ mod = mod("Armour", "BASE", value) }` table in PoB's Lua mod system.
+/// Used by GrantReservedLifeAsAura / GrantReservedManaAsAura to carry the aura mod
+/// that gets scaled by the reserved amount and added as an ExtraAura.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct EmbeddedMod {
+    pub name: String,
+    pub mod_type: ModType,
+    pub value: f64,
+    pub flags: ModFlags,
+    pub keyword_flags: KeywordFlags,
+}
+
 /// The value a modifier carries.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum ModValue {
@@ -203,6 +216,10 @@ pub enum ModValue {
     /// Structured jewel data (key-value pairs from JewelData LIST mods).
     /// Used for `conqueredBy` and other jewel-specific data.
     ConqueredBy(ConqueredBy),
+    /// An embedded sub-mod (e.g. `{ mod = mod("Armour", "BASE", 0.25) }`).
+    /// Used by GrantReservedLifeAsAura / GrantReservedManaAsAura and similar LIST mods
+    /// that carry a mod to be scaled and re-emitted as an ExtraAura.
+    EmbeddedMod(Box<EmbeddedMod>),
 }
 
 impl ModValue {
@@ -216,7 +233,7 @@ impl ModValue {
                     0.0
                 }
             }
-            Self::String(_) | Self::ConqueredBy(_) => 0.0,
+            Self::String(_) | Self::ConqueredBy(_) | Self::EmbeddedMod(_) => 0.0,
         }
     }
 
@@ -224,7 +241,7 @@ impl ModValue {
         match self {
             Self::Bool(b) => *b,
             Self::Number(n) => *n != 0.0,
-            Self::String(_) | Self::ConqueredBy(_) => false,
+            Self::String(_) | Self::ConqueredBy(_) | Self::EmbeddedMod(_) => false,
         }
     }
 
@@ -232,6 +249,14 @@ impl ModValue {
     pub fn as_conquered_by(&self) -> Option<&ConqueredBy> {
         match self {
             Self::ConqueredBy(cb) => Some(cb),
+            _ => None,
+        }
+    }
+
+    /// Extract the EmbeddedMod if this is an EmbeddedMod variant.
+    pub fn as_embedded_mod(&self) -> Option<&EmbeddedMod> {
+        match self {
+            Self::EmbeddedMod(em) => Some(em),
             _ => None,
         }
     }

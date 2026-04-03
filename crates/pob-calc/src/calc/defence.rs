@@ -52,6 +52,7 @@ pub fn run(env: &mut CalcEnv) {
     calc_leech_caps(env);
     calc_regeneration(env);
     calc_es_recharge(env);
+    calc_ward_recharge_delay(env);
     calc_damage_reduction(env);
     calc_movement_and_avoidance(env);
     build_damage_shift_table(env);
@@ -992,13 +993,30 @@ fn calc_damage_reduction(env: &mut CalcEnv) {
 fn calc_recovery_rates(env: &mut CalcEnv) {
     let output = env.player.output.clone();
 
+    // CalcDefence.lua:1192-1197:
+    //   output.LifeRecoveryRateMod = 1
+    //   if not modDB:Flag(nil, "CannotRecoverLifeOutsideLeech") then
+    //     output.LifeRecoveryRateMod = calcLib.mod(modDB, nil, "LifeRecoveryRate")
+    //   end
+    //   output.ManaRecoveryRateMod = calcLib.mod(modDB, nil, "ManaRecoveryRate")
+    //   output.EnergyShieldRecoveryRateMod = calcLib.mod(modDB, nil, "EnergyShieldRecoveryRate")
+    let cannot_recover_life_outside_leech =
+        env.player
+            .mod_db
+            .flag_cfg("CannotRecoverLifeOutsideLeech", None, &output);
+
     for resource in &["Life", "Mana", "EnergyShield"] {
         // The mod stat name is "{resource}RecoveryRate" (e.g. "LifeRecoveryRate").
         // The output field name is "{resource}RecoveryRateMod".
-        // Lua: calcLib.mod(modDB, nil, "LifeRecoveryRate") == (1 + INC/100) * More
-        // CalcDefence.lua:1194-1197
         let mod_stat = format!("{resource}RecoveryRate");
         let output_stat = format!("{resource}RecoveryRateMod");
+
+        // Gap a: CannotRecoverLifeOutsideLeech sets LifeRecoveryRateMod to 1 (no recovery bonus).
+        if *resource == "Life" && cannot_recover_life_outside_leech {
+            env.player.set_output(&output_stat, 1.0);
+            continue;
+        }
+
         let inc = env
             .player
             .mod_db
@@ -1238,6 +1256,24 @@ fn calc_es_recharge(env: &mut CalcEnv) {
     }
 }
 
+// ── Ward recharge delay (CalcDefence.lua:1473-1483) ──────────────────────────
+
+/// Compute WardRechargeDelay.
+/// Mirrors CalcDefence.lua:1474:
+///   output.WardRechargeDelay = data.misc.WardRechargeDelay / (1 + INC("WardRechargeFaster") / 100)
+/// data.misc.WardRechargeDelay = 2 (Data.lua:185)
+fn calc_ward_recharge_delay(env: &mut CalcEnv) {
+    let output = env.player.output.clone();
+
+    let faster = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Inc, "WardRechargeFaster", None, &output);
+    // data.misc.WardRechargeDelay = 2 seconds
+    let delay = 2.0 / (1.0 + faster / 100.0);
+    env.player.set_output("WardRechargeDelay", delay);
+}
+
 // ── Task 9: Movement speed, avoidance, misc ──────────────────────────────────
 
 fn calc_movement_and_avoidance(env: &mut CalcEnv) {
@@ -1256,17 +1292,61 @@ fn calc_movement_and_avoidance(env: &mut CalcEnv) {
     env.player
         .set_output("EffectiveMovementSpeedMod", ms * action_speed);
 
-    // Life/Mana/ES on block
-    for resource in &["Life", "Mana", "EnergyShield"] {
-        let stat = format!("{resource}OnBlock");
-        let val = env
-            .player
+    // CalcDefence.lua:1512-1524 — On-block and on-suppress recovery.
+    // LifeOnBlock and LifeOnSuppress are 0 when CannotRecoverLifeOutsideLeech is set.
+    let cannot_recover_life_outside_leech =
+        env.player
             .mod_db
-            .sum_cfg(ModType::Base, &stat, None, &output);
-        env.player.set_output(&stat, val);
-    }
+            .flag_cfg("CannotRecoverLifeOutsideLeech", None, &output);
 
-    // Life/Mana/ES on suppress — computed but not output (PoB doesn't output these directly)
+    // LifeOnBlock (guarded by CannotRecoverLifeOutsideLeech)
+    let life_on_block = if cannot_recover_life_outside_leech {
+        0.0
+    } else {
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "LifeOnBlock", None, &output)
+    };
+    env.player.set_output("LifeOnBlock", life_on_block);
+
+    // LifeOnSuppress (guarded by CannotRecoverLifeOutsideLeech)
+    let life_on_suppress = if cannot_recover_life_outside_leech {
+        0.0
+    } else {
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "LifeOnSuppress", None, &output)
+    };
+    env.player.set_output("LifeOnSuppress", life_on_suppress);
+
+    // ManaOnBlock (no guard)
+    let mana_on_block = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "ManaOnBlock", None, &output);
+    env.player.set_output("ManaOnBlock", mana_on_block);
+
+    // EnergyShieldOnBlock (no guard)
+    let es_on_block =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "EnergyShieldOnBlock", None, &output);
+    env.player.set_output("EnergyShieldOnBlock", es_on_block);
+
+    // Gap d: EnergyShieldOnSpellBlock and EnergyShieldOnSuppress (CalcDefence.lua:1522-1524)
+    let es_on_spell_block =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "EnergyShieldOnSpellBlock", None, &output);
+    env.player
+        .set_output("EnergyShieldOnSpellBlock", es_on_spell_block);
+
+    let es_on_suppress =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "EnergyShieldOnSuppress", None, &output);
+    env.player
+        .set_output("EnergyShieldOnSuppress", es_on_suppress);
 
     // Ailment avoidance
     let elemental_ailments = [

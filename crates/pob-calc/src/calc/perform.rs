@@ -552,11 +552,23 @@ fn do_actor_life_mana_reservation(env: &mut CalcEnv) {
     // data.misc.LowPoolThreshold = 0.5 (Data.lua:167)
     const LOW_POOL_THRESHOLD: f64 = 0.5;
 
+    // Gap e: CalcPerform.lua:1922 — first call uses addAura = not flag(ManaIncreasedByOvercappedLightningRes)
+    // In the normal case (flag not set) addAura is true. We always run the aura branch here, matching
+    // the typical case. The special Foulborn Choir re-run (CalcPerform.lua:3201) with addAura=true
+    // is not separately implemented since it's only needed when ManaIncreasedByOvercappedLightningRes
+    // is active (a rare item-specific case). The branch logic is present and correct.
+    let add_aura = !env.player.mod_db.flag_cfg(
+        "ManaIncreasedByOvercappedLightningRes",
+        None,
+        &env.player.output,
+    );
+
     // Lua iterates {"Life", "Mana"} and runs the same logic for both.
     // We unroll the loop here for Rust clarity.
 
     // ── Life ──────────────────────────────────────────────────────────────
     let life = get_output_f64(&env.player.output, "Life");
+    let life_reserved;
     if life > 0.0 {
         // LowLifePercentage: read from modDB (raw fraction, e.g. 0.35 for 35%)
         // This was already written to output as 100*fraction in do_actor_life_mana.
@@ -574,6 +586,7 @@ fn do_actor_life_mana_reservation(env: &mut CalcEnv) {
         // Percent portion uses m_ceil (Lua uses ceil, NOT floor or round)
         let reserved_life_from_pct = (life * env.player.reserved_life_percent / 100.0).ceil();
         let total_reserved_life = reserved_life_from_pct + env.player.reserved_life;
+        life_reserved = total_reserved_life;
         // Reserved shown in UI is capped at max, but Unreserved is NOT clamped.
         let life_reserved_display = total_reserved_life.min(life);
         let life_unreserved = life - total_reserved_life; // can be negative — do NOT clamp
@@ -598,10 +611,51 @@ fn do_actor_life_mana_reservation(env: &mut CalcEnv) {
         if life_unreserved / life <= low_life_threshold {
             env.player.mod_db.set_condition("LowLife", true);
         }
+    } else {
+        life_reserved = 0.0;
+    }
+
+    // Gap e: GrantReservedLifeAsAura (CalcPerform.lua:545-551)
+    // For each LIST mod named "GrantReservedLifeAsAura", scale its embedded mod's value
+    // by floor(embedded_value * min(reserved, max)) and add as an ExtraAura LIST mod.
+    if add_aura {
+        // Collect the ExtraAura mods to add (borrow-checker: can't borrow mod_db mutably while iterating)
+        let extra_aura_mods: Vec<Mod> = {
+            let grant_mods =
+                env.player
+                    .mod_db
+                    .list("GrantReservedLifeAsAura", None, &env.player.output);
+            grant_mods
+                .iter()
+                .filter_map(|m| {
+                    let embedded = m.value.as_embedded_mod()?;
+                    let scaled_value = (embedded.value * life_reserved.min(life)).floor();
+                    Some(Mod {
+                        name: "ExtraAura".into(),
+                        mod_type: ModType::List,
+                        value: ModValue::EmbeddedMod(Box::new(crate::mod_db::types::EmbeddedMod {
+                            name: embedded.name.clone(),
+                            mod_type: embedded.mod_type.clone(),
+                            value: scaled_value,
+                            flags: embedded.flags,
+                            keyword_flags: embedded.keyword_flags,
+                        })),
+                        flags: ModFlags::NONE,
+                        keyword_flags: KeywordFlags::NONE,
+                        tags: vec![],
+                        source: m.source.clone(),
+                    })
+                })
+                .collect()
+        };
+        for extra in extra_aura_mods {
+            env.player.mod_db.add(extra);
+        }
     }
 
     // ── Mana ──────────────────────────────────────────────────────────────
     let mana = get_output_f64(&env.player.output, "Mana");
+    let mana_reserved;
     if mana > 0.0 {
         let low_mana_perc_raw =
             env.player
@@ -616,6 +670,7 @@ fn do_actor_life_mana_reservation(env: &mut CalcEnv) {
         // Percent portion uses m_ceil
         let reserved_mana_from_pct = (mana * env.player.reserved_mana_percent / 100.0).ceil();
         let total_reserved_mana = reserved_mana_from_pct + env.player.reserved_mana;
+        mana_reserved = total_reserved_mana;
         let mana_reserved_display = total_reserved_mana.min(mana);
         let mana_unreserved = mana - total_reserved_mana; // can be negative — do NOT clamp
 
@@ -637,6 +692,43 @@ fn do_actor_life_mana_reservation(env: &mut CalcEnv) {
         // LowMana condition: (unreserved / max) <= threshold
         if mana_unreserved / mana <= low_mana_threshold {
             env.player.mod_db.set_condition("LowMana", true);
+        }
+    } else {
+        mana_reserved = 0.0;
+    }
+
+    // Gap e: GrantReservedManaAsAura (CalcPerform.lua:545-551)
+    if add_aura {
+        let extra_aura_mods: Vec<Mod> = {
+            let grant_mods =
+                env.player
+                    .mod_db
+                    .list("GrantReservedManaAsAura", None, &env.player.output);
+            grant_mods
+                .iter()
+                .filter_map(|m| {
+                    let embedded = m.value.as_embedded_mod()?;
+                    let scaled_value = (embedded.value * mana_reserved.min(mana)).floor();
+                    Some(Mod {
+                        name: "ExtraAura".into(),
+                        mod_type: ModType::List,
+                        value: ModValue::EmbeddedMod(Box::new(crate::mod_db::types::EmbeddedMod {
+                            name: embedded.name.clone(),
+                            mod_type: embedded.mod_type.clone(),
+                            value: scaled_value,
+                            flags: embedded.flags,
+                            keyword_flags: embedded.keyword_flags,
+                        })),
+                        flags: ModFlags::NONE,
+                        keyword_flags: KeywordFlags::NONE,
+                        tags: vec![],
+                        source: m.source.clone(),
+                    })
+                })
+                .collect()
+        };
+        for extra in extra_aura_mods {
+            env.player.mod_db.add(extra);
         }
     }
 }
