@@ -1900,33 +1900,153 @@ fn do_actor_charges(env: &mut CalcEnv) {
 
 /// Mirrors doActorMisc() in CalcPerform.lua.
 fn do_actor_misc(env: &mut CalcEnv) {
-    let o = &env.player.output;
+    // CalcPerform.lua:612: if env.mode_combat then
+    if env.mode_combat {
+        // CalcPerform.lua:620: alliedFortify — party/parent actor inheritance.
+        // Party members and parent actors are not modelled in Rust; always 0.
+        let allied_fortify = 0.0_f64;
 
-    // Fortify
-    let fortified_flag = env.player.mod_db.flag_cfg("Fortified", None, o)
-        || env
-            .player
-            .mod_db
-            .conditions
-            .get("Fortified")
-            .copied()
-            .unwrap_or(false);
-    if fortified_flag {
-        let max_fort_base = env.player.mod_db.sum_cfg(
+        // CalcPerform.lua:622-624: set Fortified condition from MinimumFortification or allied
+        let min_fort_raw = env.player.mod_db.sum_cfg(
             ModType::Base,
-            "MaximumFortification",
+            "MinimumFortification",
             None,
             &env.player.output,
         );
-        let max_fort = if max_fort_base > 0.0 {
-            max_fort_base
-        } else {
-            20.0
-        };
-        env.player.set_output("FortifyStacks", max_fort);
-        env.player.mod_db.set_multiplier("FortifyStack", max_fort);
-        env.player.mod_db.set_condition("Fortified", true);
-    }
+        if min_fort_raw > 0.0 || allied_fortify > 0.0 {
+            env.player.mod_db.set_condition("Fortified", true);
+        }
+
+        // CalcPerform.lua:626: Fortify block
+        // modDB:Flag(nil, "Fortified") checks FLAG mods (possibly Condition-tagged ones)
+        // OR conditions["Fortified"] set directly by buffFortification config.
+        let fortified_flag = env
+            .player
+            .mod_db
+            .flag_cfg("Fortified", None, &env.player.output)
+            || env
+                .player
+                .mod_db
+                .conditions
+                .get("Fortified")
+                .copied()
+                .unwrap_or(false);
+        let fortification_multiplier = env.player.mod_db.sum_cfg(
+            ModType::Base,
+            "Multiplier:Fortification",
+            None,
+            &env.player.output,
+        );
+        if fortified_flag || fortification_multiplier > 0.0 {
+            // Build skill cfg from main skill (mirrors: skillCfg = actor.mainSkill.skillCfg)
+            // Needed for skill-scoped MaximumFortification mods.
+            let skill_cfg = env
+                .player
+                .main_skill
+                .as_ref()
+                .and_then(|s| s.skill_cfg.clone());
+            let skill_cfg_ref = skill_cfg.as_ref();
+
+            // CalcPerform.lua:629: maxStacks = max(override OR sum(BASE MaximumFortification), alliedFortify)
+            let max_stacks_sum = env.player.mod_db.sum_cfg(
+                ModType::Base,
+                "MaximumFortification",
+                skill_cfg_ref,
+                &env.player.output,
+            );
+            let max_stacks_override =
+                env.player
+                    .mod_db
+                    .override_value("MaximumFortification", None, &env.player.output);
+            let max_stacks_base = max_stacks_override.unwrap_or(max_stacks_sum);
+            let max_stacks = max_stacks_base.max(allied_fortify);
+
+            // CalcPerform.lua:630: minStacks = min(HaveMaxFortification→maxStacks OR MinimumFortification, maxStacks)
+            let have_max_fort = env.player.mod_db.flag_cfg(
+                "Condition:HaveMaxFortification",
+                None,
+                &env.player.output,
+            ) || env
+                .player
+                .mod_db
+                .conditions
+                .get("HaveMaxFortification")
+                .copied()
+                .unwrap_or(false);
+            let min_stacks_raw = if have_max_fort {
+                max_stacks
+            } else {
+                min_fort_raw
+            };
+            let min_stacks = min_stacks_raw.min(max_stacks);
+
+            // CalcPerform.lua:631: stacks = min(override OR (minStacks > 0 and minStacks) OR maxStacks, maxStacks)
+            let stacks_override =
+                env.player
+                    .mod_db
+                    .override_value("FortificationStacks", None, &env.player.output);
+            let stacks_default = if min_stacks > 0.0 {
+                min_stacks
+            } else {
+                max_stacks
+            };
+            let stacks = stacks_override.unwrap_or(stacks_default).min(max_stacks);
+
+            // CalcPerform.lua:633-642: output writes
+            env.player.set_output("MaximumFortification", max_stacks);
+            env.player.set_output("MinimumFortification", min_stacks);
+            let removable =
+                (max_stacks - min_stacks).min(stacks_override.unwrap_or(max_stacks) - min_stacks);
+            env.player.set_output("RemovableFortification", removable);
+            env.player.set_output("FortificationStacks", stacks);
+            let stacks_over_20 = (stacks - 20.0).max(0.0).min(max_stacks - 20.0);
+            env.player
+                .set_output("FortificationStacksOver20", stacks_over_20);
+
+            // CalcPerform.lua:639: FortificationEffect = "0" initially (as number 0)
+            // then overwritten unless NoFortificationMitigation
+            let no_mitigation = env.player.mod_db.flag_cfg(
+                "Condition:NoFortificationMitigation",
+                None,
+                &env.player.output,
+            );
+            if no_mitigation {
+                // Willowgift case: write numeric 0 (oracle shows number type)
+                env.player.set_output("FortificationEffect", 0.0);
+            } else {
+                // CalcPerform.lua:641: FortificationEffect = stacks
+                env.player.set_output("FortificationEffect", stacks);
+                // CalcPerform.lua:642: inject DamageTakenWhenHit MORE -stacks
+                env.player.mod_db.add(Mod {
+                    name: "DamageTakenWhenHit".into(),
+                    mod_type: ModType::More,
+                    value: crate::mod_db::types::ModValue::Number(-stacks),
+                    flags: crate::mod_db::types::ModFlags::NONE,
+                    keyword_flags: crate::mod_db::types::KeywordFlags::NONE,
+                    tags: Vec::new(),
+                    source: ModSource::new("Buff", "Fortification"),
+                });
+            }
+
+            // CalcPerform.lua:644-645: if stacks >= maxStacks → HaveMaximumFortification condition
+            if stacks >= max_stacks {
+                env.player.mod_db.add(Mod::new_flag(
+                    "Condition:HaveMaximumFortification",
+                    ModSource::new("Buff", "Fortification"),
+                ));
+            }
+
+            // CalcPerform.lua:647: modDB.multipliers["BuffOnSelf"] += 1
+            let prev = env
+                .player
+                .mod_db
+                .multipliers
+                .get("BuffOnSelf")
+                .copied()
+                .unwrap_or(0.0);
+            env.player.mod_db.set_multiplier("BuffOnSelf", prev + 1.0);
+        }
+    } // end mode_combat
 
     // Onslaught
     let onslaught = env
@@ -2975,19 +3095,33 @@ mod tests {
         let mut env = make_env(|env| {
             env.player.mod_db.add(Mod::new_base("Life", 100.0, src()));
             env.player.mod_db.add(Mod::new_flag("Fortified", src()));
+            // MaximumFortification must be > 0 for the fortify block to produce output.
+            // In real builds this comes from ascendancy/keystone/items.
+            env.player
+                .mod_db
+                .add(Mod::new_base("MaximumFortification", 20.0, src()));
         });
         run(&mut env);
 
-        // Default MaximumFortification is 20
-        assert_eq!(get_output_f64(&env.player.output, "FortifyStacks"), 20.0);
+        // FortificationStacks defaults to maxStacks when no Override or MinimumFortification.
+        assert_eq!(
+            get_output_f64(&env.player.output, "FortificationStacks"),
+            20.0
+        );
+        // FortificationEffect equals stacks when NoFortificationMitigation is not set.
+        assert_eq!(
+            get_output_f64(&env.player.output, "FortificationEffect"),
+            20.0
+        );
+        // BuffOnSelf multiplier should be incremented by 1.
         assert_eq!(
             env.player
                 .mod_db
                 .multipliers
-                .get("FortifyStack")
+                .get("BuffOnSelf")
                 .copied()
                 .unwrap_or(0.0),
-            20.0
+            1.0
         );
     }
 
