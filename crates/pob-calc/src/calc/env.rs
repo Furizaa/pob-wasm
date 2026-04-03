@@ -131,6 +131,11 @@ pub struct Actor {
     /// Initialised as identity (100% stays as original type).
     pub damage_shift_table: [[f64; 5]; 5],
 
+    /// Reservation efficiency values, stored for Arcane Cloak calculations.
+    /// Mirrors env.player["ManaEfficiency"] / env.player["LifeEfficiency"] in Lua.
+    pub mana_efficiency: f64,
+    pub life_efficiency: f64,
+
     /// Per-slot armour item base data, populated by setup.rs.
     ///
     /// Mirrors `actor.itemList[slot].armourData` from CalcDefence.lua:843-923.
@@ -161,6 +166,8 @@ impl Actor {
             reserved_mana_percent: 0.0,
             uncancellable_life_reservation: 0.0,
             uncancellable_mana_reservation: 0.0,
+            mana_efficiency: 0.0,
+            life_efficiency: 0.0,
             buffs: Vec::new(),
             guards: Vec::new(),
             debuffs: Vec::new(),

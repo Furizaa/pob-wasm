@@ -153,8 +153,6 @@ pub fn fields_for_chunk(chunk: &str) -> Option<&'static [&'static str]> {
             "ManaReservedPercent",
             "LifeReserved",
             "LifeReservedPercent",
-            "ManaReservedP",
-            "LifeReservedP",
         ],
 
         "PERF-05-buffs" => &[

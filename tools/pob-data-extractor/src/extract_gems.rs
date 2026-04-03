@@ -203,6 +203,12 @@ fn extract_level(
         life_cost = cost_tbl.get("Life").unwrap_or(0.0);
     }
 
+    // Reservation fields (auras, heralds, etc.)
+    let mana_reservation_flat: f64 = level_table.get("manaReservationFlat").unwrap_or(0.0);
+    let mana_reservation_percent: f64 = level_table.get("manaReservationPercent").unwrap_or(0.0);
+    let life_reservation_flat: f64 = level_table.get("lifeReservationFlat").unwrap_or(0.0);
+    let life_reservation_percent: f64 = level_table.get("lifeReservationPercent").unwrap_or(0.0);
+
     Ok(SkillLevelData {
         level: level_key,
         level_requirement,
@@ -216,6 +222,10 @@ fn extract_level(
         stored_uses,
         cooldown,
         duration,
+        mana_reservation_flat,
+        mana_reservation_percent,
+        life_reservation_flat,
+        life_reservation_percent,
     })
 }
 

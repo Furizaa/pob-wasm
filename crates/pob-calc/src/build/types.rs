@@ -114,6 +114,13 @@ pub struct Gem {
     pub quality: u8,
     pub enabled: bool,
     pub is_support: bool,
+    /// For Vaal gems, controls the Vaal active effect (index 1).
+    /// For non-Vaal gems, controls the single granted effect.
+    pub enable_global1: bool,
+    /// For Vaal gems, controls the base (non-Vaal) active effect (index 2).
+    /// When true, the base version of the Vaal gem is active (e.g., base Discipline
+    /// from Vaal Discipline reserves mana).
+    pub enable_global2: bool,
 }
 
 /// A fully resolved active skill, ready for offence calculations.

@@ -144,12 +144,22 @@ pub fn parse_xml(xml: &str) -> Result<Build, ParseError> {
                                 .and_then(|v| v.parse().ok())
                                 .unwrap_or(0);
                             let enabled = attrs.get("enabled").map(|v| v == "true").unwrap_or(true);
+                            let enable_global1 = attrs
+                                .get("enableGlobal1")
+                                .map(|v| v == "true")
+                                .unwrap_or(true);
+                            let enable_global2 = attrs
+                                .get("enableGlobal2")
+                                .map(|v| v == "true")
+                                .unwrap_or(false);
                             skill.gems.push(Gem {
                                 skill_id,
                                 level,
                                 quality,
                                 enabled,
                                 is_support: false,
+                                enable_global1,
+                                enable_global2,
                             });
                         }
                     }

@@ -2204,7 +2204,7 @@ fn parse_jewel_allocation_info(item: &crate::build::types::Item) -> JewelAllocat
 /// Normalize a gem skill ID from the build XML to match our gems.json keys.
 /// PoB uses legacy/different skill IDs in old builds (e.g. "SparkProjectile", "HatredAura").
 /// This function maps those to the current gem IDs used in our data.
-fn normalize_gem_skill_id(skill_id: &str) -> &str {
+pub fn normalize_gem_skill_id(skill_id: &str) -> &str {
     // Explicit mappings for known legacy IDs from old PoB builds.
     // Maps old skill IDs used in build XML files to current skill IDs in our data.
     match skill_id {
@@ -2213,7 +2213,7 @@ fn normalize_gem_skill_id(skill_id: &str) -> &str {
         "AccuracyAndCritsAura" => "Precision",
         "NewPhaseRun" => "PhaseRun",
         "NewShieldCharge" => "ShieldCharge",
-        "BladestormSandstorm" => "BloodAndSand",
+        "BladestormSandstorm" => "Bladestorm",
         "AncestralWarchief" => "AncestralProtector",
         "VaalAncestralWarchief" => "AncestralProtector",
         // Aura skill renames (removed "Aura" suffix in newer PoB)
