@@ -3,7 +3,7 @@ pub mod types;
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use types::{KeywordFlags, Mod, ModFlags, ModType, ModValue, SkillCfg};
+use types::{KeywordFlags, Mod, ModFlags, ModSource, ModType, ModValue, SkillCfg};
 
 use crate::calc::env::OutputTable;
 
@@ -50,6 +50,32 @@ impl ModDb {
     /// Add a modifier to the database.
     pub fn add(&mut self, m: Mod) {
         self.mods.entry(m.name.clone()).or_default().push(m);
+    }
+
+    /// Replace an existing mod with matching name+type+flags+keywordFlags+source,
+    /// or add it if no match is found. Mirrors PoB's modDB:ReplaceMod().
+    pub fn replace_mod(&mut self, m: Mod) {
+        let list = self.mods.entry(m.name.clone()).or_default();
+        for existing in list.iter_mut() {
+            if existing.mod_type == m.mod_type
+                && existing.flags == m.flags
+                && existing.keyword_flags == m.keyword_flags
+                && existing.source == m.source
+            {
+                *existing = m;
+                return;
+            }
+        }
+        list.push(m);
+    }
+
+    /// Return the source of the first mod stored under `name`, if any.
+    /// Mirrors Lua's `modDB.mods[name][1].source` pattern.
+    pub fn first_mod_source(&self, name: &str) -> Option<ModSource> {
+        self.mods
+            .get(name)
+            .and_then(|list| list.first())
+            .map(|m| m.source.clone())
     }
 
     /// Set a condition flag (mirrors modDB.conditions[var] = true/false in POB).

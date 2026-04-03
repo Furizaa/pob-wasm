@@ -507,6 +507,29 @@ fn add_base_constants(db: &mut ModDb, data: &GameData) {
         src.clone(),
     ));
 
+    // --- Charge duration (CalcSetup.lua:30) ---
+    db.add(Mod::new_base("ChargeDuration", 10.0, src.clone()));
+
+    // --- Alternative charge maxes (CalcSetup.lua:34–42) ---
+    db.add(Mod::new_base("SiphoningChargesMax", 0.0, src.clone()));
+    db.add(Mod::new_base("ChallengerChargesMax", 0.0, src.clone()));
+    db.add(Mod::new_base("BlitzChargesMax", 0.0, src.clone()));
+
+    let inspiration_max = gc_or(gc, "maximum_righteous_charges", 5.0);
+    db.add(Mod::new_base(
+        "InspirationChargesMax",
+        inspiration_max,
+        src.clone(),
+    ));
+
+    db.add(Mod::new_base("CrabBarriersMax", 0.0, src.clone()));
+    db.add(Mod::new_base("BrutalChargesMax", 0.0, src.clone()));
+    db.add(Mod::new_base("AbsorptionChargesMax", 0.0, src.clone()));
+    db.add(Mod::new_base("AfflictionChargesMax", 0.0, src.clone()));
+
+    let blood_max = gc_or(gc, "maximum_blood_scythe_charges", 5.0);
+    db.add(Mod::new_base("BloodChargesMax", blood_max, src.clone()));
+
     // --- Leech rates ---
     let max_life_leech_rate = gc_or(gc, "maximum_life_leech_rate_%_per_minute", 20.0);
     db.add(Mod::new_base(

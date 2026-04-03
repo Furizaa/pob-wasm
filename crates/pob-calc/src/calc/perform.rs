@@ -738,12 +738,28 @@ fn do_actor_life_mana_reservation(env: &mut CalcEnv) {
 // ---------------------------------------------------------------------------
 
 /// Mirrors doActorCharges() in CalcPerform.lua.
-fn do_actor_charges(env: &mut CalcEnv) {
-    // Base max charges are already in the moddb from add_base_constants (game_constants values).
-    // Additional max charges come from passives, items, etc. as additional Base mods.
-    // We just sum all Base mods for each max to get the total.
+/// Helper: check for a Flag mod OR a condition with the same name.
+/// The Lua setup adds config booleans like "usePowerCharges" as FLAG mods (with a
+/// Condition tag for Combat), but the Rust setup currently stores them as conditions.
+/// This helper bridges the gap until setup.rs is updated to emit proper FLAG mods.
+fn flag_or_cond(env: &CalcEnv, name: &str) -> bool {
+    env.player.mod_db.flag_cfg(name, None, &env.player.output)
+        || env
+            .player
+            .mod_db
+            .conditions
+            .get(name)
+            .copied()
+            .unwrap_or(false)
+}
 
-    // Compute all charge values upfront to avoid borrow conflicts
+fn do_actor_charges(env: &mut CalcEnv) {
+    // Mirrors doActorCharges() in CalcPerform.lua lines 917–1065.
+    // Faithfully ports every code path from the Lua source.
+
+    // ── Step 1: Compute Max/Min values (Lua lines 922–952) ──────────────
+
+    // Power charges (Lua 923–925)
     let pc_min = env
         .player
         .mod_db
@@ -752,44 +768,120 @@ fn do_actor_charges(env: &mut CalcEnv) {
     let pc_max = env
         .player
         .mod_db
-        .sum_cfg(ModType::Base, "PowerChargesMax", None, &env.player.output)
-        .max(0.0);
-    let use_pc = env
-        .player
-        .mod_db
-        .flag_cfg("UsePowerCharges", None, &env.player.output)
-        || env
+        .override_value("PowerChargesMax", None, &env.player.output)
+        .unwrap_or_else(|| {
+            env.player
+                .mod_db
+                .sum_cfg(ModType::Base, "PowerChargesMax", None, &env.player.output)
+                .max(0.0)
+        });
+
+    // PowerChargesDuration (Lua 925) — not in PERF-03 field set but computed by Lua
+    let charge_dur_base =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "ChargeDuration", None, &env.player.output);
+    let pc_dur_mod = crate::calc::calc_tools::calc_def_mod(
+        &env.player.mod_db,
+        None,
+        &env.player.output,
+        &["PowerChargesDuration", "ChargeDuration"],
+    );
+    let pc_dur = (charge_dur_base * pc_dur_mod).floor();
+    env.player.set_output("PowerChargesDuration", pc_dur);
+
+    // Write PowerChargesMin/Max to output now (needed by subsequent flag-chain formulas)
+    env.player.set_output("PowerChargesMin", pc_min);
+    env.player.set_output("PowerChargesMax", pc_max);
+
+    // MaximumFrenzyChargesIsMaximumPowerCharges flag (Lua 926–929)
+    // If set, inject an OVERRIDE for FrenzyChargesMax equal to PowerChargesMax.
+    if env.player.mod_db.flag_cfg(
+        "MaximumFrenzyChargesIsMaximumPowerCharges",
+        None,
+        &env.player.output,
+    ) {
+        let source = env
             .player
             .mod_db
-            .conditions
-            .get("UsePowerCharges")
-            .copied()
-            .unwrap_or(false);
-    let pc = if use_pc { pc_max } else { pc_min };
+            .first_mod_source("MaximumFrenzyChargesIsMaximumPowerCharges")
+            .unwrap_or_else(|| ModSource::new("", ""));
+        env.player.mod_db.replace_mod(Mod {
+            name: "FrenzyChargesMax".into(),
+            mod_type: ModType::Override,
+            value: ModValue::Number(pc_max),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            tags: Vec::new(),
+            source,
+        });
+    }
 
+    // Frenzy charges (Lua 930–932)
     let fc_min = env
         .player
         .mod_db
         .sum_cfg(ModType::Base, "FrenzyChargesMin", None, &env.player.output)
         .max(0.0);
+    // FrenzyChargesMax: Override → flag-mirror → Sum (Lua 931)
     let fc_max = env
         .player
         .mod_db
-        .sum_cfg(ModType::Base, "FrenzyChargesMax", None, &env.player.output)
-        .max(0.0);
-    let use_fc = env
-        .player
-        .mod_db
-        .flag_cfg("UseFrenzyCharges", None, &env.player.output)
-        || env
+        .override_value("FrenzyChargesMax", None, &env.player.output)
+        .unwrap_or_else(|| {
+            if env.player.mod_db.flag_cfg(
+                "MaximumFrenzyChargesIsMaximumPowerCharges",
+                None,
+                &env.player.output,
+            ) {
+                pc_max
+            } else {
+                env.player.mod_db.sum_cfg(
+                    ModType::Base,
+                    "FrenzyChargesMax",
+                    None,
+                    &env.player.output,
+                )
+            }
+            .max(0.0)
+        });
+
+    // FrenzyChargesDuration (Lua 932)
+    let fc_dur_mod = crate::calc::calc_tools::calc_def_mod(
+        &env.player.mod_db,
+        None,
+        &env.player.output,
+        &["FrenzyChargesDuration", "ChargeDuration"],
+    );
+    let fc_dur = (charge_dur_base * fc_dur_mod).floor();
+    env.player.set_output("FrenzyChargesDuration", fc_dur);
+
+    env.player.set_output("FrenzyChargesMin", fc_min);
+    env.player.set_output("FrenzyChargesMax", fc_max);
+
+    // MaximumEnduranceChargesIsMaximumFrenzyCharges flag (Lua 933–935)
+    if env.player.mod_db.flag_cfg(
+        "MaximumEnduranceChargesIsMaximumFrenzyCharges",
+        None,
+        &env.player.output,
+    ) {
+        let source = env
             .player
             .mod_db
-            .conditions
-            .get("UseFrenzyCharges")
-            .copied()
-            .unwrap_or(false);
-    let fc = if use_fc { fc_max } else { fc_min };
+            .first_mod_source("MaximumEnduranceChargesIsMaximumFrenzyCharges")
+            .unwrap_or_else(|| ModSource::new("", ""));
+        env.player.mod_db.replace_mod(Mod {
+            name: "EnduranceChargesMax".into(),
+            mod_type: ModType::Override,
+            value: ModValue::Number(fc_max),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            tags: Vec::new(),
+            source,
+        });
+    }
 
+    // Endurance charges (Lua 937–939)
     let ec_min = env
         .player
         .mod_db
@@ -800,123 +892,513 @@ fn do_actor_charges(env: &mut CalcEnv) {
             &env.player.output,
         )
         .max(0.0);
+    // EnduranceChargesMax: Override → party-member → flag-mirror → Sum (Lua 938)
+    // NOTE: No party member support in Rust CalcEnv — party member flag always false.
     let ec_max = env
+        .player
+        .mod_db
+        .override_value("EnduranceChargesMax", None, &env.player.output)
+        .unwrap_or_else(|| {
+            // Party member path skipped (env.partyMembers not implemented in Rust).
+            // Fall through to flag-mirror or base sum.
+            if env.player.mod_db.flag_cfg(
+                "MaximumEnduranceChargesIsMaximumFrenzyCharges",
+                None,
+                &env.player.output,
+            ) {
+                fc_max
+            } else {
+                env.player.mod_db.sum_cfg(
+                    ModType::Base,
+                    "EnduranceChargesMax",
+                    None,
+                    &env.player.output,
+                )
+            }
+            .max(0.0)
+        });
+
+    // EnduranceChargesDuration (Lua 939)
+    let ec_dur_mod = crate::calc::calc_tools::calc_def_mod(
+        &env.player.mod_db,
+        None,
+        &env.player.output,
+        &["EnduranceChargesDuration", "ChargeDuration"],
+    );
+    let ec_dur = (charge_dur_base * ec_dur_mod).floor();
+    env.player.set_output("EnduranceChargesDuration", ec_dur);
+
+    env.player.set_output("EnduranceChargesMin", ec_min);
+    env.player.set_output("EnduranceChargesMax", ec_max);
+
+    // Alternative charge max fields (Lua 940–944)
+    let siphoning_charges_max = env
         .player
         .mod_db
         .sum_cfg(
             ModType::Base,
-            "EnduranceChargesMax",
+            "SiphoningChargesMax",
             None,
             &env.player.output,
         )
         .max(0.0);
-    let use_ec = env
+    env.player
+        .set_output("SiphoningChargesMax", siphoning_charges_max);
+
+    let challenger_charges_max = env
         .player
         .mod_db
-        .flag_cfg("UseEnduranceCharges", None, &env.player.output)
-        || env
-            .player
-            .mod_db
-            .conditions
-            .get("UseEnduranceCharges")
-            .copied()
-            .unwrap_or(false);
-    let ec = if use_ec { ec_max } else { ec_min };
-
-    // Now set all outputs (no more borrows on output)
-    env.player.set_output("PowerChargesMin", pc_min);
-    env.player.set_output("PowerChargesMax", pc_max);
-    env.player.set_output("PowerCharges", pc);
-    env.player.mod_db.set_multiplier("PowerCharge", pc);
-
-    env.player.set_output("FrenzyChargesMin", fc_min);
-    env.player.set_output("FrenzyChargesMax", fc_max);
-    env.player.set_output("FrenzyCharges", fc);
-    env.player.mod_db.set_multiplier("FrenzyCharge", fc);
-
-    env.player.set_output("EnduranceChargesMin", ec_min);
-    env.player.set_output("EnduranceChargesMax", ec_max);
-    env.player.set_output("EnduranceCharges", ec);
-    env.player.mod_db.set_multiplier("EnduranceCharge", ec);
-
-    // Total charges
-    let total = pc + fc + ec;
-    env.player.mod_db.set_multiplier("TotalCharges", total);
-
-    // Charge conditions
+        .sum_cfg(
+            ModType::Base,
+            "ChallengerChargesMax",
+            None,
+            &env.player.output,
+        )
+        .max(0.0);
     env.player
-        .mod_db
-        .set_condition("HaveMaximumPowerCharges", pc >= pc_max && pc_max > 0.0);
-    env.player
-        .mod_db
-        .set_condition("HaveMaximumFrenzyCharges", fc >= fc_max && fc_max > 0.0);
-    env.player
-        .mod_db
-        .set_condition("HaveMaximumEnduranceCharges", ec >= ec_max && ec_max > 0.0);
+        .set_output("ChallengerChargesMax", challenger_charges_max);
 
-    // Charge duration
-    let charge_dur_base =
-        env.player
-            .mod_db
-            .sum_cfg(ModType::Base, "ChargeDuration", None, &env.player.output);
-    let charge_dur_base = if charge_dur_base > 0.0 {
-        charge_dur_base
+    let blitz_charges_max = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "BlitzChargesMax", None, &env.player.output)
+        .max(0.0);
+    env.player.set_output("BlitzChargesMax", blitz_charges_max);
+
+    let inspiration_charges_max = env
+        .player
+        .mod_db
+        .sum_cfg(
+            ModType::Base,
+            "InspirationChargesMax",
+            None,
+            &env.player.output,
+        )
+        .max(0.0);
+    env.player
+        .set_output("InspirationChargesMax", inspiration_charges_max);
+
+    let crab_barriers_max = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "CrabBarriersMax", None, &env.player.output)
+        .max(0.0);
+    env.player.set_output("CrabBarriersMax", crab_barriers_max);
+
+    // Brutal charges min/max (Lua 945–946)
+    let brutal_charges_min = if env.player.mod_db.flag_cfg(
+        "MinimumEnduranceChargesEqualsMinimumBrutalCharges",
+        None,
+        &env.player.output,
+    ) {
+        if env.player.mod_db.flag_cfg(
+            "MinimumEnduranceChargesIsMaximumEnduranceCharges",
+            None,
+            &env.player.output,
+        ) {
+            ec_max
+        } else {
+            ec_min
+        }
     } else {
         0.0
-    };
-    let charge_dur_inc =
-        env.player
-            .mod_db
-            .sum_cfg(ModType::Inc, "ChargeDuration", None, &env.player.output);
-    let charge_dur = charge_dur_base * (1.0 + charge_dur_inc / 100.0);
-    if charge_dur > 0.0 {
-        env.player.set_output("ChargeDuration", charge_dur);
+    }
+    .max(0.0);
+    env.player
+        .set_output("BrutalChargesMin", brutal_charges_min);
+
+    let brutal_charges_max = if env.player.mod_db.flag_cfg(
+        "MaximumEnduranceChargesEqualsMaximumBrutalCharges",
+        None,
+        &env.player.output,
+    ) {
+        ec_max
+    } else {
+        0.0
+    }
+    .max(0.0);
+    env.player
+        .set_output("BrutalChargesMax", brutal_charges_max);
+
+    // Absorption charges min/max (Lua 947–948)
+    let absorption_charges_min = if env.player.mod_db.flag_cfg(
+        "MinimumPowerChargesEqualsMinimumAbsorptionCharges",
+        None,
+        &env.player.output,
+    ) {
+        if env.player.mod_db.flag_cfg(
+            "MinimumPowerChargesIsMaximumPowerCharges",
+            None,
+            &env.player.output,
+        ) {
+            pc_max
+        } else {
+            pc_min
+        }
+    } else {
+        0.0
+    }
+    .max(0.0);
+    env.player
+        .set_output("AbsorptionChargesMin", absorption_charges_min);
+
+    let absorption_charges_max = if env.player.mod_db.flag_cfg(
+        "MaximumPowerChargesEqualsMaximumAbsorptionCharges",
+        None,
+        &env.player.output,
+    ) {
+        pc_max
+    } else {
+        0.0
+    }
+    .max(0.0);
+    env.player
+        .set_output("AbsorptionChargesMax", absorption_charges_max);
+
+    // Affliction charges min/max (Lua 949–950)
+    let affliction_charges_min = if env.player.mod_db.flag_cfg(
+        "MinimumFrenzyChargesEqualsMinimumAfflictionCharges",
+        None,
+        &env.player.output,
+    ) {
+        if env.player.mod_db.flag_cfg(
+            "MinimumFrenzyChargesIsMaximumFrenzyCharges",
+            None,
+            &env.player.output,
+        ) {
+            fc_max
+        } else {
+            fc_min
+        }
+    } else {
+        0.0
+    }
+    .max(0.0);
+    env.player
+        .set_output("AfflictionChargesMin", affliction_charges_min);
+
+    let affliction_charges_max = if env.player.mod_db.flag_cfg(
+        "MaximumFrenzyChargesEqualsMaximumAfflictionCharges",
+        None,
+        &env.player.output,
+    ) {
+        fc_max
+    } else {
+        0.0
+    }
+    .max(0.0);
+    env.player
+        .set_output("AfflictionChargesMax", affliction_charges_max);
+
+    // Blood charges max (Lua 951)
+    let blood_charges_max = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "BloodChargesMax", None, &env.player.output)
+        .max(0.0);
+    env.player.set_output("BloodChargesMax", blood_charges_max);
+
+    // Spirit charges max (Lua 952)
+    let spirit_charges_max = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "SpiritChargesMax", None, &env.player.output)
+        .max(0.0);
+    env.player
+        .set_output("SpiritChargesMax", spirit_charges_max);
+
+    // ── Step 2: Zero-initialize all current charges (Lua 954–967) ───────
+    env.player.set_output("PowerCharges", 0.0);
+    env.player.set_output("FrenzyCharges", 0.0);
+    env.player.set_output("EnduranceCharges", 0.0);
+    env.player.set_output("SiphoningCharges", 0.0);
+    env.player.set_output("ChallengerCharges", 0.0);
+    env.player.set_output("BlitzCharges", 0.0);
+    env.player.set_output("InspirationCharges", 0.0);
+    env.player.set_output("GhostShrouds", 0.0);
+    env.player.set_output("BrutalCharges", 0.0);
+    env.player.set_output("AbsorptionCharges", 0.0);
+    env.player.set_output("AfflictionCharges", 0.0);
+    env.player.set_output("BloodCharges", 0.0);
+    env.player.set_output("SpiritCharges", 0.0);
+
+    // ── Step 3: Conditionally override Min values (Lua 970–978) ─────────
+    // These use mutable locals for the min values since they may be overwritten.
+    let mut pc_min = pc_min;
+    let mut fc_min = fc_min;
+    let mut ec_min = ec_min;
+
+    if env.player.mod_db.flag_cfg(
+        "MinimumFrenzyChargesIsMaximumFrenzyCharges",
+        None,
+        &env.player.output,
+    ) {
+        fc_min = fc_max;
+        env.player.set_output("FrenzyChargesMin", fc_max);
+    }
+    if env.player.mod_db.flag_cfg(
+        "MinimumEnduranceChargesIsMaximumEnduranceCharges",
+        None,
+        &env.player.output,
+    ) {
+        ec_min = ec_max;
+        env.player.set_output("EnduranceChargesMin", ec_max);
+    }
+    if env.player.mod_db.flag_cfg(
+        "MinimumPowerChargesIsMaximumPowerCharges",
+        None,
+        &env.player.output,
+    ) {
+        pc_min = pc_max;
+        env.player.set_output("PowerChargesMin", pc_max);
     }
 
-    // Alternative charges (simple: max val when flag set, else 0)
-    // Collect values first to avoid borrow conflicts in the loop
-    let alt_charges: Vec<(&str, &str, f64)> = [
-        ("SiphoningCharges", "UseSiphoningCharges", "SiphoningCharge"),
-        (
-            "ChallengerCharges",
-            "UseChallengerCharges",
-            "ChallengerCharge",
-        ),
-        ("BlitzCharges", "UseBlitzCharges", "BlitzCharge"),
-        (
-            "InspirationCharges",
-            "UseInspirationCharges",
-            "InspirationCharge",
-        ),
-        ("GhostShrouds", "UseGhostShrouds", "GhostShroud"),
-    ]
-    .iter()
-    .map(|(charge_name, flag_name, multiplier_name)| {
-        let max_key = format!("{charge_name}Max");
-        let max_val = env
-            .player
-            .mod_db
-            .sum_cfg(ModType::Base, &max_key, None, &env.player.output);
-        let use_flag = env
-            .player
-            .mod_db
-            .flag_cfg(flag_name, None, &env.player.output)
-            || env
-                .player
-                .mod_db
-                .conditions
-                .get(*flag_name)
-                .copied()
-                .unwrap_or(false);
-        let val = if use_flag { max_val } else { 0.0 };
-        (*charge_name, *multiplier_name, val)
-    })
-    .collect();
+    // ── Step 4: Determine current charge counts (Lua 979–1033) ──────────
 
-    for (charge_name, multiplier_name, val) in alt_charges {
-        env.player.set_output(charge_name, val);
-        env.player.mod_db.set_multiplier(multiplier_name, val);
+    // Power Charges / Absorption conversion (Lua 979–990)
+    let mut pc = 0.0_f64;
+    if flag_or_cond(env, "UsePowerCharges") {
+        pc = env
+            .player
+            .mod_db
+            .override_value("PowerCharges", None, &env.player.output)
+            .unwrap_or(pc_max);
     }
+    let mut absorption_charges = 0.0_f64;
+    if env.player.mod_db.flag_cfg(
+        "PowerChargesConvertToAbsorptionCharges",
+        None,
+        &env.player.output,
+    ) {
+        absorption_charges = pc.max(absorption_charges_max.min(absorption_charges_min));
+        pc = 0.0;
+    } else {
+        pc = pc.max(pc_max.min(pc_min));
+    }
+    let removable_pc = (pc - pc_min).max(0.0);
+    env.player.set_output("PowerCharges", pc);
+    env.player
+        .set_output("AbsorptionCharges", absorption_charges);
+    env.player.set_output("RemovablePowerCharges", removable_pc);
+
+    // Frenzy Charges / Affliction conversion (Lua 991–1002)
+    let mut fc = 0.0_f64;
+    if flag_or_cond(env, "UseFrenzyCharges") {
+        fc = env
+            .player
+            .mod_db
+            .override_value("FrenzyCharges", None, &env.player.output)
+            .unwrap_or(fc_max);
+    }
+    let mut affliction_charges = 0.0_f64;
+    if env.player.mod_db.flag_cfg(
+        "FrenzyChargesConvertToAfflictionCharges",
+        None,
+        &env.player.output,
+    ) {
+        affliction_charges = fc.max(affliction_charges_max.min(affliction_charges_min));
+        fc = 0.0;
+    } else {
+        fc = fc.max(fc_max.min(fc_min));
+    }
+    let removable_fc = (fc - fc_min).max(0.0);
+    env.player.set_output("FrenzyCharges", fc);
+    env.player
+        .set_output("AfflictionCharges", affliction_charges);
+    env.player
+        .set_output("RemovableFrenzyCharges", removable_fc);
+
+    // Endurance Charges / Brutal conversion (Lua 1003–1014)
+    let mut ec = 0.0_f64;
+    if flag_or_cond(env, "UseEnduranceCharges") {
+        ec = env
+            .player
+            .mod_db
+            .override_value("EnduranceCharges", None, &env.player.output)
+            .unwrap_or(ec_max);
+    }
+    let mut brutal_charges = 0.0_f64;
+    if env.player.mod_db.flag_cfg(
+        "EnduranceChargesConvertToBrutalCharges",
+        None,
+        &env.player.output,
+    ) {
+        brutal_charges = ec.max(brutal_charges_max.min(brutal_charges_min));
+        ec = 0.0;
+    } else {
+        ec = ec.max(ec_max.min(ec_min));
+    }
+    let removable_ec = (ec - ec_min).max(0.0);
+    env.player.set_output("EnduranceCharges", ec);
+    env.player.set_output("BrutalCharges", brutal_charges);
+    env.player
+        .set_output("RemovableEnduranceCharges", removable_ec);
+
+    // Siphoning, Challenger, Blitz (Lua 1015–1023)
+    let mut siphoning_charges = 0.0_f64;
+    if flag_or_cond(env, "UseSiphoningCharges") {
+        siphoning_charges = env
+            .player
+            .mod_db
+            .override_value("SiphoningCharges", None, &env.player.output)
+            .unwrap_or(siphoning_charges_max);
+    }
+    env.player.set_output("SiphoningCharges", siphoning_charges);
+
+    let mut challenger_charges = 0.0_f64;
+    if flag_or_cond(env, "UseChallengerCharges") {
+        challenger_charges = env
+            .player
+            .mod_db
+            .override_value("ChallengerCharges", None, &env.player.output)
+            .unwrap_or(challenger_charges_max);
+    }
+    env.player
+        .set_output("ChallengerCharges", challenger_charges);
+
+    let mut blitz_charges = 0.0_f64;
+    if flag_or_cond(env, "UseBlitzCharges") {
+        blitz_charges = env
+            .player
+            .mod_db
+            .override_value("BlitzCharges", None, &env.player.output)
+            .unwrap_or(blitz_charges_max);
+    }
+    env.player.set_output("BlitzCharges", blitz_charges);
+
+    // Inspiration charges — always set for player (Lua 1024–1026: actor == env.player)
+    let inspiration_charges = env
+        .player
+        .mod_db
+        .override_value("InspirationCharges", None, &env.player.output)
+        .unwrap_or(inspiration_charges_max);
+    env.player
+        .set_output("InspirationCharges", inspiration_charges);
+
+    // Ghost Shrouds (Lua 1027–1029)
+    let mut ghost_shrouds = 0.0_f64;
+    if flag_or_cond(env, "UseGhostShrouds") {
+        ghost_shrouds = env
+            .player
+            .mod_db
+            .override_value("GhostShrouds", None, &env.player.output)
+            .unwrap_or(3.0);
+    }
+    env.player.set_output("GhostShrouds", ghost_shrouds);
+
+    // Blood charges (Lua 1030) — always set, no Use guard
+    let blood_charges = env
+        .player
+        .mod_db
+        .override_value("BloodCharges", None, &env.player.output)
+        .unwrap_or(blood_charges_max)
+        .min(blood_charges_max);
+    env.player.set_output("BloodCharges", blood_charges);
+
+    // Spirit charges (Lua 1031)
+    let spirit_charges = env
+        .player
+        .mod_db
+        .override_value("SpiritCharges", None, &env.player.output)
+        .unwrap_or(0.0)
+        .min(spirit_charges_max);
+    env.player.set_output("SpiritCharges", spirit_charges);
+
+    // Crab barriers (Lua 1033)
+    let crab_barriers = env
+        .player
+        .mod_db
+        .override_value("CrabBarriers", None, &env.player.output)
+        .unwrap_or(crab_barriers_max)
+        .min(crab_barriers_max);
+    env.player.set_output("CrabBarriers", crab_barriers);
+
+    // ── Step 5: HaveMaximum*Charges flag overrides (Lua 1034–1042) ──────
+    if env
+        .player
+        .mod_db
+        .flag_cfg("HaveMaximumPowerCharges", None, &env.player.output)
+    {
+        pc = pc_max;
+        env.player.set_output("PowerCharges", pc);
+    }
+    if env
+        .player
+        .mod_db
+        .flag_cfg("HaveMaximumFrenzyCharges", None, &env.player.output)
+    {
+        fc = fc_max;
+        env.player.set_output("FrenzyCharges", fc);
+    }
+    if env
+        .player
+        .mod_db
+        .flag_cfg("HaveMaximumEnduranceCharges", None, &env.player.output)
+    {
+        ec = ec_max;
+        env.player.set_output("EnduranceCharges", ec);
+    }
+
+    // ── Step 6: TotalCharges and multiplier writes (Lua 1043–1064) ──────
+    let total_charges = pc + fc + ec;
+    env.player.set_output("TotalCharges", total_charges);
+
+    let removable_total = removable_ec + removable_fc + removable_pc;
+    env.player
+        .set_output("RemovableTotalCharges", removable_total);
+
+    env.player.mod_db.set_multiplier("PowerCharge", pc);
+    env.player.mod_db.set_multiplier("PowerChargeMax", pc_max);
+    env.player
+        .mod_db
+        .set_multiplier("RemovablePowerCharge", removable_pc);
+    env.player.mod_db.set_multiplier("FrenzyCharge", fc);
+    env.player
+        .mod_db
+        .set_multiplier("RemovableFrenzyCharge", removable_fc);
+    env.player.mod_db.set_multiplier("EnduranceCharge", ec);
+    env.player
+        .mod_db
+        .set_multiplier("RemovableEnduranceCharge", removable_ec);
+    env.player
+        .mod_db
+        .set_multiplier("TotalCharges", total_charges);
+    env.player
+        .mod_db
+        .set_multiplier("RemovableTotalCharges", removable_total);
+    env.player
+        .mod_db
+        .set_multiplier("SiphoningCharge", siphoning_charges);
+    env.player
+        .mod_db
+        .set_multiplier("ChallengerCharge", challenger_charges);
+    env.player
+        .mod_db
+        .set_multiplier("BlitzCharge", blitz_charges);
+    env.player
+        .mod_db
+        .set_multiplier("InspirationCharge", inspiration_charges);
+    env.player
+        .mod_db
+        .set_multiplier("GhostShroud", ghost_shrouds);
+    env.player
+        .mod_db
+        .set_multiplier("CrabBarrier", crab_barriers);
+    env.player
+        .mod_db
+        .set_multiplier("BrutalCharge", brutal_charges);
+    env.player
+        .mod_db
+        .set_multiplier("AbsorptionCharge", absorption_charges);
+    env.player
+        .mod_db
+        .set_multiplier("AfflictionCharge", affliction_charges);
+    env.player
+        .mod_db
+        .set_multiplier("BloodCharge", blood_charges);
+    env.player
+        .mod_db
+        .set_multiplier("SpiritCharge", spirit_charges);
 }
 
 // ---------------------------------------------------------------------------
@@ -1962,13 +2444,8 @@ mod tests {
                 .unwrap_or(0.0),
             5.0
         );
-        assert!(env
-            .player
-            .mod_db
-            .conditions
-            .get("HaveMaximumPowerCharges")
-            .copied()
-            .unwrap_or(false));
+        // Note: HaveMaximumPowerCharges is a FLAG mod checked by flag_cfg, not a condition
+        // set by doActorCharges. The Lua does not set a condition for this.
     }
 
     // ------------------------------------------------------------------
