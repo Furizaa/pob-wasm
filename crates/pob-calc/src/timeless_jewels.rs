@@ -418,7 +418,7 @@ pub fn apply_timeless_jewels(
                 apply_notable_replacement(node, conquered_by, jewel_type, seed, data)
             }
             NodeType::Keystone => apply_keystone_replacement(node, conquered_by, data),
-            NodeType::Small => apply_normal_replacement(node, conquered_by, data),
+            NodeType::Small => apply_normal_replacement(node, conquered_by, jewel_type, seed, data),
             _ => None,
         };
 
@@ -600,6 +600,8 @@ const ATTRIBUTE_NAMES: &[&str] = &["Dexterity", "Intelligence", "Strength"];
 fn apply_normal_replacement(
     node: &PassiveNode,
     conquered_by: &ConqueredBy,
+    jewel_type: JewelType,
+    seed: u64,
     data: &GameData,
 ) -> Option<Vec<String>> {
     let is_attribute_node = ATTRIBUTE_NAMES.contains(&node.name.as_str());
@@ -609,12 +611,40 @@ fn apply_normal_replacement(
 
     match &conquered_by.conqueror_type {
         ConquerorType::Vaal => {
-            // Glorious Vanity normal nodes: LUT-based replacement (same as notable)
-            // But we can't call apply_notable_replacement directly without seed/jewel_type.
-            // This branch is handled by the notable path above; for normal nodes with Vaal,
-            // the same LUT lookup applies.
-            // For now return None (the vaal normal path needs its own LUT lookup).
-            None
+            // Glorious Vanity normal nodes: full LUT lookup, same structure as the
+            // notable 2/3-byte case (PassiveSpec.lua:1261-1279).
+            //   jewelDataTbl = data.readLUT(conqueredBy.id, node.id, jewelType)
+            //   ReplaceNode(node, legionNodes[jewelDataTbl[1] + 1 - timelessJewelAdditions])
+            //   for each stat: replaceHelperFunc(repStat, statKey, statMod, jewelDataTbl[2])
+            let jewel_data_tbl = data.legion.read_lut(seed, node.id, jewel_type)?;
+            if jewel_data_tbl.is_empty() {
+                return None;
+            }
+
+            let replace_idx = jewel_data_tbl[0] as usize + 1 - TIMELESS_JEWEL_ADDITIONS;
+            let legion_node = data.legion.nodes.get(replace_idx.wrapping_sub(1))?;
+
+            let mut new_stats = legion_node.sd.clone();
+
+            // Apply stat rolls: jewel_data_tbl[1] is the roll value for all stats
+            let roll = jewel_data_tbl.get(1).copied().unwrap_or(0) as f64;
+            for (i, stat_str) in new_stats.iter_mut().enumerate() {
+                if i < legion_node.sorted_stats.len() {
+                    let stat_key = &legion_node.sorted_stats[i];
+                    if let Some(stat_mod) = legion_node.stats.get(stat_key) {
+                        *stat_str = replace_helper_func(
+                            stat_str,
+                            stat_key,
+                            &stat_mod.fmt,
+                            stat_mod.min,
+                            stat_mod.max,
+                            roll,
+                        );
+                    }
+                }
+            }
+
+            Some(new_stats)
         }
         ConquerorType::Karui => {
             // Lethal Pride: +2 or +4 Strength
