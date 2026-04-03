@@ -826,6 +826,12 @@ mod tests {
             slot_name: None,
             support_list: vec![],
             triggered_by: None,
+            skill_data: HashMap::new(),
+            skill_part: None,
+            no_supports: false,
+            disable_reason: None,
+            weapon1_flags: 0,
+            weapon2_flags: 0,
         });
         env.player.set_output("Accuracy", 1000.0);
         env.player.action_speed_mod = 1.0;
@@ -887,6 +893,12 @@ mod tests {
             slot_name: None,
             support_list: vec![],
             triggered_by: None,
+            skill_data: HashMap::new(),
+            skill_part: None,
+            no_supports: false,
+            disable_reason: None,
+            weapon1_flags: 0,
+            weapon2_flags: 0,
         });
         env.player.set_output("Accuracy", 1000.0);
         env.player.action_speed_mod = 1.0;
@@ -953,6 +965,12 @@ mod tests {
             slot_name: None,
             support_list: vec![],
             triggered_by: None,
+            skill_data: HashMap::new(),
+            skill_part: None,
+            no_supports: false,
+            disable_reason: None,
+            weapon1_flags: 0,
+            weapon2_flags: 0,
         });
         env.player.action_speed_mod = 1.0;
 
@@ -1020,6 +1038,12 @@ mod tests {
             slot_name: None,
             support_list: vec![],
             triggered_by: None,
+            skill_data: HashMap::new(),
+            skill_part: None,
+            no_supports: false,
+            disable_reason: None,
+            weapon1_flags: 0,
+            weapon2_flags: 0,
         });
         env.player.action_speed_mod = 1.0;
 
@@ -1081,8 +1105,14 @@ mod tests {
             slot_name: None,
             support_list: vec![],
             triggered_by: None,
+            skill_data: HashMap::new(),
+            skill_part: None,
+            no_supports: false,
+            disable_reason: None,
+            weapon1_flags: 0,
+            weapon2_flags: 0,
         });
-        env.player.set_output("Accuracy", 100.0); // low accuracy
+        env.player.set_output("Accuracy", 1000.0);
         env.player.action_speed_mod = 1.0;
 
         let build = crate::build::types::Build {
@@ -1149,6 +1179,12 @@ mod tests {
             slot_name: None,
             support_list: vec![],
             triggered_by: None,
+            skill_data: HashMap::new(),
+            skill_part: None,
+            no_supports: false,
+            disable_reason: None,
+            weapon1_flags: 0,
+            weapon2_flags: 0,
         });
         env.player.set_output("Accuracy", 10000.0);
         env.player.action_speed_mod = 1.0;
@@ -1218,6 +1254,12 @@ mod tests {
             slot_name: None,
             support_list: vec![],
             triggered_by: None,
+            skill_data: HashMap::new(),
+            skill_part: None,
+            no_supports: false,
+            disable_reason: None,
+            weapon1_flags: 0,
+            weapon2_flags: 0,
         });
         env.player.action_speed_mod = 1.0;
 
@@ -1277,6 +1319,12 @@ mod tests {
             slot_name: None,
             support_list: vec![],
             triggered_by: None,
+            skill_data: HashMap::new(),
+            skill_part: None,
+            no_supports: false,
+            disable_reason: None,
+            weapon1_flags: 0,
+            weapon2_flags: 0,
         });
         env.player.set_output("Accuracy", 10000.0);
         env.player.action_speed_mod = 1.0;
@@ -1335,6 +1383,12 @@ mod tests {
             slot_name: None,
             support_list: vec![],
             triggered_by: None,
+            skill_data: HashMap::new(),
+            skill_part: None,
+            no_supports: false,
+            disable_reason: None,
+            weapon1_flags: 0,
+            weapon2_flags: 0,
         });
         env.player.action_speed_mod = 1.0;
 
@@ -1392,6 +1446,12 @@ mod tests {
             slot_name: None,
             support_list: vec![],
             triggered_by: None,
+            skill_data: HashMap::new(),
+            skill_part: None,
+            no_supports: false,
+            disable_reason: None,
+            weapon1_flags: 0,
+            weapon2_flags: 0,
         });
         env.player.action_speed_mod = 1.0;
 
@@ -1458,6 +1518,12 @@ mod tests {
             slot_name: None,
             support_list: vec![],
             triggered_by: None,
+            skill_data: HashMap::new(),
+            skill_part: None,
+            no_supports: false,
+            disable_reason: None,
+            weapon1_flags: 0,
+            weapon2_flags: 0,
         });
         env.player.action_speed_mod = 1.0;
 
@@ -1527,6 +1593,12 @@ mod tests {
             slot_name: None,
             support_list: vec![],
             triggered_by: None,
+            skill_data: HashMap::new(),
+            skill_part: None,
+            no_supports: false,
+            disable_reason: None,
+            weapon1_flags: 0,
+            weapon2_flags: 0,
         });
         env.player.action_speed_mod = 1.0;
 
@@ -1585,6 +1657,12 @@ mod tests {
             slot_name: None,
             support_list: vec![],
             triggered_by: None,
+            skill_data: HashMap::new(),
+            skill_part: None,
+            no_supports: false,
+            disable_reason: None,
+            weapon1_flags: 0,
+            weapon2_flags: 0,
         });
         env.player.action_speed_mod = 1.0;
 
