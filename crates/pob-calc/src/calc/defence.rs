@@ -1,6 +1,6 @@
 use super::env::{get_output_f64, CalcEnv};
 use crate::calc::calc_tools::calc_def_mod;
-use crate::mod_db::types::{ModType, SkillCfg};
+use crate::mod_db::types::{KeywordFlags, Mod, ModFlags, ModSource, ModType, ModValue, SkillCfg};
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -1106,140 +1106,356 @@ fn calc_recovery_rates(env: &mut CalcEnv) {
 }
 
 fn calc_leech_caps(env: &mut CalcEnv) {
+    // CalcDefence.lua:1199-1232
+    // calcLib.val(modDB, "X") = modDB:Sum("BASE", nil, "X")
+    // Defaults are seeded via NewMod in CalcSetup.lua (initEnv):
+    //   MaxLifeLeechRate   = max_life_leech_rate_%_per_minute / 60   = 1200/60 = 20
+    //   MaxManaLeechRate   = max_mana_leech_rate_%_per_minute / 60   = 1200/60 = 20
+    //   MaxEnergyShieldLeechRate = 10 (hardcoded)
+    //   MaxLifeLeechInstance / MaxManaLeechInstance / MaxEnergyShieldLeechInstance = 10
     let output = env.player.output.clone();
 
-    let life = get_output_f64(&output, "Life").max(1.0);
-    let mana = get_output_f64(&output, "Mana").max(1.0);
-    let es = get_output_f64(&output, "EnergyShield").max(0.0);
+    let life = get_output_f64(&output, "Life");
+    let mana = get_output_f64(&output, "Mana");
+    let es = get_output_f64(&output, "EnergyShield");
 
-    // Leech caps: moddb Base values are percentages of pool.
-    // Defaults come from game_constants in add_base_constants:
-    //   MaxLifeLeechRate = 20 (% of life), MaxLifeLeechInstance = 10 (% of life)
-    //   MaxManaLeechRate = 20 (% of mana), MaxManaLeechInstance = 10 (% of mana)
-    //   MaxEnergyShieldLeechInstance = 10 (% of ES)
-
-    // Max life leech instance (% of life → absolute)
+    // output.MaxLifeLeechInstance = Life * calcLib.val(modDB, "MaxLifeLeechInstance") / 100
     let life_leech_instance_pct =
         env.player
             .mod_db
             .sum_cfg(ModType::Base, "MaxLifeLeechInstance", None, &output);
-    let life_leech_instance_pct = if life_leech_instance_pct > 0.0 {
-        life_leech_instance_pct
-    } else {
-        10.0
-    };
-    let life_leech_instance = life * life_leech_instance_pct / 100.0;
-    env.player
-        .set_output("MaxLifeLeechInstance", life_leech_instance);
+    env.player.set_output(
+        "MaxLifeLeechInstance",
+        life * life_leech_instance_pct / 100.0,
+    );
 
-    // Max life leech rate (% of life → absolute)
+    // output.MaxLifeLeechRatePercent = calcLib.val(modDB, "MaxLifeLeechRate")
+    // (no MaximumLifeLeechIsEqualToParent / PartyMember branch for player)
     let life_leech_rate_pct =
         env.player
             .mod_db
             .sum_cfg(ModType::Base, "MaxLifeLeechRate", None, &output);
-    let life_leech_rate_pct = if life_leech_rate_pct > 0.0 {
-        life_leech_rate_pct
-    } else {
-        20.0
-    };
+    // output.MaxLifeLeechRate = Life * MaxLifeLeechRatePercent / 100
     let life_leech_rate = life * life_leech_rate_pct / 100.0;
     env.player.set_output("MaxLifeLeechRate", life_leech_rate);
     env.player
         .set_output("MaxLifeLeechRatePercent", life_leech_rate_pct);
 
-    // Max ES leech instance (% of ES → absolute)
+    // output.MaxEnergyShieldLeechInstance = EnergyShield * calcLib.val(modDB, "MaxEnergyShieldLeechInstance") / 100
     let es_leech_instance_pct =
         env.player
             .mod_db
             .sum_cfg(ModType::Base, "MaxEnergyShieldLeechInstance", None, &output);
-    let es_leech_instance_pct = if es_leech_instance_pct > 0.0 {
-        es_leech_instance_pct
-    } else {
-        10.0
-    };
-    let es_leech_instance = es.max(1.0) * es_leech_instance_pct / 100.0;
-    env.player
-        .set_output("MaxEnergyShieldLeechInstance", es_leech_instance);
+    env.player.set_output(
+        "MaxEnergyShieldLeechInstance",
+        es * es_leech_instance_pct / 100.0,
+    );
 
-    // Max ES leech rate (% of ES → absolute). Default: same as leech rate for ES
+    // output.MaxEnergyShieldLeechRate = EnergyShield * calcLib.val(modDB, "MaxEnergyShieldLeechRate") / 100
     let es_leech_rate_pct =
         env.player
             .mod_db
             .sum_cfg(ModType::Base, "MaxEnergyShieldLeechRate", None, &output);
-    let es_leech_rate_pct = if es_leech_rate_pct > 0.0 {
-        es_leech_rate_pct
-    } else {
-        10.0
-    };
-    let es_leech_rate = es.max(1.0) * es_leech_rate_pct / 100.0;
     env.player
-        .set_output("MaxEnergyShieldLeechRate", es_leech_rate);
+        .set_output("MaxEnergyShieldLeechRate", es * es_leech_rate_pct / 100.0);
 
-    // Max mana leech instance (% of mana → absolute)
+    // output.MaxManaLeechInstance = Mana * calcLib.val(modDB, "MaxManaLeechInstance") / 100
     let mana_leech_instance_pct =
         env.player
             .mod_db
             .sum_cfg(ModType::Base, "MaxManaLeechInstance", None, &output);
-    let mana_leech_instance_pct = if mana_leech_instance_pct > 0.0 {
-        mana_leech_instance_pct
-    } else {
-        10.0
-    };
-    let mana_leech_instance = mana * mana_leech_instance_pct / 100.0;
-    env.player
-        .set_output("MaxManaLeechInstance", mana_leech_instance);
+    env.player.set_output(
+        "MaxManaLeechInstance",
+        mana * mana_leech_instance_pct / 100.0,
+    );
 
-    // Max mana leech rate (% of mana → absolute)
+    // output.MaxManaLeechRate = Mana * calcLib.val(modDB, "MaxManaLeechRate") / 100
     let mana_leech_rate_pct =
         env.player
             .mod_db
             .sum_cfg(ModType::Base, "MaxManaLeechRate", None, &output);
-    let mana_leech_rate_pct = if mana_leech_rate_pct > 0.0 {
-        mana_leech_rate_pct
-    } else {
-        20.0
-    };
-    let mana_leech_rate = mana * mana_leech_rate_pct / 100.0;
-    env.player.set_output("MaxManaLeechRate", mana_leech_rate);
+    env.player
+        .set_output("MaxManaLeechRate", mana * mana_leech_rate_pct / 100.0);
 }
 
 fn calc_regeneration(env: &mut CalcEnv) {
-    let output = env.player.output.clone();
+    // CalcDefence.lua:1234–1320
+    // Lua iterates resources = {"Mana", "Life", "Energy Shield", "Rage"}.
+    // "Energy Shield" → resource key "EnergyShield" via gsub(" ", "").
+    // Loop order is semantically significant: Zealot's Oath and Pious Path mutate
+    // the modDB mid-loop so later iterations pick up new mods.
+    let resources = ["Mana", "Life", "EnergyShield", "Rage"];
 
-    let zealots_oath = env.player.mod_db.flag_cfg("ZealotsOath", None, &output);
+    // Round to N decimal places: round(x, 1) = (x * 10.0).round() / 10.0
+    let round1 = |x: f64| (x * 10.0).round() / 10.0;
+    // floor(x, 2) = (x * 100.0).floor() / 100.0
+    let floor2 = |x: f64| (x * 100.0).floor() / 100.0;
 
-    for resource in &["Life", "Mana", "EnergyShield"] {
-        let pool = get_output_f64(&output, resource).max(1.0);
-        let recovery_stat = format!("{resource}RecoveryRateMod");
-        let recovery_rate = get_output_f64(&output, &recovery_stat).max(1.0);
+    let regen_src = ModSource::new("Calc", "calc_regeneration");
 
-        let regen_stat = format!("{resource}Regen");
-        let percent_stat = format!("{resource}RegenPercent");
+    for &resource in &resources {
+        // Re-clone output each iteration so modDB mutations from prior iterations
+        // (Zealot's Oath, Pious Path) are visible.
+        let output = env.player.output.clone();
+        let pool = get_output_f64(&output, resource); // may be 0 for Rage
 
-        let percent = env
+        // recoveryRateMod defaults to 1 (it was set earlier by calc_recovery_rates)
+        let recovery_rate_mod_key = format!("{resource}RecoveryRateMod");
+        let recovery_rate_mod = {
+            let v = get_output_f64(&output, &recovery_rate_mod_key);
+            if v == 0.0 {
+                1.0
+            } else {
+                v
+            }
+        };
+
+        let inc =
+            env.player
+                .mod_db
+                .sum_cfg(ModType::Inc, &format!("{resource}Regen"), None, &output);
+
+        // Always write RegenInc regardless of branch
+        env.player.set_output(&format!("{resource}RegenInc"), inc);
+
+        let regen_rate: f64;
+
+        if env
             .player
             .mod_db
-            .sum_cfg(ModType::Base, &percent_stat, None, &output);
-        let flat = env
-            .player
-            .mod_db
-            .sum_cfg(ModType::Base, &regen_stat, None, &output);
-        let inc = env
-            .player
-            .mod_db
-            .sum_cfg(ModType::Inc, &regen_stat, None, &output);
+            .flag_cfg(&format!("No{resource}Regen"), None, &output)
+            || env
+                .player
+                .mod_db
+                .flag_cfg(&format!("CannotGain{resource}"), None, &output)
+        {
+            // Branch: regen disabled
+            env.player.set_output(&format!("{resource}Regen"), 0.0);
+            regen_rate = 0.0;
+        } else if resource == "Life" && env.player.mod_db.flag_cfg("ZealotsOath", None, &output) {
+            // Branch: Zealot's Oath — life regen redirected to ES
+            env.player.set_output("LifeRegen", 0.0);
+            regen_rate = 0.0;
+            let life_base = env
+                .player
+                .mod_db
+                .sum_cfg(ModType::Base, "LifeRegen", None, &output);
+            if life_base > 0.0 {
+                env.player.mod_db.add(Mod::new_base(
+                    "EnergyShieldRegen",
+                    life_base,
+                    regen_src.clone(),
+                ));
+            }
+            let life_pct =
+                env.player
+                    .mod_db
+                    .sum_cfg(ModType::Base, "LifeRegenPercent", None, &output);
+            if life_pct > 0.0 {
+                env.player.mod_db.add(Mod::new_base(
+                    "EnergyShieldRegenPercent",
+                    life_pct,
+                    regen_src.clone(),
+                ));
+            }
+        } else {
+            // Normal regen branch
 
-        let regen = (pool * percent / 100.0 + flat) * (1.0 + inc / 100.0) * recovery_rate;
-        env.player.set_output(&regen_stat, regen);
-    }
+            // Chain redirection: if inc != 0, check if this resource's regen inc should
+            // apply to a later resource in the loop order.
+            // resources = ["Mana", "Life", "EnergyShield", "Rage"]
+            // i=0 Mana → j=1,2,3 (Life, EnergyShield, Rage)
+            // i=1 Life → j=2,3 (EnergyShield, Rage)
+            // etc.
+            let mut effective_inc = inc;
+            if effective_inc != 0.0 {
+                let resource_list = ["Mana", "Life", "EnergyShield", "Rage"];
+                let self_idx = resource_list
+                    .iter()
+                    .position(|&r| r == resource)
+                    .unwrap_or(0);
+                for j in (self_idx + 1)..resource_list.len() {
+                    let target = resource_list[j];
+                    let flag_name = format!("{resource}RegenTo{target}Regen");
+                    if env.player.mod_db.flag_cfg(&flag_name, None, &output) {
+                        env.player.mod_db.add(Mod {
+                            name: format!("{target}Regen"),
+                            mod_type: ModType::Inc,
+                            value: ModValue::Number(effective_inc),
+                            flags: ModFlags::NONE,
+                            keyword_flags: KeywordFlags::NONE,
+                            tags: Vec::new(),
+                            source: regen_src.clone(),
+                        });
+                        effective_inc = 0.0;
+                        break;
+                    }
+                }
+            }
 
-    // Zealot's Oath: life regen applies to ES instead
-    if zealots_oath {
-        let life_regen = get_output_f64(&env.player.output, "LifeRegen");
-        let es_regen = get_output_f64(&env.player.output, "EnergyShieldRegen");
+            // Pious Path: life regen applies to ES
+            if resource == "Life" {
+                let applies_to_es = env.player.mod_db.sum_cfg(
+                    ModType::Base,
+                    "LifeRegenAppliesToEnergyShield",
+                    None,
+                    &output,
+                );
+                if applies_to_es > 0.0 {
+                    let conversion = applies_to_es.min(100.0) / 100.0;
+                    let life_base_regen =
+                        env.player
+                            .mod_db
+                            .sum_cfg(ModType::Base, "LifeRegen", None, &output);
+                    let life_pct_regen =
+                        env.player
+                            .mod_db
+                            .sum_cfg(ModType::Base, "LifeRegenPercent", None, &output);
+                    env.player.mod_db.add(Mod::new_base(
+                        "EnergyShieldRegen",
+                        floor2(life_base_regen * conversion),
+                        regen_src.clone(),
+                    ));
+                    env.player.mod_db.add(Mod::new_base(
+                        "EnergyShieldRegenPercent",
+                        floor2(life_pct_regen * conversion),
+                        regen_src.clone(),
+                    ));
+                }
+            }
+
+            // Core formula: baseRegen = flat + pool * pct/100
+            // Re-query after potential modDB mutations
+            let output2 = env.player.output.clone();
+            let base_flat = env.player.mod_db.sum_cfg(
+                ModType::Base,
+                &format!("{resource}Regen"),
+                None,
+                &output2,
+            );
+            let base_pct = env.player.mod_db.sum_cfg(
+                ModType::Base,
+                &format!("{resource}RegenPercent"),
+                None,
+                &output2,
+            );
+            // Re-query more after potential INC redirect mutations
+            let more_updated =
+                env.player
+                    .mod_db
+                    .more_cfg(&format!("{resource}Regen"), None, &output2);
+
+            let base_regen = base_flat + pool * base_pct / 100.0;
+            let regen = base_regen * (1.0 + effective_inc / 100.0) * more_updated;
+
+            // Pious Path recovery: if regen != 0, route to later resources
+            if regen != 0.0 {
+                let resource_list = ["Mana", "Life", "EnergyShield", "Rage"];
+                let self_idx = resource_list
+                    .iter()
+                    .position(|&r| r == resource)
+                    .unwrap_or(0);
+                for j in (self_idx + 1)..resource_list.len() {
+                    let target = resource_list[j];
+                    let flag_name = format!("{resource}RegenerationRecovers{target}");
+                    if env.player.mod_db.flag_cfg(&flag_name, None, &output2) {
+                        env.player.mod_db.add(Mod::new_base(
+                            &format!("{target}Recovery"),
+                            regen,
+                            regen_src.clone(),
+                        ));
+                    }
+                }
+            }
+
+            regen_rate = round1(regen * recovery_rate_mod);
+            env.player
+                .set_output(&format!("{resource}Regen"), regen_rate);
+        }
+
+        // Degen calculation (always runs)
+        let output3 = env.player.output.clone();
+        let base_degen_flat =
+            env.player
+                .mod_db
+                .sum_cfg(ModType::Base, &format!("{resource}Degen"), None, &output3);
+        let base_degen_pct = env.player.mod_db.sum_cfg(
+            ModType::Base,
+            &format!("{resource}DegenPercent"),
+            None,
+            &output3,
+        );
+        let tincture_pct = env.player.mod_db.sum_cfg(
+            ModType::Base,
+            &format!("{resource}DegenPercentTincture"),
+            None,
+            &output3,
+        );
+
+        let mut base_degen = base_degen_flat + pool * base_degen_pct / 100.0;
+        // Tincture minimum: max(pool * tinctureDegenPercent / 100, tinctureDegenPercent)
+        base_degen += (pool * tincture_pct / 100.0).max(tincture_pct);
+
+        let degen_rate = if base_degen > 0.0 {
+            let degen_inc = env.player.mod_db.sum_cfg(
+                ModType::Inc,
+                &format!("{resource}Degen"),
+                None,
+                &output3,
+            );
+            let degen_more =
+                env.player
+                    .mod_db
+                    .more_cfg(&format!("{resource}Degen"), None, &output3);
+            base_degen * (1.0 + degen_inc / 100.0) * degen_more
+        } else {
+            0.0
+        };
         env.player
-            .set_output("EnergyShieldRegen", es_regen + life_regen);
-        env.player.set_output("LifeRegen", 0.0);
+            .set_output(&format!("{resource}Degen"), degen_rate);
+
+        // Recovery from modDB (Pious Path recovery events, misc)
+        let output4 = env.player.output.clone();
+        let recovery_rate_val = env.player.mod_db.sum_cfg(
+            ModType::Base,
+            &format!("{resource}Recovery"),
+            None,
+            &output4,
+        ) * recovery_rate_mod;
+        env.player
+            .set_output(&format!("{resource}Recovery"), recovery_rate_val);
+
+        // RegenRecovery = net regen after degen + recovery
+        // UnaffectedBy{resource}Regen sets regen contribution to 0
+        let regen_contribution =
+            if env
+                .player
+                .mod_db
+                .flag_cfg(&format!("UnaffectedBy{resource}Regen"), None, &output4)
+            {
+                0.0
+            } else {
+                regen_rate
+            };
+        let regen_recovery = regen_contribution - degen_rate + recovery_rate_val;
+        env.player
+            .set_output(&format!("{resource}RegenRecovery"), regen_recovery);
+
+        // Gate condition: CanGain{resource} if net recovery is positive
+        if regen_recovery > 0.0 {
+            env.player
+                .mod_db
+                .set_condition(&format!("CanGain{resource}"), true);
+        }
+
+        // RegenPercent = RegenRecovery / pool * 100 (rounded to 1dp), or 0 if pool == 0
+        let regen_pct = if pool > 0.0 {
+            round1(regen_recovery / pool * 100.0)
+        } else {
+            0.0
+        };
+        env.player
+            .set_output(&format!("{resource}RegenPercent"), regen_pct);
     }
 }
 
@@ -1287,8 +1503,12 @@ fn calc_es_recharge(env: &mut CalcEnv) {
             .more_cfg("EnergyShieldRecharge", None, &output);
 
         // base = modDB:Override(nil, "EnergyShieldRecharge") or data.misc.EnergyShieldRechargeBase
-        // EnergyShieldRechargeBase = character_constants["energy_shield_recharge_rate_per_minute_%"] / 60 / 100
-        // CalcDefence.lua:1329 / Data.lua:182-183
+        // Data.lua:182: EnergyShieldRechargeBase = characterConstants["energy_shield_recharge_rate_per_minute_%"] / 60 / 100
+        // = 2000 / 60 / 100 = 0.3333...
+        // Note: Data.lua:183 has a duplicate assignment "= 0.33" but per oracle evidence,
+        // the correct value used by PoB is 0.3333... (the computed value). The 0.33 line
+        // appears to be a stale/incorrect override that doesn't affect actual oracle builds.
+        // CalcDefence.lua:1329
         let base = env
             .player
             .mod_db
@@ -1308,7 +1528,13 @@ fn calc_es_recharge(env: &mut CalcEnv) {
             // output.LifeRecharge = round(Life * base * (1+inc/100) * more * LifeRecoveryRateMod)
             // CalcDefence.lua:1331-1332
             let life = get_output_f64(&output, "Life");
-            let life_recovery_rate = get_output_f64(&output, "LifeRecoveryRateMod").max(1.0);
+            // calc_recovery_rates runs before this and always sets LifeRecoveryRateMod to 1.0+
+            let life_recovery_rate = get_output_f64(&output, "LifeRecoveryRateMod");
+            let life_recovery_rate = if life_recovery_rate == 0.0 {
+                1.0
+            } else {
+                life_recovery_rate
+            };
             let recharge = life * base * (1.0 + inc / 100.0) * more;
             let life_recharge = (recharge * life_recovery_rate).round();
             env.player.set_output("LifeRecharge", life_recharge);
@@ -1316,8 +1542,13 @@ fn calc_es_recharge(env: &mut CalcEnv) {
             // output.EnergyShieldRecharge = round(EnergyShield * base * (1+inc/100) * more
             //   * EnergyShieldRecoveryRateMod)
             // CalcDefence.lua:1350-1351
-            let es = get_output_f64(&output, "EnergyShield").max(0.0);
-            let es_recovery_rate = get_output_f64(&output, "EnergyShieldRecoveryRateMod").max(1.0);
+            let es = get_output_f64(&output, "EnergyShield");
+            let es_recovery_rate = get_output_f64(&output, "EnergyShieldRecoveryRateMod");
+            let es_recovery_rate = if es_recovery_rate == 0.0 {
+                1.0
+            } else {
+                es_recovery_rate
+            };
             let recharge = es * base * (1.0 + inc / 100.0) * more;
             let es_recharge = (recharge * es_recovery_rate).round();
             env.player.set_output("EnergyShieldRecharge", es_recharge);
@@ -1331,6 +1562,9 @@ fn calc_es_recharge(env: &mut CalcEnv) {
                 .sum_cfg(ModType::Inc, "EnergyShieldRechargeFaster", None, &output);
         let delay = 2.0 / (1.0 + faster / 100.0);
         env.player.set_output("EnergyShieldRechargeDelay", delay);
+    } else {
+        // CalcDefence.lua:1380: output.EnergyShieldRecharge = 0
+        env.player.set_output("EnergyShieldRecharge", 0.0);
     }
 }
 

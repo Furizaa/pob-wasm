@@ -587,6 +587,10 @@ fn add_base_constants(db: &mut ModDb, data: &GameData) {
         src.clone(),
     ));
 
+    // MaxEnergyShieldLeechRate: CalcSetup.lua:48 hardcodes 10 (% of ES per second).
+    // There is no character_constants entry for this — it's always 10.
+    db.add(Mod::new_base("MaxEnergyShieldLeechRate", 10.0, src.clone()));
+
     // --- Active limits ---
     let active_totem = gc_or(gc, "base_number_of_totems_allowed", 1.0);
     db.add(Mod::new_base("ActiveTotemLimit", active_totem, src.clone()));
@@ -745,6 +749,35 @@ fn add_class_base_stats(build: &Build, db: &mut ModDb, data: &GameData) {
         .unwrap_or(15.0);
     let eva_src = ModSource::new("Base", "base evasion");
     db.add(Mod::new_base("Evasion", base_evasion, eva_src));
+
+    // Base mana regen: data.misc.ManaRegenBase = mana_regeneration_rate_per_minute_% / 60 / 100
+    // = 105/60/100 = 0.0175 (1.75% of mana per second).
+    // CalcSetup.lua:479: modDB:NewMod("ManaRegen", "BASE", data.misc.ManaRegenBase, "Base",
+    //   { type = "PerStat", stat = "Mana", div = 1 })
+    // The PerStat tag causes modDB:Sum("BASE","ManaRegen") to return value * Mana / 1.
+    let mana_regen_base = data
+        .misc
+        .character_constants
+        .get("mana_regeneration_rate_per_minute_%")
+        .copied()
+        .unwrap_or(105.0)
+        / 60.0
+        / 100.0;
+    let mana_regen_src = ModSource::new("Base", "base mana regen");
+    db.add(Mod {
+        name: "ManaRegen".into(),
+        mod_type: ModType::Base,
+        value: ModValue::Number(mana_regen_base),
+        flags: ModFlags::NONE,
+        keyword_flags: KeywordFlags::NONE,
+        tags: vec![ModTag::PerStat {
+            stat: "Mana".into(),
+            div: 1.0,
+            limit: None,
+            base: 0.0,
+        }],
+        source: mana_regen_src,
+    });
 }
 
 /// Process anointments (GrantedPassive mods) and Forbidden Flesh/Flame

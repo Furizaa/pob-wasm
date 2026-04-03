@@ -1075,59 +1075,415 @@ fn calc_leech(
     _average_damage: f64,
     uses_per_sec: f64,
 ) {
-    // Per-type life/ES/mana leech
-    for (resource, stat_prefix) in &[
-        ("Life", "DamageLifeLeech"),
-        ("EnergyShield", "DamageEnergyShieldLeech"),
-        ("Mana", "DamageManaLeech"),
-    ] {
-        let mut total_leech_rate = 0.0_f64;
+    // CalcOffence.lua:3457-3843
+    // LeechRateBase = 0.02 (Data.lua:188)
+    const LEECH_RATE_BASE: f64 = 0.02;
 
-        // Generic leech: "{resource}LeechRate" or "DamageLifeLeech" etc.
-        let generic_leech =
-            env.player
-                .mod_db
-                .sum_cfg(ModType::Base, stat_prefix, Some(cfg), output);
+    let hit_chance_pct = get_output_f64(&env.player.output, "HitChance");
+    let hit_rate = (hit_chance_pct / 100.0) * uses_per_sec;
 
-        // Per-type leech: "{Type}DamageLifeLeech" etc.
-        for dtype in &DMG_TYPE_NAMES {
-            let type_leech_stat = format!("{}Damage{}Leech", dtype, resource);
-            let type_leech =
-                env.player
-                    .mod_db
-                    .sum_cfg(ModType::Base, &type_leech_stat, Some(cfg), output);
-
-            if type_leech > 0.0 || generic_leech > 0.0 {
-                let type_min = get_output_f64(&env.player.output, &format!("{}Min", dtype));
-                let type_max = get_output_f64(&env.player.output, &format!("{}Max", dtype));
-                let type_avg = (type_min + type_max) / 2.0;
-                if type_avg > 0.0 {
-                    total_leech_rate += type_avg * (type_leech + generic_leech) / 100.0;
-                }
-            }
-        }
-
-        let leech_per_sec = total_leech_rate * uses_per_sec;
-        env.player
-            .set_output(&format!("{}LeechPerSecond", resource), leech_per_sec);
-    }
-
-    // On-hit recovery
-    for (resource, stat_name) in &[
-        ("Life", "LifeOnHit"),
-        ("EnergyShield", "EnergyShieldOnHit"),
-        ("Mana", "ManaOnHit"),
-    ] {
-        let on_hit = env
+    // ── Step 1: Compute per-hit leech totals from damage×leech% ────────────
+    // CalcOffence.lua:3133-3138: output.LifeLeech = 0 etc.
+    // CalcOffence.lua:3424-3426: accumulate per-damage-type leech
+    //
+    // In the Lua, LifeLeech is the total leech from a single hit (absolute value).
+    // It's computed as:  sum_over_damage_types(avg_damage * leech_pct / 100)
+    //
+    // cannotLeech checks:
+    let no_life_leech = env
+        .player
+        .mod_db
+        .flag_cfg("CannotLeechLife", Some(cfg), output)
+        || env
             .player
             .mod_db
-            .sum_cfg(ModType::Base, stat_name, Some(cfg), output);
-        let hit_chance_pct = get_output_f64(&env.player.output, "HitChance");
-        let on_hit_per_sec = on_hit * (hit_chance_pct / 100.0) * uses_per_sec;
-        env.player
-            .set_output(&format!("{}OnHitPerSecond", resource), on_hit_per_sec);
-        env.player.set_output(stat_name, on_hit);
+            .flag_cfg("CannotGainLife", Some(cfg), output);
+    let no_es_leech = env
+        .player
+        .mod_db
+        .flag_cfg("CannotLeechEnergyShield", Some(cfg), output)
+        || env
+            .player
+            .mod_db
+            .flag_cfg("CannotGainEnergyShield", Some(cfg), output);
+    let no_mana_leech = env
+        .player
+        .mod_db
+        .flag_cfg("CannotLeechMana", Some(cfg), output)
+        || env
+            .player
+            .mod_db
+            .flag_cfg("CannotGainMana", Some(cfg), output);
+
+    let mut life_leech = 0.0_f64;
+    let mut es_leech = 0.0_f64;
+    let mut mana_leech = 0.0_f64;
+
+    for dtype in &DMG_TYPE_NAMES {
+        let type_min = get_output_f64(&env.player.output, &format!("{dtype}Min"));
+        let type_max = get_output_f64(&env.player.output, &format!("{dtype}Max"));
+        let type_avg = (type_min + type_max) / 2.0;
+        if type_avg <= 0.0 {
+            continue;
+        }
+
+        if !no_life_leech {
+            let generic =
+                env.player
+                    .mod_db
+                    .sum_cfg(ModType::Base, "DamageLifeLeech", Some(cfg), output);
+            let specific = env.player.mod_db.sum_cfg(
+                ModType::Base,
+                &format!("{dtype}DamageLifeLeech"),
+                Some(cfg),
+                output,
+            );
+            life_leech += type_avg * (generic + specific) / 100.0;
+        }
+        if !no_es_leech {
+            let generic = env.player.mod_db.sum_cfg(
+                ModType::Base,
+                "DamageEnergyShieldLeech",
+                Some(cfg),
+                output,
+            );
+            let specific = env.player.mod_db.sum_cfg(
+                ModType::Base,
+                &format!("{dtype}DamageEnergyShieldLeech"),
+                Some(cfg),
+                output,
+            );
+            es_leech += type_avg * (generic + specific) / 100.0;
+        }
+        if !no_mana_leech {
+            let generic =
+                env.player
+                    .mod_db
+                    .sum_cfg(ModType::Base, "DamageManaLeech", Some(cfg), output);
+            let specific = env.player.mod_db.sum_cfg(
+                ModType::Base,
+                &format!("{dtype}DamageManaLeech"),
+                Some(cfg),
+                output,
+            );
+            mana_leech += type_avg * (generic + specific) / 100.0;
+        }
     }
+
+    // ── Step 2: Instant leech split (CalcOffence.lua:3467-3488) ────────────
+    // InstantLifeLeech% splits the per-hit leech into instant and over-time portions.
+    let life_instant_prop = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "InstantLifeLeech", Some(cfg), output)
+        .clamp(0.0, 100.0)
+        / 100.0;
+    let (life_leech_instant, life_leech_ot) = if life_instant_prop > 0.0 {
+        (
+            life_leech * life_instant_prop,
+            life_leech * (1.0 - life_instant_prop),
+        )
+    } else {
+        (0.0, life_leech)
+    };
+
+    let es_instant_prop = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "InstantEnergyShieldLeech", Some(cfg), output)
+        .clamp(0.0, 100.0)
+        / 100.0;
+    let (es_leech_instant, es_leech_ot) = if es_instant_prop > 0.0 {
+        (
+            es_leech * es_instant_prop,
+            es_leech * (1.0 - es_instant_prop),
+        )
+    } else {
+        (0.0, es_leech)
+    };
+
+    let mana_instant_prop = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "InstantManaLeech", Some(cfg), output)
+        .clamp(0.0, 100.0)
+        / 100.0;
+    let (mana_leech_instant, mana_leech_ot) = if mana_instant_prop > 0.0 {
+        (
+            mana_leech * mana_instant_prop,
+            mana_leech * (1.0 - mana_instant_prop),
+        )
+    } else {
+        (0.0, mana_leech)
+    };
+
+    // ── Step 3: Duration and instances (CalcOffence.lua:3483-3488) ──────────
+    // getLeechInstances(amount, total) → (duration, instances)
+    //   duration = amount / total / LeechRateBase
+    //   instances = duration * hitRate
+    let global_life = get_output_f64(&env.player.output, "Life");
+    let global_es = get_output_f64(&env.player.output, "EnergyShield");
+    let global_mana = get_output_f64(&env.player.output, "Mana");
+
+    let (life_leech_duration, life_leech_instances) = if global_life > 0.0 {
+        let dur = life_leech_ot / global_life / LEECH_RATE_BASE;
+        (dur, dur * hit_rate)
+    } else {
+        (0.0, 0.0)
+    };
+    let life_leech_instant_rate = life_leech_instant * hit_rate;
+
+    let (es_leech_duration, es_leech_instances) = if global_es > 0.0 {
+        let dur = es_leech_ot / global_es / LEECH_RATE_BASE;
+        (dur, dur * hit_rate)
+    } else {
+        (0.0, 0.0)
+    };
+    let es_leech_instant_rate = es_leech_instant * hit_rate;
+
+    let (mana_leech_duration, mana_leech_instances) = if global_mana > 0.0 {
+        let dur = mana_leech_ot / global_mana / LEECH_RATE_BASE;
+        (dur, dur * hit_rate)
+    } else {
+        (0.0, 0.0)
+    };
+    let mana_leech_instant_rate = mana_leech_instant * hit_rate;
+
+    env.player
+        .set_output("LifeLeechInstant", life_leech_instant);
+    env.player
+        .set_output("LifeLeechInstantProportion", life_instant_prop);
+    env.player
+        .set_output("LifeLeechDuration", life_leech_duration);
+    env.player
+        .set_output("LifeLeechInstances", life_leech_instances);
+    env.player
+        .set_output("LifeLeechInstantRate", life_leech_instant_rate);
+
+    env.player
+        .set_output("EnergyShieldLeechInstant", es_leech_instant);
+    env.player
+        .set_output("EnergyShieldLeechInstantProportion", es_instant_prop);
+    env.player
+        .set_output("EnergyShieldLeechDuration", es_leech_duration);
+    env.player
+        .set_output("EnergyShieldLeechInstances", es_leech_instances);
+    env.player
+        .set_output("EnergyShieldLeechInstantRate", es_leech_instant_rate);
+
+    env.player
+        .set_output("ManaLeechInstant", mana_leech_instant);
+    env.player
+        .set_output("ManaLeechInstantProportion", mana_instant_prop);
+    env.player
+        .set_output("ManaLeechDuration", mana_leech_duration);
+    env.player
+        .set_output("ManaLeechInstances", mana_leech_instances);
+    env.player
+        .set_output("ManaLeechInstantRate", mana_leech_instant_rate);
+
+    // ── Step 4: On-hit recovery (CalcOffence.lua:3490-3502) ────────────────
+    // mine/trap/totem: LifeOnHit = 0
+    let is_mine = env.player.mod_db.flag_cfg("IsMine", Some(cfg), output);
+    let is_trap = env.player.mod_db.flag_cfg("IsTrap", Some(cfg), output);
+    let is_totem = env.player.mod_db.flag_cfg("IsTotem", Some(cfg), output);
+
+    if is_mine || is_trap || is_totem {
+        env.player.set_output("LifeOnHit", 0.0);
+        env.player.set_output("EnergyShieldOnHit", 0.0);
+        env.player.set_output("ManaOnHit", 0.0);
+    } else {
+        let cannot_gain_life = env
+            .player
+            .mod_db
+            .flag_cfg("CannotGainLife", Some(cfg), output)
+            || env
+                .player
+                .mod_db
+                .flag_cfg("CannotRecoverLifeOutsideLeech", Some(cfg), output);
+        let cannot_gain_es =
+            env.player
+                .mod_db
+                .flag_cfg("CannotGainEnergyShield", Some(cfg), output);
+        let cannot_gain_mana = env
+            .player
+            .mod_db
+            .flag_cfg("CannotGainMana", Some(cfg), output);
+
+        let life_on_hit = if cannot_gain_life {
+            0.0
+        } else {
+            env.player
+                .mod_db
+                .sum_cfg(ModType::Base, "LifeOnHit", Some(cfg), output)
+        };
+        let es_on_hit = if cannot_gain_es {
+            0.0
+        } else {
+            env.player
+                .mod_db
+                .sum_cfg(ModType::Base, "EnergyShieldOnHit", Some(cfg), output)
+        };
+        let mana_on_hit = if cannot_gain_mana {
+            0.0
+        } else {
+            env.player
+                .mod_db
+                .sum_cfg(ModType::Base, "ManaOnHit", Some(cfg), output)
+        };
+
+        env.player.set_output("LifeOnHit", life_on_hit);
+        env.player.set_output("EnergyShieldOnHit", es_on_hit);
+        env.player.set_output("ManaOnHit", mana_on_hit);
+    }
+
+    // OnHitRate = OnHit * hitRate
+    let life_on_hit = get_output_f64(&env.player.output, "LifeOnHit");
+    let es_on_hit = get_output_f64(&env.player.output, "EnergyShieldOnHit");
+    let mana_on_hit = get_output_f64(&env.player.output, "ManaOnHit");
+    env.player
+        .set_output("LifeOnHitRate", life_on_hit * hit_rate);
+    env.player
+        .set_output("EnergyShieldOnHitRate", es_on_hit * hit_rate);
+    env.player
+        .set_output("ManaOnHitRate", mana_on_hit * hit_rate);
+
+    // ── Step 5: Leech instance rates (CalcOffence.lua:3802-3811) ───────────
+    // LifeLeechInstanceRate = Life * LeechRateBase * calcLib.mod(skillModList, skillCfg, "LifeLeechRate")
+    let life_leech_rate_mod = {
+        let inc = env
+            .player
+            .mod_db
+            .sum_cfg(ModType::Inc, "LifeLeechRate", Some(cfg), output);
+        let more = env
+            .player
+            .mod_db
+            .more_cfg("LifeLeechRate", Some(cfg), output);
+        (1.0 + inc / 100.0) * more
+    };
+    let life_leech_instance_rate = global_life * LEECH_RATE_BASE * life_leech_rate_mod;
+    env.player
+        .set_output("LifeLeechInstanceRate", life_leech_instance_rate);
+
+    let es_leech_rate_mod = {
+        let inc =
+            env.player
+                .mod_db
+                .sum_cfg(ModType::Inc, "EnergyShieldLeechRate", Some(cfg), output);
+        let more = env
+            .player
+            .mod_db
+            .more_cfg("EnergyShieldLeechRate", Some(cfg), output);
+        (1.0 + inc / 100.0) * more
+    };
+    let es_leech_instance_rate = global_es * LEECH_RATE_BASE * es_leech_rate_mod;
+    env.player
+        .set_output("EnergyShieldLeechInstanceRate", es_leech_instance_rate);
+
+    let mana_leech_rate_mod = {
+        let inc = env
+            .player
+            .mod_db
+            .sum_cfg(ModType::Inc, "ManaLeechRate", Some(cfg), output);
+        let more = env
+            .player
+            .mod_db
+            .more_cfg("ManaLeechRate", Some(cfg), output);
+        (1.0 + inc / 100.0) * more
+    };
+    let mana_leech_instance_rate = global_mana * LEECH_RATE_BASE * mana_leech_rate_mod;
+    env.player
+        .set_output("ManaLeechInstanceRate", mana_leech_instance_rate);
+
+    // ── Step 6: Combine instance rate × instances → leech rate ─────────────
+    let mut life_leech_rate = life_leech_instances * life_leech_instance_rate;
+    let mut es_leech_rate = es_leech_instances * es_leech_instance_rate;
+    let mana_leech_rate = mana_leech_instances * mana_leech_instance_rate;
+
+    // ── Step 7: ImmortalAmbition (CalcOffence.lua:3813-3819) ────────────────
+    if env.player.mod_db.flag_cfg("ImmortalAmbition", None, output) {
+        es_leech_rate += life_leech_rate;
+        life_leech_rate = 0.0;
+    }
+
+    // ── Step 8: UnaffectedByNonInstantLifeLeech (CalcOffence.lua:3821-3825) ─
+    if env
+        .player
+        .mod_db
+        .flag_cfg("UnaffectedByNonInstantLifeLeech", None, output)
+    {
+        life_leech_rate = 0.0;
+        // Also zero LifeLeechInstances in the output (already written above, but LifeLeechRate=0 handles it)
+    }
+
+    // ── Step 9: Cap + apply recovery rate mod (CalcOffence.lua:3826-3831) ───
+    let max_life_leech = get_output_f64(&env.player.output, "MaxLifeLeechRate");
+    let max_es_leech = get_output_f64(&env.player.output, "MaxEnergyShieldLeechRate");
+    let max_mana_leech = get_output_f64(&env.player.output, "MaxManaLeechRate");
+
+    let life_recovery_rate = {
+        let v = get_output_f64(&env.player.output, "LifeRecoveryRateMod");
+        if v == 0.0 {
+            1.0
+        } else {
+            v
+        }
+    };
+    let es_recovery_rate = {
+        let v = get_output_f64(&env.player.output, "EnergyShieldRecoveryRateMod");
+        if v == 0.0 {
+            1.0
+        } else {
+            v
+        }
+    };
+    let mana_recovery_rate = {
+        let v = get_output_f64(&env.player.output, "ManaRecoveryRateMod");
+        if v == 0.0 {
+            1.0
+        } else {
+            v
+        }
+    };
+
+    let life_leech_rate_final =
+        life_leech_instant_rate + life_leech_rate.min(max_life_leech) * life_recovery_rate;
+    let es_leech_rate_final =
+        es_leech_instant_rate + es_leech_rate.min(max_es_leech) * es_recovery_rate;
+    let mana_leech_rate_final =
+        mana_leech_instant_rate + mana_leech_rate.min(max_mana_leech) * mana_recovery_rate;
+
+    env.player
+        .set_output("LifeLeechRate", life_leech_rate_final);
+    env.player
+        .set_output("EnergyShieldLeechRate", es_leech_rate_final);
+    env.player
+        .set_output("ManaLeechRate", mana_leech_rate_final);
+
+    // ── Step 10: GainRate (CalcOffence.lua:3835-3843) ───────────────────────
+    // skillData.showAverage is false for DPS mode (our default)
+    // → write GainRate fields (not GainPerHit)
+    let life_leech_gain_rate = life_leech_rate_final + life_on_hit * hit_rate;
+    let es_leech_gain_rate = es_leech_rate_final + es_on_hit * hit_rate;
+    let mana_leech_gain_rate = mana_leech_rate_final + mana_on_hit * hit_rate;
+    env.player
+        .set_output("LifeLeechGainRate", life_leech_gain_rate);
+    env.player
+        .set_output("EnergyShieldLeechGainRate", es_leech_gain_rate);
+    env.player
+        .set_output("ManaLeechGainRate", mana_leech_gain_rate);
+
+    // Also write the PerHit variants for breakdowns (CalcOffence.lua:3827-3831)
+    let life_leech_per_hit = life_leech_instant
+        + (life_leech_instance_rate).min(max_life_leech) * life_leech_duration * life_recovery_rate;
+    let es_leech_per_hit = es_leech_instant
+        + (es_leech_instance_rate).min(max_es_leech) * es_leech_duration * es_recovery_rate;
+    let mana_leech_per_hit = mana_leech_instant
+        + (mana_leech_instance_rate).min(max_mana_leech) * mana_leech_duration * mana_recovery_rate;
+    env.player.set_output("LifeLeechPerHit", life_leech_per_hit);
+    env.player
+        .set_output("EnergyShieldLeechPerHit", es_leech_per_hit);
+    env.player.set_output("ManaLeechPerHit", mana_leech_per_hit);
 }
 
 // ── Tests ────────────────────────────────────────────────────────────────────
@@ -1957,18 +2313,27 @@ mod tests {
 
         run(&mut env, &build);
 
-        // Leech outputs should exist (even if 0)
+        // Leech outputs should exist (even if 0) — note: old names LifeLeechPerSecond are gone,
+        // now using PoB-faithful names: LifeLeechRate, LifeLeechDuration, LifeLeechInstances, etc.
         assert!(
-            env.player.output.contains_key("LifeLeechPerSecond"),
-            "LifeLeechPerSecond should be set"
+            env.player.output.contains_key("LifeLeechRate"),
+            "LifeLeechRate should be set"
         );
         assert!(
-            env.player.output.contains_key("ManaLeechPerSecond"),
-            "ManaLeechPerSecond should be set"
+            env.player.output.contains_key("ManaLeechRate"),
+            "ManaLeechRate should be set"
         );
         assert!(
-            env.player.output.contains_key("EnergyShieldLeechPerSecond"),
-            "EnergyShieldLeechPerSecond should be set"
+            env.player.output.contains_key("EnergyShieldLeechRate"),
+            "EnergyShieldLeechRate should be set"
+        );
+        assert!(
+            env.player.output.contains_key("LifeLeechDuration"),
+            "LifeLeechDuration should be set"
+        );
+        assert!(
+            env.player.output.contains_key("LifeLeechInstances"),
+            "LifeLeechInstances should be set"
         );
     }
 
@@ -2032,18 +2397,20 @@ mod tests {
 
         run(&mut env, &build);
 
-        // LifeOnHit should be 20, and LifeOnHitPerSecond = 20 * 1.0 (hit_chance) * 1.0 (speed)
+        // LifeOnHit should be 20, and LifeOnHitRate = 20 * hitRate
+        // hitRate = hit_chance/100 * uses_per_sec = 1.0 * (1/cast_time) = 1.0
         let loh = get_output_f64(&env.player.output, "LifeOnHit");
         assert!(
             (loh - 20.0).abs() < 0.01,
             "LifeOnHit should be 20, got {}",
             loh
         );
-        let loh_ps = get_output_f64(&env.player.output, "LifeOnHitPerSecond");
+        // With cast_time=1.0, speed=1.0, hit_chance=100%: LifeOnHitRate = 20 * 1.0 * 1.0 = 20
+        let loh_rate = get_output_f64(&env.player.output, "LifeOnHitRate");
         assert!(
-            (loh_ps - 20.0).abs() < 0.01,
-            "LifeOnHitPerSecond should be 20 (20 * 1.0 * 1.0), got {}",
-            loh_ps
+            (loh_rate - 20.0).abs() < 0.01,
+            "LifeOnHitRate should be 20 (20 * 1.0 * 1.0), got {}",
+            loh_rate
         );
     }
 
