@@ -4729,6 +4729,194 @@ fn add_jewel_mods(build: &Build, env: &mut CalcEnv) {
             }
         }
     }
+
+    // Third pass (tree jewels — pass A): detect The Adorned socketed in a passive tree
+    // jewel socket and set CorruptedMagicJewelEffect / CorruptedRareJewelEffect.
+    // Mirrors CalcSetup.lua lines 730–737 (inside the `if slot.nodeId then` block).
+    // The existing first pass above only covers named gear jewel slots (Jewel1–Jewel21).
+    // Tree jewels live in build.passive_spec.jewels: HashMap<socket_node_id, item_id>.
+    for (&_socket_node_id, &item_id) in &build.passive_spec.jewels {
+        let Some(item) = build.items.get(&item_id) else {
+            continue;
+        };
+        if !item.name.contains("The Adorned") {
+            continue;
+        }
+        for line in &item.explicits {
+            if let Some(cap) = RE_ADORNED_MAGIC.captures(line) {
+                if let Ok(v) = cap[1].parse::<f64>() {
+                    env.player
+                        .mod_db
+                        .set_multiplier("CorruptedMagicJewelEffect", v / 100.0);
+                }
+            }
+            if let Some(cap) = RE_ADORNED_RARE.captures(line) {
+                if let Ok(v) = cap[1].parse::<f64>() {
+                    env.player
+                        .mod_db
+                        .set_multiplier("CorruptedRareJewelEffect", v / 100.0);
+                }
+            }
+        }
+    }
+
+    // Third pass (tree jewels — pass B): add mods from non-radius tree jewels whose
+    // socket node is allocated.
+    //
+    // In PoB Lua, tree jewels flow through the same item slot loop as gear items:
+    // each slot with `slot.nodeId` set represents a tree jewel socket. If the node
+    // is allocated and the jewel has no radius (not a radius jewel), its mods are
+    // added via `env.itemModDB:ScaleAddList(srcList, scale)` at line 1130.
+    //
+    // Mirrors CalcSetup.lua lines 722–811 (the `if slot.nodeId then` block) combined
+    // with the general item mod addition at lines 930–1131.
+    //
+    // Guards ported from Lua:
+    //  1. Socket node must be allocated (env.allocNodes[slot.nodeId]).
+    //  2. Jewels with a radius → already handled by build_radius_jewel_list; skip here.
+    //  3. Jewel limit check (CalcSetup.lua:738–748): unique jewels with item.limit
+    //     are deduplicated by their name (title); if the same jewel already fills
+    //     its limit, skip subsequent sockets.
+    //  4. Charm subtype exclusion (CalcSetup.lua:1098): `item.base.subType ~= "Charm"`.
+    //     In Rust, item.item_type == "Charm" for PoE 2 charm items.
+    //  5. The Adorned scaling (CalcSetup.lua:1098–1104): applied if The Adorned's
+    //     CorruptedXxxJewelEffect multiplier is set AND the jewel is corrupted AND
+    //     the socket node is NOT a cluster jewel sub-socket (containJewelSocket=false,
+    //     i.e. expansion_jewel.is_none() on the tree node).
+
+    let tree = env.data.tree_for_version(&build.passive_spec.tree_version);
+
+    // jewel_limits: tracks how many times each jewel name has been placed.
+    // Key: jewel name (Lua: item.title for uniques, "Historic" for timeless jewels).
+    // Mirrors: local jewelLimits = {} at CalcSetup.lua:682.
+    let mut jewel_limits: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
+
+    for (&socket_node_id, &item_id) in &build.passive_spec.jewels {
+        // 1. Socket node must be allocated.
+        // Mirrors: if not env.allocNodes[slot.nodeId] then goto continue end
+        //
+        // NOTE: add_jewel_mods runs BEFORE apply_passive_mods, so env.alloc_nodes is not yet
+        // populated. We use build.passive_spec.allocated_nodes (the raw allocation from XML)
+        // instead. Jewel socket nodes can only be allocated by the player directly (not via
+        // anointments or Forbidden jewels), so these two sets are equivalent for this check.
+        if !build.passive_spec.allocated_nodes.contains(&socket_node_id) {
+            continue;
+        }
+
+        let Some(item) = build.items.get(&item_id) else {
+            continue;
+        };
+
+        // 2. Skip jewels with a radius — they are handled by build_radius_jewel_list.
+        // Mirrors: if item and (item.jewelRadiusIndex or ...) then t_insert(radiusJewelList, ...) end
+        // (they get a goto continue / fall through without adding to `items` map in Lua's logic).
+        // Note: in Lua, radius jewels are added to radiusJewelList and then `items[slotName] = item`
+        // still runs (line 811). However, their mods come from the radius callbacks, not direct add.
+        // The Adorned scaling for tree jewels only applies to non-radius tree jewels per line 1098:
+        //   `slot.nodeId and ... and not env.spec.nodes[slot.nodeId].containJewelSocket`
+        // Radius jewels in a tree socket DO get their non-radius mods added (they fall through to
+        // line 811 and then 1130). But their radius-dependent mods are handled by radius callbacks.
+        // For the purpose of direct mod addition here, only add non-radius tree jewels.
+        if extract_radius_index(item).is_some() {
+            continue;
+        }
+
+        // 3. Jewel limit check.
+        // Mirrors CalcSetup.lua:738–748.
+        // item.limit comes from item base data; we parse it from the "Limited to: N" item line.
+        // limitKey = item.title (the unique name, e.g. "Watcher's Eye") for non-timeless jewels.
+        // For timeless jewels (base.subType == "Timeless"), limitKey = "Historic".
+        // We approximate timeless detection via the item's name (timeless jewels have their
+        // conqueror name in the item name: "Glorious Vanity", "Lethal Pride", etc.).
+        // In practice, this only matters for builds that somehow socket the same unique multiple times.
+        if let Some(limit) = item.limit {
+            // Derive the limitKey: for timeless jewels, use "Historic"; for others, use item name.
+            // Timeless jewels: Glorious Vanity, Lethal Pride, Brutal Restraint, Militant Faith,
+            // Elegant Hubris — their item_type is "Jewel" and they are Unique with a timeless base.
+            // We detect timeless by base_type substring (all timeless jewel bases contain "Jewel"
+            // but so do all jewels). Use item name matching instead.
+            let is_timeless = matches!(
+                item.name.as_str(),
+                "Glorious Vanity"
+                    | "Lethal Pride"
+                    | "Brutal Restraint"
+                    | "Militant Faith"
+                    | "Elegant Hubris"
+            );
+            let limit_key = if is_timeless {
+                "Historic".to_string()
+            } else {
+                item.name.clone()
+            };
+            let count = jewel_limits.entry(limit_key).or_insert(0);
+            if *count >= limit {
+                // Limit reached — skip this socket.
+                continue;
+            }
+            *count += 1;
+        }
+
+        // 4. Charm subtype exclusion.
+        // Mirrors: item.base.subType ~= "Charm" (CalcSetup.lua:1098).
+        // PoE 2 Charm items have item_type == "Charm".
+        if item.item_type == "Charm" {
+            continue;
+        }
+
+        // 5. The Adorned scaling for tree jewels.
+        // Mirrors CalcSetup.lua:1098–1104:
+        //   elseif Corrupted{Rarity}JewelEffect and item.type == "Jewel" and item.corrupted
+        //          and slot.nodeId and item.base.subType ~= "Charm"
+        //          and not env.spec.nodes[slot.nodeId].containJewelSocket
+        //
+        // containJewelSocket = expansion_jewel.is_some() on the tree node.
+        // For cluster jewel sub-sockets (expansion_jewel.is_some()), do NOT apply Adorned scale.
+        let is_cluster_sub_socket = tree
+            .nodes
+            .get(&socket_node_id)
+            .map(|n| n.expansion_jewel.is_some())
+            .unwrap_or(false);
+
+        let rarity_title = format!("{:?}", item.rarity);
+        let corrupted_key = format!("Corrupted{}JewelEffect", rarity_title);
+        let adorned_scale = env
+            .player
+            .mod_db
+            .multipliers
+            .get(&corrupted_key)
+            .copied()
+            .unwrap_or(0.0);
+
+        // scale = 1 by default; increase if Adorned multiplier applies.
+        // Condition: adorned_scale != 0.0 AND corrupted AND in a real tree socket (not cluster sub).
+        let scale = if adorned_scale != 0.0 && item.corrupted && !is_cluster_sub_socket {
+            1.0 + adorned_scale
+        } else {
+            1.0
+        };
+
+        let source = ModSource::new(
+            "Item",
+            format!("{} (Tree Socket {})", item.base_type, socket_node_id),
+        );
+
+        let mod_lines = item
+            .implicits
+            .iter()
+            .chain(item.explicits.iter())
+            .chain(item.crafted_mods.iter());
+
+        for line in mod_lines {
+            let mods = crate::build::mod_parser::parse_mod(line, source.clone());
+            for m in mods {
+                if (scale - 1.0).abs() > f64::EPSILON {
+                    env.player.mod_db.add(scale_mod_value(m, scale));
+                } else {
+                    env.player.mod_db.add(m);
+                }
+            }
+        }
+    }
 }
 
 /// Process flask items: parse their mods into the player ModDb when flasks are active.

@@ -464,7 +464,6 @@ fn is_skip_header(line: &str) -> bool {
         || line.starts_with("League:")
         || line.starts_with("Source:")
         || line.starts_with("Requires")
-        || line.starts_with("Limited")
         || line.starts_with("Radius:")
         || line.starts_with("Unreleased")
         || line.starts_with("Upgrade:")
@@ -488,6 +487,7 @@ fn parse_item_text(id: u32, text: &str) -> Item {
     let mut enchant_mods: Vec<String> = Vec::new();
     let mut radius: Option<String> = None;
 
+    let mut limit: Option<u32> = None;
     let mut implicits_remaining: Option<usize> = None;
     let mut in_mods = false; // true once we've passed the Implicits: line and consumed all implicits
     let mut name_lines: Vec<String> = Vec::new(); // collect name/base_type candidates
@@ -592,6 +592,10 @@ fn parse_item_text(id: u32, text: &str) -> Item {
             radius = Some(rest.to_string());
             continue;
         }
+        if let Some(rest) = line.strip_prefix("Limited to: ") {
+            limit = rest.parse::<u32>().ok();
+            continue;
+        }
         if let Some(rest) = line.strip_prefix("Requires Class ") {
             class_restriction = Some(rest.to_string());
             continue;
@@ -680,6 +684,7 @@ fn parse_item_text(id: u32, text: &str) -> Item {
         flask_data: None,
         requirements: ItemRequirements::default(),
         radius,
+        limit,
     }
 }
 

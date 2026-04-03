@@ -111,6 +111,7 @@ mod tests {
             flask_data: None,
             requirements: ItemRequirements::default(),
             radius: None,
+            limit: None,
         }
     }
 

@@ -215,6 +215,11 @@ pub struct Item {
     /// Parsed from "Radius: X" property line in the item text.
     /// None for non-jewel items.
     pub radius: Option<String>,
+    /// Maximum number of this jewel that can be active simultaneously.
+    /// Parsed from "Limited to: N" property line in the item text.
+    /// None if not specified (no limit).
+    /// Mirrors PoB's `item.limit` field set from base item data.
+    pub limit: Option<u32>,
 }
 
 /// Item rarity levels.
@@ -550,6 +555,7 @@ mod tests {
                 int_req: 0,
             },
             radius: None,
+            limit: None,
         };
 
         assert_eq!(item.id, 1);
