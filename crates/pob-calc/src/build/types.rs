@@ -105,6 +105,19 @@ pub struct Skill {
     pub enabled: bool,
     pub main_active_skill: usize, // 0-based index into gems
     pub gems: Vec<Gem>,
+
+    // ── SETUP-02 fields ─────────────────────────────────────────────────────
+    /// For item-granted skill groups, the source identifier (e.g. "Item:Heretic's Veil").
+    /// None for normal socketed gem groups.
+    pub source: Option<String>,
+
+    /// True if this socket group should not receive support gem effects.
+    /// Matches Lua's group.noSupports. Set for item-granted skill groups.
+    pub no_supports: bool,
+
+    /// True if this group's weapon set is the currently active one.
+    /// Matches Lua's group.slotEnabled.
+    pub slot_enabled: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -166,6 +179,63 @@ pub struct ActiveSkill {
     pub support_list: Vec<SupportEffect>,
     /// If set, this skill is triggered by some mechanism (e.g. "CastOnCrit", "CWC", "CWDT", "Trap", "Mine", "Totem")
     pub triggered_by: Option<String>,
+
+    // ── SETUP-02 fields ─────────────────────────────────────────────────────
+    /// Key-value bag of skill-specific runtime data.
+    /// Mirrors activeSkill.skillData in Lua (e.g. CritChance, attackTime, manaReservationPercent).
+    pub skill_data: HashMap<String, f64>,
+
+    /// Index of the active skill part (for multi-part skills like Glacial Cascade).
+    /// 1-based (Lua convention). None = skill has no parts or only one part.
+    pub skill_part: Option<u32>,
+
+    /// True if this skill group should not receive support gem effects.
+    /// Set for item-granted skills (e.g., Heretic's Veil curse auras).
+    pub no_supports: bool,
+
+    /// Human-readable reason this skill is disabled (e.g. "This skill requires a Shield").
+    /// None if skill is not disabled.
+    pub disable_reason: Option<String>,
+
+    /// Weapon ModFlags bit-OR for the main-hand attack.
+    /// Set when skill uses weapon1 (weapon1Attack flag).
+    pub weapon1_flags: u32,
+
+    /// Weapon ModFlags bit-OR for the off-hand attack.
+    /// Set when skill uses weapon2 (weapon2Attack flag).
+    pub weapon2_flags: u32,
+}
+
+impl Default for ActiveSkill {
+    fn default() -> Self {
+        Self {
+            skill_id: String::new(),
+            level: 1,
+            quality: 0,
+            skill_mod_db: crate::mod_db::ModDb::new(),
+            is_attack: false,
+            is_spell: false,
+            is_melee: false,
+            can_crit: true,
+            base_crit_chance: 0.05,
+            base_damage: HashMap::new(),
+            attack_speed_base: 0.0,
+            cast_time: 0.0,
+            damage_effectiveness: 1.0,
+            skill_types: Vec::new(),
+            skill_flags: HashMap::new(),
+            skill_cfg: None,
+            slot_name: None,
+            support_list: Vec::new(),
+            triggered_by: None,
+            skill_data: HashMap::new(),
+            skill_part: None,
+            no_supports: false,
+            disable_reason: None,
+            weapon1_flags: 0,
+            weapon2_flags: 0,
+        }
+    }
 }
 
 // ── Item types ──────────────────────────────────────────────────────────────

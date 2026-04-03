@@ -123,6 +123,9 @@ pub fn parse_xml(xml: &str) -> Result<Build, ParseError> {
                             enabled,
                             main_active_skill,
                             gems: Vec::new(),
+                            source: None,
+                            no_supports: false,
+                            slot_enabled: true,
                         });
                         // If there's no active SkillSet, create an implicit one.
                         // This handles builds where <Skill> elements are directly under <Skills>
