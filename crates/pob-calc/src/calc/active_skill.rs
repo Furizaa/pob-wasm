@@ -92,34 +92,58 @@ fn normalize_skill_id(skill_id: &str) -> String {
 // ── Support gem matching ────────────────────────────────────────────────────
 
 /// Port of `calcLib.canGrantedEffectSupportActiveSkill` (CalcTools.lua:85–144).
+/// Evaluate a PoB skill-type expression using a stack machine.
+///
+/// The expression is a list of type names and logical operators (AND, OR, NOT).
+/// This mirrors `calcLib.doesTypeExpressionMatch` in CalcTools.lua.
+///
+/// Return value: true if any element of the final stack is true.
+fn eval_type_expression(expr: &[String], active_skill_types: &[String]) -> bool {
+    let mut stack: Vec<bool> = Vec::new();
+    for token in expr {
+        if token.eq_ignore_ascii_case("OR") {
+            if stack.len() >= 2 {
+                let b = stack.pop().unwrap();
+                let a = stack.last_mut().unwrap();
+                *a = *a || b;
+            }
+        } else if token.eq_ignore_ascii_case("AND") {
+            if stack.len() >= 2 {
+                let b = stack.pop().unwrap();
+                let a = stack.last_mut().unwrap();
+                *a = *a && b;
+            }
+        } else if token.eq_ignore_ascii_case("NOT") {
+            if let Some(a) = stack.last_mut() {
+                *a = !*a;
+            }
+        } else {
+            // Type name: check if active skill has this type
+            let has_type = active_skill_types
+                .iter()
+                .any(|ast| ast.eq_ignore_ascii_case(token));
+            stack.push(has_type);
+        }
+    }
+    // Return true if any entry in the stack is true
+    stack.iter().any(|&v| v)
+}
+
 /// Determines if a support gem can support an active skill based on skill type
 /// requirements and exclusions.
 ///
-/// Simplified version: handles require_skill_types and exclude_skill_types
-/// as simple string list OR matches. Does not implement type expression
-/// (AND/OR/NOT) logic — that requires the full SkillType enum integer mapping.
+/// Uses a stack machine to evaluate AND/OR/NOT type expressions, mirroring
+/// `calcLib.doesTypeExpressionMatch` in CalcTools.lua.
 fn can_support(support_data: &GemData, active_skill_types: &[String]) -> bool {
-    // Check require_skill_types: if non-empty, the active skill must have at
-    // least one matching type
-    if !support_data.require_skill_types.is_empty() {
-        let matches = support_data.require_skill_types.iter().any(|req| {
-            active_skill_types
-                .iter()
-                .any(|ast| ast.eq_ignore_ascii_case(req))
-        });
-        if !matches {
+    // Check exclude_skill_types: excluded if the expression evaluates to true
+    if !support_data.exclude_skill_types.is_empty() {
+        if eval_type_expression(&support_data.exclude_skill_types, active_skill_types) {
             return false;
         }
     }
-    // Check exclude_skill_types: if non-empty, the active skill must have NONE
-    // of those types
-    if !support_data.exclude_skill_types.is_empty() {
-        let excluded = support_data.exclude_skill_types.iter().any(|exc| {
-            active_skill_types
-                .iter()
-                .any(|ast| ast.eq_ignore_ascii_case(exc))
-        });
-        if excluded {
+    // Check require_skill_types: must satisfy the expression (evaluates to true)
+    if !support_data.require_skill_types.is_empty() {
+        if !eval_type_expression(&support_data.require_skill_types, active_skill_types) {
             return false;
         }
     }

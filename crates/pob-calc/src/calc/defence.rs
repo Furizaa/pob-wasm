@@ -151,20 +151,98 @@ fn calc_resistances(env: &mut CalcEnv) {
         env.player
             .set_output(&format!("{elem}ResistOverTime"), capped);
 
-        // Totem resists: use their own base resist values (not player resists)
+        // Totem resists: use their own base resist values (not player resists).
+        // CalcDefence.lua:594-621:
+        //   local base = modDB:Sum("BASE", nil, "Totem"..elem.."Resist",
+        //                          isElemental[elem] and "TotemElementalResist")
+        //   totemTotal = base * m_max(calcLib.mod(modDB, nil, "Totem"..elem.."Resist",
+        //                             isElemental[elem] and "TotemElementalResist"), 0)
+        //   totemTotal = m_modf(totemTotal)  -- truncate toward zero
+        //   totemMax   = m_modf(totemMax)
         let totem_resist_stat = format!("Totem{elem}Resist");
-        let totem_base_resist =
-            env.player
+        let is_elemental = *elem != "Chaos";
+        let totem_base = {
+            let mut b = env
+                .player
                 .mod_db
                 .sum_cfg(ModType::Base, &totem_resist_stat, None, &output);
-        let totem_max = max_resist; // Totems share the player's max resist cap
-        let totem_capped = totem_base_resist.min(totem_max);
-        let totem_over_cap = (totem_base_resist - totem_max).max(0.0);
+            if is_elemental {
+                b +=
+                    env.player
+                        .mod_db
+                        .sum_cfg(ModType::Base, "TotemElementalResist", None, &output);
+            }
+            b
+        };
+        // calcLib.mod = (1 + INC/100) * More for both TotemXxxResist + TotemElementalResist
+        let totem_inc = {
+            let mut inc =
+                env.player
+                    .mod_db
+                    .sum_cfg(ModType::Inc, &totem_resist_stat, None, &output);
+            if is_elemental {
+                inc +=
+                    env.player
+                        .mod_db
+                        .sum_cfg(ModType::Inc, "TotemElementalResist", None, &output);
+            }
+            inc
+        };
+        let totem_more = {
+            let mut more = env
+                .player
+                .mod_db
+                .more_cfg(&totem_resist_stat, None, &output);
+            if is_elemental {
+                more *= env
+                    .player
+                    .mod_db
+                    .more_cfg("TotemElementalResist", None, &output);
+            }
+            more
+        };
+        let totem_mod = ((1.0 + totem_inc / 100.0) * totem_more).max(0.0);
+        let totem_total_raw = (totem_base * totem_mod).trunc(); // m_modf = truncate
+
+        // CalcDefence.lua:585:
+        // totemMax = Override("TotemXxxResistMax") or min(MaxResistCap, Sum("BASE", nil, "TotemXxxResistMax", ...))
+        // Totems have their OWN max resist cap (separate from player max).
+        // Game constants set TotemFireResistMax = TotemColdResistMax = TotemLightningResistMax =
+        // TotemChaosResistMax = 75 (see CalcSetup.lua:23-26). Player "+1% max fire resist" mods
+        // do NOT affect totems.
+        let totem_max_stat = format!("Totem{elem}ResistMax");
+        let totem_max_raw = env
+            .player
+            .mod_db
+            .override_value(&totem_max_stat, None, &output)
+            .unwrap_or_else(|| {
+                let base = env
+                    .player
+                    .mod_db
+                    .sum_cfg(ModType::Base, &totem_max_stat, None, &output);
+                let elem_max = if is_elemental {
+                    env.player.mod_db.sum_cfg(
+                        ModType::Base,
+                        "TotemElementalResistMax",
+                        None,
+                        &output,
+                    )
+                } else {
+                    0.0
+                };
+                (base + elem_max).min(90.0) // MaxResistCap = 90
+            });
+        let totem_max = totem_max_raw.trunc(); // m_modf = truncate
+
+        // min = 0 for elemental, or the chaos resist floor for chaos.
+        // For simplicity, all resist types have floor 0 in standard builds.
+        let totem_capped = totem_total_raw.min(totem_max).max(0.0);
+        let totem_over_cap = (totem_total_raw - totem_max).max(0.0);
         let missing_totem = (totem_max - totem_capped).max(0.0);
         env.player
             .set_output(&format!("Totem{elem}Resist"), totem_capped);
         env.player
-            .set_output(&format!("Totem{elem}ResistTotal"), totem_base_resist);
+            .set_output(&format!("Totem{elem}ResistTotal"), totem_total_raw);
         env.player
             .set_output(&format!("Totem{elem}ResistOverCap"), totem_over_cap);
         env.player
@@ -1381,7 +1459,7 @@ fn calc_movement_and_avoidance(env: &mut CalcEnv) {
         env.player.set_output(&output_key, val);
     }
 
-    // Blind, Silence, InterruptStun avoidance
+    // Blind avoidance
     let blind_avoid = env
         .player
         .mod_db
@@ -1389,11 +1467,27 @@ fn calc_movement_and_avoidance(env: &mut CalcEnv) {
         .clamp(0.0, 100.0);
     env.player.set_output("BlindAvoidChance", blind_avoid);
 
-    let silence_avoid = env
-        .player
-        .mod_db
-        .sum_cfg(ModType::Base, "AvoidSilence", None, &output)
-        .clamp(0.0, 100.0);
+    // Curse avoidance: CalcDefence.lua:1578
+    // CurseImmune flag → 100, else sum BASE "AvoidCurse" capped at 100
+    // Must be written BEFORE SilenceAvoidChance (which derives from it).
+    let curse_avoid = if env.player.mod_db.flag_cfg("CurseImmune", None, &output) {
+        100.0
+    } else {
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "AvoidCurse", None, &output)
+            .min(100.0)
+    };
+    env.player.set_output("CurseAvoidChance", curse_avoid);
+
+    // Silence avoidance: CalcDefence.lua:1579
+    // SilenceImmune flag → 100, else equals CurseAvoidChance.
+    // There is no "AvoidSilence" stat — silence avoidance derives entirely from curse avoidance.
+    let silence_avoid = if env.player.mod_db.flag_cfg("SilenceImmune", None, &output) {
+        100.0
+    } else {
+        curse_avoid
+    };
     env.player.set_output("SilenceAvoidChance", silence_avoid);
 
     let interrupt_stun_avoid = env
@@ -1434,14 +1528,6 @@ fn calc_movement_and_avoidance(env: &mut CalcEnv) {
         .clamp(0.0, 100.0);
     env.player.set_output("AvoidProjectilesChance", avoid_proj);
 
-    // Curse avoidance
-    let curse_avoid = env
-        .player
-        .mod_db
-        .sum_cfg(ModType::Base, "AvoidCurse", None, &output)
-        .clamp(0.0, 100.0);
-    env.player.set_output("CurseAvoidChance", curse_avoid);
-
     // Stun avoidance (separate from stun calc, this is the avoidance stat)
     // Handled in calc_stun
 
@@ -1473,22 +1559,71 @@ fn calc_movement_and_avoidance(env: &mut CalcEnv) {
             .sum_cfg(ModType::Base, "CritExtraDamageReduction", None, &output);
     env.player.set_output("CritExtraDamageReduction", crit_dr);
 
-    // Debuff expiration rate: PoB outputs the raw inc% (0 = no change)
-    let debuff_rate_inc =
+    // CurseEffectOnSelf: CalcDefence.lua:1586
+    // Formula: More × (100 + INC), clamped at 0 minimum.
+    // This is NOT calcLib.mod — there is no BASE; it's a direct More × (100 + INC) formula.
+    // Result is a percentage where 100 = no change from curse effects.
+    {
+        let more = env
+            .player
+            .mod_db
+            .more_cfg("CurseEffectOnSelf", None, &output);
+        let inc = env
+            .player
+            .mod_db
+            .sum_cfg(ModType::Inc, "CurseEffectOnSelf", None, &output);
+        let curse_effect_on_self = (more * (100.0 + inc)).max(0.0);
+        env.player
+            .set_output("CurseEffectOnSelf", curse_effect_on_self);
+    }
+
+    // ExposureEffectOnSelf: CalcDefence.lua:1587
+    // Formula: More × (100 + INC) — same pattern as CurseEffectOnSelf, but no max(0) clamp.
+    {
+        let more = env
+            .player
+            .mod_db
+            .more_cfg("ExposureEffectOnSelf", None, &output);
+        let inc = env
+            .player
+            .mod_db
+            .sum_cfg(ModType::Inc, "ExposureEffectOnSelf", None, &output);
+        env.player
+            .set_output("ExposureEffectOnSelf", more * (100.0 + inc));
+    }
+
+    // WitherEffectOnSelf: CalcDefence.lua:1588
+    // Formula: More × (100 + INC) — same pattern.
+    {
+        let more = env
+            .player
+            .mod_db
+            .more_cfg("WitherEffectOnSelf", None, &output);
+        let inc = env
+            .player
+            .mod_db
+            .sum_cfg(ModType::Inc, "WitherEffectOnSelf", None, &output);
+        env.player
+            .set_output("WitherEffectOnSelf", more * (100.0 + inc));
+    }
+
+    // Debuff expiration rate: CalcDefence.lua:1591-1593
+    // DebuffExpirationRate = BASE sum of "SelfDebuffExpirationRate" (NOT INC of "DebuffExpirationRate")
+    let debuff_rate =
         env.player
             .mod_db
-            .sum_cfg(ModType::Inc, "DebuffExpirationRate", None, &output);
-    env.player
-        .set_output("DebuffExpirationRate", debuff_rate_inc);
+            .sum_cfg(ModType::Base, "SelfDebuffExpirationRate", None, &output);
+    env.player.set_output("DebuffExpirationRate", debuff_rate);
 
-    // DebuffExpirationModifier: 100 + inc  (100 = base)
-    let debuff_modifier = 100.0 + debuff_rate_inc;
+    // DebuffExpirationModifier: 10000 / (100 + rate)
+    // At rate=0: 100 (no change); at rate=100 (100% faster): 50 (half duration)
+    let debuff_modifier = 10000.0 / (100.0 + debuff_rate);
     env.player
         .set_output("DebuffExpirationModifier", debuff_modifier);
 
-    // showDebuffExpirationModifier: true if modifier != 100
+    // showDebuffExpirationModifier: true when modifier is not exactly 100
     env.player
-        .set_output_bool("showDebuffExpirationModifier", debuff_rate_inc != 0.0);
+        .set_output_bool("showDebuffExpirationModifier", debuff_modifier != 100.0);
 }
 
 // ── Task 10: Damage shift table ──────────────────────────────────────────────

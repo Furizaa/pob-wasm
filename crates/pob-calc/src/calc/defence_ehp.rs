@@ -10,20 +10,21 @@ pub fn run(env: &mut CalcEnv) {
     calc_damage_taken_mult(env);
     calc_max_hit_taken(env);
     calc_total_ehp(env);
+    calc_build_degen(env);
 }
 
 // ── 1. Not-hit chances (L1635-1656) ──────────────────────────────────────────
 
 fn calc_not_hit_chances(env: &mut CalcEnv) {
-    let output = &env.player.output;
+    let output = env.player.output.clone();
 
-    let evade_chance = get_output_f64(output, "EvadeChance");
-    let attack_dodge = get_output_f64(output, "AttackDodgeChance");
-    let spell_dodge = get_output_f64(output, "SpellDodgeChance");
-    let block = get_output_f64(output, "EffectiveBlockChance");
-    let spell_block = get_output_f64(output, "EffectiveSpellBlockChance");
-    let proj_block = get_output_f64(output, "EffectiveProjectileBlockChance");
-    let spell_proj_block = get_output_f64(output, "EffectiveSpellProjectileBlockChance");
+    let evade_chance = get_output_f64(&output, "EvadeChance");
+    let attack_dodge = get_output_f64(&output, "AttackDodgeChance");
+    let spell_dodge = get_output_f64(&output, "SpellDodgeChance");
+    let block = get_output_f64(&output, "EffectiveBlockChance");
+    let spell_block = get_output_f64(&output, "EffectiveSpellBlockChance");
+    let proj_block = get_output_f64(&output, "EffectiveProjectileBlockChance");
+    let spell_proj_block = get_output_f64(&output, "EffectiveSpellProjectileBlockChance");
 
     // Melee not-hit: 1 - (1-evade/100)*(1-attackDodge/100)*(1-block/100)
     let melee_not_hit = (1.0
@@ -52,6 +53,18 @@ fn calc_not_hit_chances(env: &mut CalcEnv) {
     env.player
         .set_output("SpellProjectileNotHitChance", spell_proj_not_hit);
     env.player.set_output("AverageNotHitChance", avg_not_hit);
+
+    // CalcDefence.lua:1644: AverageEvadeChance = (MeleeEvadeChance + ProjectileEvadeChance) / 4
+    // Division by 4 (not 2) because there are 4 damage categories but only 2 use evasion.
+    let melee_evade = get_output_f64(&output, "MeleeEvadeChance");
+    let proj_evade = get_output_f64(&output, "ProjectileEvadeChance");
+    let avg_evade = (melee_evade + proj_evade) / 4.0;
+    env.player.set_output("AverageEvadeChance", avg_evade);
+
+    // CalcDefence.lua:1646: ConfiguredEvadeChance = output[damageCategoryConfig.."EvadeChance"] or 0
+    // damageCategoryConfig defaults to "Average" (from env.configInput.enemyDamageType or "Average")
+    // For our oracle builds, there's no config override, so it's always "Average".
+    env.player.set_output("ConfiguredEvadeChance", avg_evade);
 }
 
 // ── 2. Enemy damage estimation (L1658-1790) ──────────────────────────────────
@@ -71,39 +84,63 @@ fn calc_enemy_damage(env: &mut CalcEnv) {
     };
     // Not output as "EnemyDamage" — PoB outputs per-type enemy damage
 
-    // Enemy crit chance (default 5%)
-    let enemy_crit_base =
-        env.player
-            .mod_db
-            .sum_cfg(ModType::Base, "EnemyCritChance", None, &output);
-    let enemy_crit = if enemy_crit_base > 0.0 {
-        enemy_crit_base
+    // Enemy crit chance: CalcDefence.lua:1684
+    // Priority: NeverCrit flag → 0, AlwaysCrit flag → 100.
+    // Otherwise: config_crit * (1 + playerINC + enemyINC) * (1 - evadeChance/100), clamped [0,100].
+    // The config_crit base is 5.0 (PoB default / configPlaceholder["enemyCritChance"]).
+    // modDB:Override(nil, "enemyCritChance") would override from config — use BASE sum which
+    // captures any explicit override mods (e.g. "Enemies always have X% crit chance" type mods).
+    let enemy_crit = if env.enemy.mod_db.flag_cfg("NeverCrit", None, &output) {
+        0.0
+    } else if env.enemy.mod_db.flag_cfg("AlwaysCrit", None, &output) {
+        100.0
     } else {
-        5.0
-    };
-    env.player
-        .set_output("EnemyCritChance", enemy_crit.clamp(0.0, 100.0));
-
-    // Enemy crit damage multiplier (default 1.3 = 130%)
-    let enemy_crit_mult_base =
-        env.player
+        // Base config crit chance: 5.0 (default placeholder)
+        // Any override from modDB (rare) captured via BASE "EnemyCritChance" sum
+        let override_val = env
+            .player
             .mod_db
-            .sum_cfg(ModType::Base, "EnemyCritEffect", None, &output);
-    let enemy_crit_mult = if enemy_crit_mult_base > 0.0 {
-        enemy_crit_mult_base
-    } else {
-        130.0
+            .override_value("enemyCritChance", None, &output);
+        let config_crit = override_val.unwrap_or(5.0);
+        // INC mods from player modDB ("EnemyCritChance") and enemy modDB ("CritChance")
+        let inc_player = env
+            .player
+            .mod_db
+            .sum_cfg(ModType::Inc, "EnemyCritChance", None, &output);
+        let inc_enemy = env
+            .enemy
+            .mod_db
+            .sum_cfg(ModType::Inc, "CritChance", None, &output);
+        // Evade chance reduces enemy crit chance
+        let configured_evade = get_output_f64(&output, "ConfiguredEvadeChance");
+        (config_crit
+            * (1.0 + inc_player / 100.0 + inc_enemy / 100.0)
+            * (1.0 - configured_evade / 100.0))
+            .clamp(0.0, 100.0)
     };
+    env.player.set_output("EnemyCritChance", enemy_crit);
 
-    // CritExtraDamageReduction reduces the extra crit damage
+    // Enemy crit damage multiplier: CalcDefence.lua:1686-1687
+    // enemyCritDamage = max((configCritDamage or 0) + enemyDB:Sum("BASE", nil, "CritMultiplier"), 0)
+    // configCritDamage default is data.monsterConstants["base_critical_strike_multiplier"] - 100 = 30
+    // (130 - 100 = 30, matching PoB's monster_critical_strike_multiplier = 130%)
+    //
+    // EnemyCritEffect = 1 + enemyCritChance/100 * (enemyCritDamage/100) * (1 - CritExtraDamageReduction/100)
+    let crit_mult_from_enemy =
+        env.enemy
+            .mod_db
+            .sum_cfg(ModType::Base, "CritMultiplier", None, &output);
+    let enemy_crit_damage = (30.0 + crit_mult_from_enemy).max(0.0);
     let crit_dr = get_output_f64(&output, "CritExtraDamageReduction");
-    let crit_extra = (enemy_crit_mult - 100.0).max(0.0) * (1.0 - crit_dr / 100.0);
-    let effective_crit_mult = 1.0 + crit_extra / 100.0;
+    let effective_crit_mult =
+        1.0 + enemy_crit / 100.0 * (enemy_crit_damage / 100.0) * (1.0 - crit_dr / 100.0);
     env.player
         .set_output("EnemyCritEffect", effective_crit_mult);
 
-    // Average crit multiplier applied to hits (internal use for EHP calc)
-    let avg_crit_mult = 1.0 + (effective_crit_mult - 1.0) * (enemy_crit.clamp(0.0, 100.0) / 100.0);
+    // Average crit multiplier applied to hits (internal use for EHP calc).
+    // EnemyCritEffect already incorporates crit chance: 1 + crit_chance/100 * extra_damage.
+    // So this IS the average damage multiplier from enemy crits.
+    let avg_crit_mult = effective_crit_mult;
 
     // Enemy skill time (default 0.7 seconds)
     let enemy_skill_time_base =
@@ -354,6 +391,133 @@ fn calc_total_ehp(env: &mut CalcEnv) {
     };
     env.player
         .set_output("SecondMinimalMaximumHitTaken", second_min);
+}
+
+// ── 6. Build degen and net regen (CalcDefence.lua:3316-3462) ─────────────────
+
+/// Compute TotalBuildDegen and net regen fields.
+///
+/// Mirrors CalcDefence.lua:3316-3462 (calcs.buildDefenceEstimations degen block).
+///
+/// TotalBuildDegen is the sum of all DoT degens (fire from RF, chaos from poison, etc.)
+/// multiplied by their taken-dot multipliers and distributed through the damage shift table.
+///
+/// NetLifeRegen/NetManaRegen/NetEnergyShieldRegen subtract the per-pool degen from regen.
+/// These fields are only written when TotalBuildDegen > 0.
+fn calc_build_degen(env: &mut CalcEnv) {
+    use super::defence::DMG_TYPE_NAMES;
+
+    let output = env.player.output.clone();
+
+    let mut total_build_degen: f64 = 0.0;
+    // Per-type accumulated degen (Fire/Cold/Lightning/Physical/Chaos)
+    let mut type_build_degen: [f64; 5] = [0.0; 5];
+
+    // The damage shift table: [source_type][dest_type] = percent
+    // type indices: 0=Physical, 1=Lightning, 2=Cold, 3=Fire, 4=Chaos
+    // (matches the damage_shift_table layout in env)
+    for (src_idx, src_name) in DMG_TYPE_NAMES.iter().enumerate() {
+        let base_val =
+            env.player
+                .mod_db
+                .sum_cfg(ModType::Base, &format!("{src_name}Degen"), None, &output);
+        if base_val > 0.0 {
+            // Distribute through damage shift table
+            for (dst_idx, dst_name) in DMG_TYPE_NAMES.iter().enumerate() {
+                let convert_percent = env.player.damage_shift_table[src_idx][dst_idx];
+                if convert_percent > 0.0 {
+                    let taken_dot_mult =
+                        get_output_f64(&output, &format!("{dst_name}TakenDotMult"));
+                    let total = base_val * (convert_percent / 100.0) * taken_dot_mult;
+                    type_build_degen[dst_idx] += total;
+                    total_build_degen += total;
+                }
+            }
+        }
+    }
+
+    // Only write TotalBuildDegen and Net* fields when there IS degen
+    if total_build_degen > 0.0 {
+        env.player.set_output("TotalBuildDegen", total_build_degen);
+
+        // Write per-type BuildDegen fields (used by later calculations)
+        for (dst_idx, dst_name) in DMG_TYPE_NAMES.iter().enumerate() {
+            if type_build_degen[dst_idx] > 0.0 {
+                env.player
+                    .set_output(&format!("{dst_name}BuildDegen"), type_build_degen[dst_idx]);
+            }
+        }
+
+        // NetRegen = RegenRecovery - degen distributed to each pool
+        let life_regen_recovery = get_output_f64(&output, "LifeRegenRecovery");
+        let mana_regen_recovery = get_output_f64(&output, "ManaRegenRecovery");
+        let es_regen_recovery = get_output_f64(&output, "EnergyShieldRegenRecovery");
+
+        let mut total_life_degen: f64 = 0.0;
+        let mut total_mana_degen: f64 = 0.0;
+        let mut total_es_degen: f64 = 0.0;
+
+        for (dst_idx, dst_name) in DMG_TYPE_NAMES.iter().enumerate() {
+            let build_degen = type_build_degen[dst_idx];
+            if build_degen == 0.0 {
+                continue;
+            }
+
+            // Mind Over Matter: portion of degen taken from mana
+            let mom = get_output_f64(&output, &format!("{dst_name}MindOverMatter"));
+            let shared_mom = get_output_f64(&output, "sharedMindOverMatter");
+            let taken_from_mana = mom + shared_mom;
+
+            // EnergyShieldBypass: portion that bypasses ES and hits life/mana directly
+            let es_bypass = get_output_f64(&output, &format!("{dst_name}EnergyShieldBypass"));
+
+            if es_regen_recovery > 0.0 {
+                // ES is active: split between ES, life, and mana
+                let (life_degen, es_degen, mana_degen) =
+                    if env
+                        .player
+                        .mod_db
+                        .flag_cfg("EnergyShieldProtectsMana", None, &output)
+                    {
+                        // ES protects mana: life gets full portion, ES absorbs mana portion
+                        let life_d = build_degen * (1.0 - taken_from_mana / 100.0);
+                        let es_d =
+                            build_degen * (1.0 - es_bypass / 100.0) * (taken_from_mana / 100.0);
+                        (life_d, es_d, 0.0)
+                    } else {
+                        // Normal: ES absorbs everything except bypassing portion
+                        let life_d =
+                            build_degen * (es_bypass / 100.0) * (1.0 - taken_from_mana / 100.0);
+                        let es_d = build_degen * (1.0 - es_bypass / 100.0);
+                        let mana_d = build_degen * (es_bypass / 100.0) * (taken_from_mana / 100.0);
+                        (life_d, es_d, mana_d)
+                    };
+                total_life_degen += life_degen;
+                total_es_degen += es_degen;
+                total_mana_degen += mana_degen;
+            } else {
+                // No ES: split between life and mana
+                let life_d = build_degen * (1.0 - taken_from_mana / 100.0);
+                let mana_d = build_degen * (taken_from_mana / 100.0);
+                total_life_degen += life_d;
+                total_mana_degen += mana_d;
+            }
+        }
+
+        let net_life_regen = life_regen_recovery - total_life_degen;
+        let net_mana_regen = mana_regen_recovery - total_mana_degen;
+        let net_es_regen = es_regen_recovery - total_es_degen;
+
+        env.player.set_output("NetLifeRegen", net_life_regen);
+        env.player.set_output("NetManaRegen", net_mana_regen);
+        env.player.set_output("NetEnergyShieldRegen", net_es_regen);
+        env.player.set_output(
+            "TotalNetRegen",
+            net_life_regen + net_mana_regen + net_es_regen,
+        );
+    }
+    // When TotalBuildDegen == 0: do NOT write the field (Lua sets it to nil).
+    // Also do NOT write NetLifeRegen/NetManaRegen/NetEnergyShieldRegen.
 }
 
 // ── Tests ────────────────────────────────────────────────────────────────────

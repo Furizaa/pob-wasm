@@ -650,6 +650,348 @@ fn calc_skill_type_stats(env: &mut CalcEnv, cfg: &SkillCfg) {
     // This field is always present in oracle JSON even when no warcry is active.
     env.player.set_output("AilmentWarcryEffect", 1.0);
 
+    // ── PERF-06: Aura/curse skill type output fields ──────────────────────
+
+    let (is_aura, is_aura_affects_enemies, is_hex, is_mark) = {
+        let skill = env.player.main_skill.as_ref();
+        match skill {
+            Some(s) => (
+                s.skill_types.iter().any(|t| t.eq_ignore_ascii_case("Aura")),
+                s.skill_types
+                    .iter()
+                    .any(|t| t.eq_ignore_ascii_case("AuraAffectsEnemies")),
+                s.skill_types.iter().any(|t| t.eq_ignore_ascii_case("Hex")),
+                s.skill_types.iter().any(|t| t.eq_ignore_ascii_case("Mark")),
+            ),
+            None => (false, false, false, false),
+        }
+    };
+
+    // AuraEffectMod: CalcOffence.lua:1137-1142
+    // Only written for skills with the Aura skill type.
+    // calcLib.mod(skillModList, skillCfg, "AuraEffect", conditionally "SkillAuraEffectOnSelf")
+    //   where SkillAuraEffectOnSelf is INCLUDED unless the aura cannot affect self OR is
+    //   an AuraAffectsEnemies type.
+    if is_aura {
+        let aura_inc = {
+            let player_inc =
+                env.player
+                    .mod_db
+                    .sum_cfg(ModType::Inc, "AuraEffect", Some(cfg), &output_snap);
+            let skill_inc = env
+                .player
+                .main_skill
+                .as_ref()
+                .map(|s| {
+                    s.skill_mod_db
+                        .sum_cfg(ModType::Inc, "AuraEffect", Some(cfg), &output_snap)
+                })
+                .unwrap_or(0.0);
+            player_inc + skill_inc
+        };
+        let aura_more = {
+            let player_more = env
+                .player
+                .mod_db
+                .more_cfg("AuraEffect", Some(cfg), &output_snap);
+            let skill_more = env
+                .player
+                .main_skill
+                .as_ref()
+                .map(|s| {
+                    s.skill_mod_db
+                        .more_cfg("AuraEffect", Some(cfg), &output_snap)
+                })
+                .unwrap_or(1.0);
+            player_more * skill_more
+        };
+
+        // auraCannotAffectSelf: stored in skill_data as a boolean-like number (1.0 = true)
+        // This flag means the aura doesn't affect the caster (e.g. Blasphemy Support)
+        let aura_cannot_affect_self = env
+            .player
+            .main_skill
+            .as_ref()
+            .map(|s| {
+                s.skill_data
+                    .get("auraCannotAffectSelf")
+                    .copied()
+                    .unwrap_or(0.0)
+                    != 0.0
+            })
+            .unwrap_or(false);
+
+        // Include SkillAuraEffectOnSelf if aura CAN affect self and is not AuraAffectsEnemies
+        let (total_inc, total_more) = if !aura_cannot_affect_self && !is_aura_affects_enemies {
+            let self_inc = {
+                let player_inc = env.player.mod_db.sum_cfg(
+                    ModType::Inc,
+                    "SkillAuraEffectOnSelf",
+                    Some(cfg),
+                    &output_snap,
+                );
+                let skill_inc = env
+                    .player
+                    .main_skill
+                    .as_ref()
+                    .map(|s| {
+                        s.skill_mod_db.sum_cfg(
+                            ModType::Inc,
+                            "SkillAuraEffectOnSelf",
+                            Some(cfg),
+                            &output_snap,
+                        )
+                    })
+                    .unwrap_or(0.0);
+                player_inc + skill_inc
+            };
+            let self_more = {
+                let player_more =
+                    env.player
+                        .mod_db
+                        .more_cfg("SkillAuraEffectOnSelf", Some(cfg), &output_snap);
+                let skill_more = env
+                    .player
+                    .main_skill
+                    .as_ref()
+                    .map(|s| {
+                        s.skill_mod_db
+                            .more_cfg("SkillAuraEffectOnSelf", Some(cfg), &output_snap)
+                    })
+                    .unwrap_or(1.0);
+                player_more * skill_more
+            };
+            (aura_inc + self_inc, aura_more * self_more)
+        } else {
+            (aura_inc, aura_more)
+        };
+
+        let aura_effect_mod = (1.0 + total_inc / 100.0) * total_more;
+        env.player.set_output("AuraEffectMod", aura_effect_mod);
+    }
+
+    // CurseEffectMod: CalcOffence.lua:1163-1168
+    // Only written for skills with Hex or Mark skill type.
+    // calcLib.mod(skillModList, skillCfg, "CurseEffect")
+    if is_hex || is_mark {
+        let curse_inc = {
+            let player_inc =
+                env.player
+                    .mod_db
+                    .sum_cfg(ModType::Inc, "CurseEffect", Some(cfg), &output_snap);
+            let skill_inc = env
+                .player
+                .main_skill
+                .as_ref()
+                .map(|s| {
+                    s.skill_mod_db
+                        .sum_cfg(ModType::Inc, "CurseEffect", Some(cfg), &output_snap)
+                })
+                .unwrap_or(0.0);
+            player_inc + skill_inc
+        };
+        let curse_more = {
+            let player_more = env
+                .player
+                .mod_db
+                .more_cfg("CurseEffect", Some(cfg), &output_snap);
+            let skill_more = env
+                .player
+                .main_skill
+                .as_ref()
+                .map(|s| {
+                    s.skill_mod_db
+                        .more_cfg("CurseEffect", Some(cfg), &output_snap)
+                })
+                .unwrap_or(1.0);
+            player_more * skill_more
+        };
+        let curse_effect_mod = (1.0 + curse_inc / 100.0) * curse_more;
+        env.player.set_output("CurseEffectMod", curse_effect_mod);
+    }
+
+    // ── PERF-06: Enemy regeneration (CalcOffence.lua:3515-3518) ──────────
+    // EnemyLifeRegen/ManaRegen/EnergyShieldRegen: INC mods from enemyDB with cfg
+    // These represent how much the enemy's regen is modified (e.g. from curses).
+    {
+        let enemy_output_snap = env.enemy.output.clone();
+        let life_regen =
+            env.enemy
+                .mod_db
+                .sum_cfg(ModType::Inc, "LifeRegen", Some(cfg), &enemy_output_snap);
+        let mana_regen =
+            env.enemy
+                .mod_db
+                .sum_cfg(ModType::Inc, "ManaRegen", Some(cfg), &enemy_output_snap);
+        let es_regen = env.enemy.mod_db.sum_cfg(
+            ModType::Inc,
+            "EnergyShieldRegen",
+            Some(cfg),
+            &enemy_output_snap,
+        );
+        env.player.set_output("EnemyLifeRegen", life_regen);
+        env.player.set_output("EnemyManaRegen", mana_regen);
+        env.player.set_output("EnemyEnergyShieldRegen", es_regen);
+    }
+
+    // ── PERF-06: Enemy stun modifiers (CalcOffence.lua:5223-5259) ────────
+    // EnemyStunThresholdMod: reduces enemy stun threshold.
+    // local enemyStunThresholdRed = -skillModList:Sum("INC", cfg, "EnemyStunThreshold")
+    {
+        let player_stun_thresh =
+            env.player
+                .mod_db
+                .sum_cfg(ModType::Inc, "EnemyStunThreshold", Some(cfg), &output_snap);
+        let skill_stun_thresh = env
+            .player
+            .main_skill
+            .as_ref()
+            .map(|s| {
+                s.skill_mod_db
+                    .sum_cfg(ModType::Inc, "EnemyStunThreshold", Some(cfg), &output_snap)
+            })
+            .unwrap_or(0.0);
+        // Negate because the stat is "EnemyStunThreshold" which is negative (reduction)
+        let thresh_red = -(player_stun_thresh + skill_stun_thresh);
+        let stun_thresh_mod = if thresh_red > 75.0 {
+            // Diminishing returns above 75%
+            1.0 - (75.0 + (thresh_red - 75.0) * 25.0 / (thresh_red - 50.0)) / 100.0
+        } else {
+            1.0 - thresh_red / 100.0
+        };
+        env.player
+            .set_output("EnemyStunThresholdMod", stun_thresh_mod);
+
+        // EnemyStunDuration: base 0.35s modified by INC/MORE and crit chance
+        // CalcOffence.lua:5230-5259
+        let base_stun_dur = env
+            .player
+            .main_skill
+            .as_ref()
+            .map(|s| {
+                s.skill_data
+                    .get("baseStunDuration")
+                    .copied()
+                    .unwrap_or(0.35)
+            })
+            .unwrap_or(0.35);
+
+        let inc_dur = {
+            let p = env.player.mod_db.sum_cfg(
+                ModType::Inc,
+                "EnemyStunDuration",
+                Some(cfg),
+                &output_snap,
+            );
+            let s = env
+                .player
+                .main_skill
+                .as_ref()
+                .map(|sk| {
+                    sk.skill_mod_db.sum_cfg(
+                        ModType::Inc,
+                        "EnemyStunDuration",
+                        Some(cfg),
+                        &output_snap,
+                    )
+                })
+                .unwrap_or(0.0);
+            p + s
+        };
+        let inc_dur_crit = {
+            let p = env.player.mod_db.sum_cfg(
+                ModType::Inc,
+                "EnemyStunDurationOnCrit",
+                Some(cfg),
+                &output_snap,
+            );
+            let s = env
+                .player
+                .main_skill
+                .as_ref()
+                .map(|sk| {
+                    sk.skill_mod_db.sum_cfg(
+                        ModType::Inc,
+                        "EnemyStunDurationOnCrit",
+                        Some(cfg),
+                        &output_snap,
+                    )
+                })
+                .unwrap_or(0.0);
+            p + s
+        };
+        let more_dur = {
+            let p = env
+                .player
+                .mod_db
+                .more_cfg("EnemyStunDuration", Some(cfg), &output_snap);
+            let s = env
+                .player
+                .main_skill
+                .as_ref()
+                .map(|sk| {
+                    sk.skill_mod_db
+                        .more_cfg("EnemyStunDuration", Some(cfg), &output_snap)
+                })
+                .unwrap_or(1.0);
+            p * s
+        };
+        // chance_to_double: min(player+skill DoubleEnemyStunDurationChance + enemy SelfDoubleStunDurationChance, 100)
+        let chance_to_double = {
+            let player_double = env.player.mod_db.sum_cfg(
+                ModType::Base,
+                "DoubleEnemyStunDurationChance",
+                Some(cfg),
+                &output_snap,
+            );
+            let skill_double = env
+                .player
+                .main_skill
+                .as_ref()
+                .map(|sk| {
+                    sk.skill_mod_db.sum_cfg(
+                        ModType::Base,
+                        "DoubleEnemyStunDurationChance",
+                        Some(cfg),
+                        &output_snap,
+                    )
+                })
+                .unwrap_or(0.0);
+            let enemy_output_snap = env.enemy.output.clone();
+            let enemy_double = env.enemy.mod_db.sum_cfg(
+                ModType::Base,
+                "SelfDoubleStunDurationChance",
+                Some(cfg),
+                &enemy_output_snap,
+            );
+            (player_double + skill_double + enemy_double).min(100.0)
+        };
+        let inc_recov = {
+            let enemy_output_snap = env.enemy.output.clone();
+            env.enemy
+                .mod_db
+                .sum_cfg(ModType::Inc, "StunRecovery", None, &enemy_output_snap)
+        };
+
+        // base duration / (1 + incRecov/100) * moreDur
+        let min_stun = base_stun_dur * more_dur / (1.0 + inc_recov / 100.0);
+        let crit_chance = get_output_f64(&output_snap, "CritChance");
+
+        let mut stun_dur = if inc_dur_crit != 0.0 && crit_chance != 0.0 {
+            if crit_chance == 100.0 {
+                min_stun * (1.0 + (inc_dur + inc_dur_crit) / 100.0)
+            } else {
+                min_stun * (1.0 + (inc_dur + inc_dur_crit * crit_chance / 100.0) / 100.0)
+            }
+        } else {
+            min_stun * (1.0 + inc_dur / 100.0)
+        };
+        if chance_to_double != 0.0 {
+            stun_dur *= 1.0 + chance_to_double / 100.0;
+        }
+        env.player.set_output("EnemyStunDuration", stun_dur);
+    }
+
     // Active totem limit — totem placement speed (unchanged)
     if f_totem {
         let totem_inc =

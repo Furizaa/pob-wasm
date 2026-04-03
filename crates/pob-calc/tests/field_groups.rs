@@ -173,9 +173,60 @@ pub fn fields_for_chunk(chunk: &str) -> Option<&'static [&'static str]> {
         ],
 
         "PERF-06-aura-curse" => &[
-            // Aura-related output fields are module-internal; curses affect enemy.
-            // Most aura/curse effects show up in other chunks' fields (resistances, damage, etc.)
-            // Placeholder — refined during field-to-Lua mapping.
+            // EnemyCurseLimit: written in perform.rs after curse processing
+            "EnemyCurseLimit",
+            // Avoidance fields: CurseAvoidChance (CurseImmune flag or AvoidCurse BASE),
+            // SilenceAvoidChance (SilenceImmune flag or copy of CurseAvoidChance)
+            "CurseAvoidChance",
+            "SilenceAvoidChance",
+            // Curse/exposure/wither effects on self (CalcDefence.lua:1586-1588)
+            "CurseEffectOnSelf",
+            "ExposureEffectOnSelf",
+            "WitherEffectOnSelf",
+            // Debuff expiration rate/modifier
+            "DebuffExpirationRate",
+            "DebuffExpirationModifier",
+            "showDebuffExpirationModifier",
+            // Totem resists (written in calcs.resistances, alongside player resists)
+            "TotemFireResist",
+            "TotemColdResist",
+            "TotemLightningResist",
+            "TotemChaosResist",
+            "TotemFireResistTotal",
+            "TotemColdResistTotal",
+            "TotemLightningResistTotal",
+            "TotemChaosResistTotal",
+            "TotemFireResistOverCap",
+            "TotemColdResistOverCap",
+            "TotemLightningResistOverCap",
+            "TotemChaosResistOverCap",
+            "MissingTotemFireResist",
+            "MissingTotemColdResist",
+            "MissingTotemLightningResist",
+            "MissingTotemChaosResist",
+            // Enemy crit: written in buildDefenceEstimations
+            "EnemyCritChance",
+            "EnemyCritEffect",
+            // Skill-type specific fields (CalcOffence pass, only written for relevant skills)
+            "AuraEffectMod",
+            "CurseEffectMod",
+            // Enemy stun modifiers (CalcOffence pass)
+            "EnemyStunThresholdMod",
+            "EnemyStunDuration",
+            // Enemy regeneration (CalcOffence pass, from enemyDB INC mods)
+            "EnemyLifeRegen",
+            "EnemyManaRegen",
+            "EnemyEnergyShieldRegen",
+            // Reservation DPS (CalcOffence pass)
+            "ReservationDpsMultiplier",
+            "ReservationDPS",
+            // Degen and net regen (CalcDefence buildDefenceEstimations)
+            // TotalBuildDegen only written when > 0 (absent in oracle when no degens)
+            "TotalBuildDegen",
+            // NetLifeRegen/NetManaRegen/NetEnergyShieldRegen only written when TotalBuildDegen > 0
+            "NetLifeRegen",
+            "NetManaRegen",
+            "NetEnergyShieldRegen",
         ],
 
         "PERF-07-regen-recharge-leech" => &[
@@ -187,9 +238,8 @@ pub fn fields_for_chunk(chunk: &str) -> Option<&'static [&'static str]> {
             "EnergyShieldRegenPercent",
             "LifeDegen",
             "LifeDegenRate",
-            "NetLifeRegen",
-            "NetManaRegen",
-            "NetEnergyShieldRegen",
+            // NetLifeRegen/NetManaRegen/NetEnergyShieldRegen are in PERF-06 (they depend on
+            // TotalBuildDegen computed in buildDefenceEstimations, which is a PERF-06 concern).
             "LifeLeechRate",
             "ManaLeechRate",
             "EnergyShieldLeechRate",
