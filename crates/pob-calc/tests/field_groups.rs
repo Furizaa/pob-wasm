@@ -163,15 +163,13 @@ pub fn fields_for_chunk(chunk: &str) -> Option<&'static [&'static str]> {
         ],
 
         "PERF-05-buffs" => &[
-            "FortifyStacks",
-            "FortifyEffect",
+            "FortificationStacks",
+            "FortificationEffect",
             "AilmentWarcryEffect",
             "ActiveTotemLimit",
             "ActiveMineLimit",
             "ActiveTrapLimit",
             "ActiveBrandLimit",
-            "ActiveGolemLimit",
-            "BannerStage",
         ],
 
         "PERF-06-aura-curse" => &[

@@ -321,6 +321,27 @@ broken (gap 841 from missing Blasphemy reservation). **Also: `SupportBloodMagic`
 is missing from gems.json** — only `SupportBloodMagicUniquePrismGuardian` exists.
 This is a data pipeline bug, not a code bug.
 
+### 5.4 Known Issues (tracked for future chunks)
+
+**ISSUE-01: flag_cfg("Condition:X") does not check conditions map.**
+In Lua, `modDB:Flag(nil, "Condition:HaveMaxFortification")` works because
+conditions are stored as FLAG-type mods with the full key. In Rust,
+`set_condition("HaveMaxFortification", true)` stores into `self.conditions`
+(a HashMap), but `flag_cfg("Condition:HaveMaxFortification")` looks in
+`self.mods` — it will never find conditions set via `set_condition()`. This
+is a **systematic ModDb architecture bug** affecting any code that queries
+`flag_cfg("Condition:X")`. Currently affects Fortification (PERF-05):
+`Condition:HaveMaxFortification` and `Condition:NoFortificationMitigation`.
+No oracle build exercises these paths yet. Fix: either `flag_cfg` should
+check `self.conditions` when the name starts with `"Condition:"`, or
+`set_condition` should also insert a FLAG mod into `self.mods`.
+
+**ISSUE-02: FortifyDuration not ported.**
+CalcPerform.lua:638 writes `output.FortifyDuration`. This field appears in
+oracle expected JSONs for fortify builds but is not assigned to PERF-05's
+field list and was not ported. Should be tracked for whichever chunk covers
+buff durations, or added to PERF-05's field list and ported.
+
 ## 6. Annotated Lua Reference Docs
 
 ### 6.1 Location

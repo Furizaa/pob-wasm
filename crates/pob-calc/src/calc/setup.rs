@@ -578,6 +578,16 @@ fn add_base_constants(db: &mut ModDb, data: &GameData) {
     db.add(Mod::new_base("ActiveTrapLimit", 15.0, src.clone()));
     db.add(Mod::new_base("ActiveBrandLimit", 3.0, src.clone()));
 
+    // --- Fortification base maximum ---
+    // CalcSetup.lua:502: modDB:NewMod("MaximumFortification", "BASE", data.characterConstants["base_max_fortification"], "Base")
+    let max_fort = data
+        .misc
+        .character_constants
+        .get("base_max_fortification")
+        .copied()
+        .unwrap_or(20.0);
+    db.add(Mod::new_base("MaximumFortification", max_fort, src.clone()));
+
     // --- Crit ---
     db.add(Mod::new_base("CritChanceCap", 100.0, src.clone()));
     db.add(Mod::new_base("CritMultiplier", 150.0, src.clone()));

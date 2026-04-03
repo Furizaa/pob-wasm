@@ -797,6 +797,35 @@ pub fn build_active_skill_mod_list_with_gems(
                             );
                         }
                     }
+
+                    // Process constant_stats from support gem.
+                    // Mirrors calcLib.getActiveSkillStats() / SkillStatMap processing.
+                    // Constant stats contribute fixed BASE mods to the skill's mod list
+                    // regardless of gem level (e.g. Multiple Totems adds ActiveTotemLimit BASE 2,
+                    // Cluster Traps adds ActiveTrapLimit BASE 5).
+                    for cs in &sup_gd.constant_stats {
+                        // Map known stat IDs to their mod names (mirrors SkillStatMap.lua).
+                        let mod_name = match cs.stat_id.as_str() {
+                            // Base counts (from characterConstants stat map)
+                            "base_number_of_totems_allowed" => Some("ActiveTotemLimit"),
+                            "base_number_of_ballistas_allowed" => Some("ActiveBallistaLimit"),
+                            "base_number_of_traps_allowed" => Some("ActiveTrapLimit"),
+                            "base_number_of_remote_mines_allowed" => Some("ActiveMineLimit"),
+                            "base_number_of_brands_allowed" => Some("ActiveBrandLimit"),
+                            // Additional counts (SkillStatMap.lua entries)
+                            "number_of_additional_traps_allowed" => Some("ActiveTrapLimit"),
+                            "number_of_additional_remote_mines_allowed" => Some("ActiveMineLimit"),
+                            "number_of_additional_ballistas_allowed" => Some("ActiveBallistaLimit"),
+                            _ => None,
+                        };
+                        if let Some(name) = mod_name {
+                            skill.skill_mod_db.add(Mod::new_base(
+                                name,
+                                cs.value,
+                                ModSource::new("Support", &se.skill_id),
+                            ));
+                        }
+                    }
                 }
             }
         }
