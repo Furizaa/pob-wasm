@@ -4,6 +4,7 @@ pub mod gems;
 pub mod legion;
 pub mod misc;
 pub mod pantheons;
+pub mod tattoos;
 pub mod uniques;
 
 use crate::error::DataError;
@@ -16,6 +17,7 @@ use pantheons::PantheonMap;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tattoos::TattooData;
 use uniques::{UniqueItemData, UniqueItemMap};
 
 #[derive(Deserialize)]
@@ -64,6 +66,10 @@ pub struct GameData {
     /// Keyed by god name (e.g. "Arakaali", "Shakari").
     /// Empty by default; populated by `load_pantheons_from_json()`.
     pub pantheons: PantheonMap,
+    /// Tattoo passive data from Data/TattooPassives.lua.
+    /// Keyed by tattoo display name (dn), e.g. "Acrobatics".
+    /// Empty by default; populated by `load_tattoos_from_json()`.
+    pub tattoos: TattooData,
 }
 
 impl GameData {
@@ -143,6 +149,7 @@ impl GameData {
             gem_reqs: HashMap::new(),
             legion: LegionData::default(),
             pantheons: PantheonMap::new(),
+            tattoos: TattooData::default(),
         })
     }
 
@@ -195,6 +202,21 @@ impl GameData {
         for tree in self.versioned_trees.values_mut() {
             tree.load_mastery_effects_from_json(json)?;
         }
+        Ok(())
+    }
+
+    /// Load tattoo passive data from a tattoos.json file.
+    ///
+    /// The JSON format is produced by `scripts/extract_tattoo_passives.py`:
+    /// ```json
+    /// { "nodes": { "<dn>": { "dn": "...", "is_tattoo": true, "override_type": "...",
+    ///                         "is_keystone": bool, "is_notable": bool, "is_mastery": bool,
+    ///                         "stats": ["stat1", ...] }, ... } }
+    /// ```
+    ///
+    /// Mirrors `self.tree.tattoo = LoadModule("Data/TattooPassives")` in PassiveTree.lua line 57.
+    pub fn load_tattoos_from_json(&mut self, json: &str) -> Result<(), crate::error::DataError> {
+        self.tattoos = TattooData::from_json(json)?;
         Ok(())
     }
 }

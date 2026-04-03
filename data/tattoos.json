@@ -1,0 +1,2339 @@
+{
+  "nodes": {
+    "Acrobatics": {
+      "dn": "Acrobatics",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Modifiers to Chance to Suppress Spell Damage instead apply to Chance to Dodge Spell Hits at 50% of their value",
+        "Maximum Chance to Dodge Spell Hits is 75%",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/KeystoneAcrobatics.png"
+    },
+    "Ancestral Bond": {
+      "dn": "Ancestral Bond",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "You can't deal Damage with Skills yourself",
+        "+1 to maximum number of Summoned Totems",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/totemmax.png"
+    },
+    "Ancestral Tattoo of Bloodlines": {
+      "dn": "Ancestral Tattoo of Bloodlines",
+      "is_tattoo": true,
+      "override_type": "UnknownTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "2% increased Recovery Rate of Life, Mana and Energy Shield",
+        "per Tribe for which you have an allocated Tattoo",
+        "Limited to 1 Ancestral Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/HinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/lifemana.png"
+    },
+    "Arrow Dancing": {
+      "dn": "Arrow Dancing",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Evasion Rating is Doubled against Projectile Attacks",
+        "25% less Evasion Rating against Melee Attacks",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/KeystoneArrowDodging.png"
+    },
+    "Avatar of Fire": {
+      "dn": "Avatar of Fire",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "50% of Physical, Cold and Lightning Damage Converted to Fire Damage",
+        "Deal no Non-Fire Damage",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/KeystoneAvatarOfFire.png"
+    },
+    "Blood Magic": {
+      "dn": "Blood Magic",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Removes all mana",
+        "10% more maximum Life",
+        "Skills Cost Life instead of Mana",
+        "Skills Reserve Life instead of Mana",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/KeystoneBloodMagic.png"
+    },
+    "Call to Arms": {
+      "dn": "Call to Arms",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Your Warcries do not grant Buffs or Charges to You",
+        "100% more Warcry Duration",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/CallToArms.png"
+    },
+    "Chaos Inoculation": {
+      "dn": "Chaos Inoculation",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Maximum Life becomes 1, Immune to Chaos Damage",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/KeystoneChaosInoculation.png"
+    },
+    "Conduit": {
+      "dn": "Conduit",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Share Endurance, Frenzy and Power Charges with nearby party members",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/KeystoneConduit.png"
+    },
+    "Crimson Dance": {
+      "dn": "Crimson Dance",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "You can inflict Bleeding on an Enemy up to 8 times",
+        "Your Bleeding does not deal extra Damage while the Enemy is moving and cannot be Aggravated",
+        "50% less Damage with Bleeding",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/CrimsonDance.png"
+    },
+    "Divine Shield": {
+      "dn": "Divine Shield",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Cannot Recover Energy Shield to above Armour",
+        "3% of Physical Damage prevented from Hits Recently is Regenerated as Energy Shield per second",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/EnergisedFortress.png"
+    },
+    "Eldritch Battery": {
+      "dn": "Eldritch Battery",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Spend Energy Shield before Mana for Skill Mana Costs",
+        "Energy Shield protects Mana instead of Life",
+        "50% less Energy Shield Recharge Rate",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/KeystoneEldritchBattery.png"
+    },
+    "Elemental Equilibrium": {
+      "dn": "Elemental Equilibrium",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Hits that deal Elemental Damage remove Exposure to those Elements and inflict Exposure to other Elements",
+        "Exposure inflicted this way applies -25% to Resistances",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/KeystoneElementalEquilibrium.png"
+    },
+    "Elemental Overload": {
+      "dn": "Elemental Overload",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Skills that have dealt a Critical Strike in the past 8 seconds deal 40% more Elemental Damage with Hits and Ailments",
+        "Your Critical Strikes do not deal extra Damage",
+        "Ailments never count as being from Critical Strikes",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/KeystoneElementalOverload.png"
+    },
+    "Eternal Youth": {
+      "dn": "Eternal Youth",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "50% less Life Regeneration Rate",
+        "50% less maximum Total Life Recovery per Second from Leech",
+        "Energy Shield Recharge instead applies to Life",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/EternalYouth.png"
+    },
+    "Ghost Dance": {
+      "dn": "Ghost Dance",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Cannot Recover Energy Shield to above Evasion Rating",
+        "Every 2 seconds, gain a Ghost Shroud, up to a maximum of 3",
+        "When Hit, lose a Ghost Shroud to Recover Energy Shield equal to 3% of your Evasion Rating",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/Trickster/AcrobaticWillpower.png"
+    },
+    "Ghost Reaver": {
+      "dn": "Ghost Reaver",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Leech Energy Shield instead of Life",
+        "Maximum total Energy Shield Recovery per second from Leech is doubled",
+        "Cannot Recharge Energy Shield",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/ghostreaver.png"
+    },
+    "Glancing Blows": {
+      "dn": "Glancing Blows",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Chance to Block Attack Damage is doubled",
+        "Chance to Block Spell Damage is doubled",
+        "You take 65% of Damage from Blocked Hits",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/GlancingBlows.png"
+    },
+    "Hex Master": {
+      "dn": "Hex Master",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Your Hexes have infinite Duration",
+        "20% less Effect of your Curses",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/KeystoneHexMaster.png"
+    },
+    "Honoured Tattoo of the Barbarian": {
+      "dn": "Honoured Tattoo of the Barbarian",
+      "is_tattoo": true,
+      "override_type": "UnknownTattoo",
+      "is_keystone": false,
+      "is_notable": true,
+      "is_mastery": false,
+      "stats": [
+        "+1% to maximum Cold Resistance",
+        "+1 to Maximum Frenzy Charges",
+        "Limited to 1 Attribute Notable Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/HinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/HinekoraPassiveIcon2.png"
+    },
+    "Honoured Tattoo of the Berserker": {
+      "dn": "Honoured Tattoo of the Berserker",
+      "is_tattoo": true,
+      "override_type": "UnknownTattoo",
+      "is_keystone": false,
+      "is_notable": true,
+      "is_mastery": false,
+      "stats": [
+        "You gain Onslaught for 4 seconds on Hit",
+        "Limited to 1 Attribute Notable Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/HinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/HinekoraPassiveIcon2.png"
+    },
+    "Honoured Tattoo of the Dove": {
+      "dn": "Honoured Tattoo of the Dove",
+      "is_tattoo": true,
+      "override_type": "UnknownTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "+4% to Chaos Resistance"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/HinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/ChaosResistNode.png"
+    },
+    "Honoured Tattoo of the Flock": {
+      "dn": "Honoured Tattoo of the Flock",
+      "is_tattoo": true,
+      "override_type": "UnknownTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "1% increased effect of Non-Curse Auras from your Skills"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/HinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/auraeffect.png"
+    },
+    "Honoured Tattoo of the Flood": {
+      "dn": "Honoured Tattoo of the Flood",
+      "is_tattoo": true,
+      "override_type": "UnknownTattoo",
+      "is_keystone": false,
+      "is_notable": true,
+      "is_mastery": false,
+      "stats": [
+        "Gain Arcane Surge on Hit with Spells",
+        "Limited to 1 Attribute Notable Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/HinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/HinekoraPassiveIcon3.png"
+    },
+    "Honoured Tattoo of the Hatungo": {
+      "dn": "Honoured Tattoo of the Hatungo",
+      "is_tattoo": true,
+      "override_type": "UnknownTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "1% increased Reservation Efficiency of Skills"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/HinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/manareservationreduction.png"
+    },
+    "Honoured Tattoo of the Hunter": {
+      "dn": "Honoured Tattoo of the Hunter",
+      "is_tattoo": true,
+      "override_type": "UnknownTattoo",
+      "is_keystone": false,
+      "is_notable": true,
+      "is_mastery": false,
+      "stats": [
+        "+1 to Level of all Dexterity Skill Gems",
+        "Limited to 1 Attribute Notable Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/HinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/HinekoraPassiveIcon2.png"
+    },
+    "Honoured Tattoo of the Makanga": {
+      "dn": "Honoured Tattoo of the Makanga",
+      "is_tattoo": true,
+      "override_type": "UnknownTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "+2% to all maximum Resistances"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/HinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/ElementalResistance2.png"
+    },
+    "Honoured Tattoo of the Mountain": {
+      "dn": "Honoured Tattoo of the Mountain",
+      "is_tattoo": true,
+      "override_type": "UnknownTattoo",
+      "is_keystone": false,
+      "is_notable": true,
+      "is_mastery": false,
+      "stats": [
+        "+1% to maximum Fire Resistance",
+        "+1 to Maximum Endurance Charges",
+        "Limited to 1 Attribute Notable Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/HinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/HinekoraPassiveIcon1.png"
+    },
+    "Honoured Tattoo of the Oak": {
+      "dn": "Honoured Tattoo of the Oak",
+      "is_tattoo": true,
+      "override_type": "UnknownTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "2% increased maximum Life"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/HinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/life1.png"
+    },
+    "Honoured Tattoo of the Pa": {
+      "dn": "Honoured Tattoo of the Pa",
+      "is_tattoo": true,
+      "override_type": "UnknownTattoo",
+      "is_keystone": false,
+      "is_notable": true,
+      "is_mastery": false,
+      "stats": [
+        "Melee Hits Fortify",
+        "Limited to 1 Attribute Notable Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/HinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/HinekoraPassiveIcon1.png"
+    },
+    "Honoured Tattoo of the Pillager": {
+      "dn": "Honoured Tattoo of the Pillager",
+      "is_tattoo": true,
+      "override_type": "UnknownTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "3% increased Rarity of Items found"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/HinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/accuracyint.png"
+    },
+    "Honoured Tattoo of the Sky": {
+      "dn": "Honoured Tattoo of the Sky",
+      "is_tattoo": true,
+      "override_type": "UnknownTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "+3% to all Elemental Resistances"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/HinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/ElementalResistance2.png"
+    },
+    "Honoured Tattoo of the Storm": {
+      "dn": "Honoured Tattoo of the Storm",
+      "is_tattoo": true,
+      "override_type": "UnknownTattoo",
+      "is_keystone": false,
+      "is_notable": true,
+      "is_mastery": false,
+      "stats": [
+        "+1% to maximum Lightning Resistance",
+        "+1 to Maximum Power Charges",
+        "Limited to 1 Attribute Notable Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/HinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/HinekoraPassiveIcon3.png"
+    },
+    "Honoured Tattoo of the Tuatara": {
+      "dn": "Honoured Tattoo of the Tuatara",
+      "is_tattoo": true,
+      "override_type": "UnknownTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "+4 to all Attributes"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/HinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/accuracyint.png"
+    },
+    "Honoured Tattoo of the Turtle": {
+      "dn": "Honoured Tattoo of the Turtle",
+      "is_tattoo": true,
+      "override_type": "UnknownTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "3% increased Global Defences"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/HinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/ArmourAndEnergyShieldNode.png"
+    },
+    "Honoured Tattoo of the Warlord": {
+      "dn": "Honoured Tattoo of the Warlord",
+      "is_tattoo": true,
+      "override_type": "UnknownTattoo",
+      "is_keystone": false,
+      "is_notable": true,
+      "is_mastery": false,
+      "stats": [
+        "+1 to Level of all Strength Skill Gems",
+        "Limited to 1 Attribute Notable Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/HinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/HinekoraPassiveIcon1.png"
+    },
+    "Honoured Tattoo of the Wise": {
+      "dn": "Honoured Tattoo of the Wise",
+      "is_tattoo": true,
+      "override_type": "UnknownTattoo",
+      "is_keystone": false,
+      "is_notable": true,
+      "is_mastery": false,
+      "stats": [
+        "+1 to Level of all Intelligence Skill Gems",
+        "Limited to 1 Attribute Notable Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/HinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/HinekoraPassiveIcon3.png"
+    },
+    "Imbalanced Guard": {
+      "dn": "Imbalanced Guard",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "100% chance to Defend with 200% of Armour",
+        "Maximum Damage Reduction for any Damage Type is 50%",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/SacredBastionKeystone.png"
+    },
+    "Iron Grip": {
+      "dn": "Iron Grip",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Strength's Damage bonus applies to Projectile Attack Damage as well as Melee Damage",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/KeystoneIronGrip.png"
+    },
+    "Iron Reflexes": {
+      "dn": "Iron Reflexes",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Converts all Evasion Rating to Armour. Dexterity provides no bonus to Evasion Rating",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/KeystoneIronReflexes.png"
+    },
+    "Iron Will": {
+      "dn": "Iron Will",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Strength's Damage bonus applies to all Spell Damage as well",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/KeystoneIronWill.png"
+    },
+    "Journey Tattoo of the Body": {
+      "dn": "Journey Tattoo of the Body",
+      "is_tattoo": true,
+      "override_type": "HonouredHeartTattoo",
+      "is_keystone": false,
+      "is_notable": true,
+      "is_mastery": false,
+      "stats": [
+        "+25 to maximum Life per Allocated Journey Tattoo of the Body"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/HinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/HinekoraPassiveIcon1.png"
+    },
+    "Journey Tattoo of the Mind": {
+      "dn": "Journey Tattoo of the Mind",
+      "is_tattoo": true,
+      "override_type": "HonouredMindTattoo",
+      "is_keystone": false,
+      "is_notable": true,
+      "is_mastery": false,
+      "stats": [
+        "+30 to maximum Mana per Allocated Journey Tattoo of the Mind"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/HinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/HinekoraPassiveIcon2.png"
+    },
+    "Journey Tattoo of the Soul": {
+      "dn": "Journey Tattoo of the Soul",
+      "is_tattoo": true,
+      "override_type": "HonouredSoulTattoo",
+      "is_keystone": false,
+      "is_notable": true,
+      "is_mastery": false,
+      "stats": [
+        "+40 to maximum Energy Shield per Allocated Journey Tattoo of the Soul"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/HinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/HinekoraPassiveIcon3.png"
+    },
+    "Lethe Shade": {
+      "dn": "Lethe Shade",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Take 50% less Damage over Time if you've started taking Damage over Time in the past second",
+        "100% more Duration of Ailments on you",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/MomentofRespite.png"
+    },
+    "Loyalty Tattoo of Ahuana": {
+      "dn": "Loyalty Tattoo of Ahuana",
+      "is_tattoo": true,
+      "override_type": "UnknownTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Trigger level 1 Summon Spirit of Ahuana Skill when you Suppress",
+        "Spell Damage from a Unique Enemy",
+        "Limited to 1 Loyalty Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/RamakoTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/RamakoTribeSkill.png"
+    },
+    "Loyalty Tattoo of Akoya": {
+      "dn": "Loyalty Tattoo of Akoya",
+      "is_tattoo": true,
+      "override_type": "UnknownTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Trigger level 1 Summon Spirit of Akoya Skill when you reach Maximum Rage while",
+        "a Unique Enemy is in your Presence",
+        "Limited to 1 Loyalty Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/TukohamaTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/TukohamaTribeSkill.png"
+    },
+    "Loyalty Tattoo of Ikiaho": {
+      "dn": "Loyalty Tattoo of Ikiaho",
+      "is_tattoo": true,
+      "override_type": "UnknownTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Trigger level 1 Summon Spirit of Ikiaho Skill when you use a Travel",
+        "Skill while a Unique Enemy is in your Presence",
+        "Limited to 1 Loyalty Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/ArohonguiTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/ArohonguiTribeSkill.png"
+    },
+    "Loyalty Tattoo of Kahuturoa": {
+      "dn": "Loyalty Tattoo of Kahuturoa",
+      "is_tattoo": true,
+      "override_type": "UnknownTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Trigger level 1 Summon Spirit of Kahuturoa Skill when you take",
+        "a Critical Strike from a Unique Enemy",
+        "Limited to 1 Loyalty Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/RongokuraiTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/RongokuraiTribeSkill.png"
+    },
+    "Loyalty Tattoo of Kaom": {
+      "dn": "Loyalty Tattoo of Kaom",
+      "is_tattoo": true,
+      "override_type": "UnknownTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Trigger level 1 Summon Spirit of Kaom Skill when a Totem dies while",
+        "a Unique Enemy is in your Presence",
+        "Limited to 1 Loyalty Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/NgamahuTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/NgamahuTribeSkill.png"
+    },
+    "Loyalty Tattoo of Kiloava": {
+      "dn": "Loyalty Tattoo of Kiloava",
+      "is_tattoo": true,
+      "override_type": "UnknownTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Trigger level 1 Summon Spirit of Kiloava Skill when you Block Damage from a Unique Enemy",
+        "Limited to 1 Loyalty Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/ValakoTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/ValakoTribeSkill.png"
+    },
+    "Loyalty Tattoo of Maata": {
+      "dn": "Loyalty Tattoo of Maata",
+      "is_tattoo": true,
+      "override_type": "UnknownTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Trigger level 1 Summon Spirit of Maata Skill when you reach Low Life while",
+        "a Unique Enemy is in your Presence",
+        "Limited to 1 Loyalty Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/TawhoaTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/TawhoaTribeSkill.png"
+    },
+    "Loyalty Tattoo of Rakiata": {
+      "dn": "Loyalty Tattoo of Rakiata",
+      "is_tattoo": true,
+      "override_type": "UnknownTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Trigger level 1 Summon Spirit of Rakiata Skill on Critical Strike against Marked Unique Enemy",
+        "Limited to 1 Loyalty Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/TasalioTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/TasalioTribeSkill.png"
+    },
+    "Loyalty Tattoo of Tawhanuku": {
+      "dn": "Loyalty Tattoo of Tawhanuku",
+      "is_tattoo": true,
+      "override_type": "UnknownTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Trigger level 1 Summon Spirit of Tawhanuku Skill when Energy Shield Recharge starts while a Unique Enemy is in your Presence",
+        "Limited to 1 Loyalty Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/HinekoraTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/HinekoraTribeSkill.png"
+    },
+    "Loyalty Tattoo of Utula": {
+      "dn": "Loyalty Tattoo of Utula",
+      "is_tattoo": true,
+      "override_type": "UnknownTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Trigger level 1 Summon Spirit of Utula Skill on taking a Savage Hit from a Unique Enemy",
+        "Limited to 1 Loyalty Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KitavaTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/KitavaTribeSkill.png"
+    },
+    "Magebane": {
+      "dn": "Magebane",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Dexterity provides no inherent bonus to Evasion Rating",
+        "+1% Chance to Suppress Spell Damage per 15 Dexterity",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/Deaden.png"
+    },
+    "Mind Over Matter": {
+      "dn": "Mind Over Matter",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "40% of Damage is taken from Mana before Life",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/heroicspirit.png"
+    },
+    "Minion Instability": {
+      "dn": "Minion Instability",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Minions Explode when reduced to Low Life, dealing 33% of their Life as Fire Damage to surrounding Enemies",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/KeystoneMinionInstability.png"
+    },
+    "Necromantic Aegis": {
+      "dn": "Necromantic Aegis",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "All bonuses from an Equipped Shield apply to your Minions instead of you",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/KeystoneNecromanticAegis.png"
+    },
+    "Pain Attunement": {
+      "dn": "Pain Attunement",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "30% more Spell Damage when on Low Life",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/KeystonePainAttunement.png"
+    },
+    "Perfect Agony": {
+      "dn": "Perfect Agony",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Damage over Time Multiplier for Ailments is equal to Critical Strike Multiplier",
+        "Critical Strikes do not deal extra Damage",
+        "Non-Critical Strikes cannot inflict Ailments",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/CritAilments.png"
+    },
+    "Point Blank": {
+      "dn": "Point Blank",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Projectile Attack Hits deal up to 30% more Damage to targets at the start of their movement, dealing less Damage to targets as the projectile travels farther",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/KeystonePointBlankArcher.png"
+    },
+    "Precise Technique": {
+      "dn": "Precise Technique",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "40% more Attack Damage if Accuracy Rating is higher than Maximum Life",
+        "Never deal Critical Strikes",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/PreciseTechnique.png"
+    },
+    "Resolute Technique": {
+      "dn": "Resolute Technique",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Your hits can't be Evaded",
+        "Never deal Critical Strikes",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/KeystoneResoluteTechnique.png"
+    },
+    "Runebinder": {
+      "dn": "Runebinder",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "-1 to maximum number of Summoned Totems",
+        "You can have an additional Brand Attached to an Enemy",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/BrandKeystone.png"
+    },
+    "Runegraft of Bellows": {
+      "dn": "Runegraft of Bellows",
+      "is_tattoo": true,
+      "override_type": "AlternateMastery",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": true,
+      "stats": [
+        "100% increased Warcry Speed if you have not Warcried Recently",
+        "Limited to 1 Runegraft of Bellows"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/Village/RuneCraftingPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/AtlasTrees/RuneGraftingIcon13.png"
+    },
+    "Runegraft of Blasphemy": {
+      "dn": "Runegraft of Blasphemy",
+      "is_tattoo": true,
+      "override_type": "AlternateMastery",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": true,
+      "stats": [
+        "30% chance to Curse non-Cursed Enemies with a random Hex on Hit",
+        "Limited to 1 Runegraft of Blasphemy"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/Village/RuneCraftingPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/AtlasTrees/RuneGraftingIcon15.png"
+    },
+    "Runegraft of Connection": {
+      "dn": "Runegraft of Connection",
+      "is_tattoo": true,
+      "override_type": "AlternateMastery",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": true,
+      "stats": [
+        "Link Skills have 50% increased range",
+        "Limited to 1 Runegraft of Connection"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/Village/RuneCraftingPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/AtlasTrees/RuneGraftingIcon29.png"
+    },
+    "Runegraft of Consecration": {
+      "dn": "Runegraft of Consecration",
+      "is_tattoo": true,
+      "override_type": "AlternateMastery",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": true,
+      "stats": [
+        "Consecrated Ground you create grants 30% increased Mana Regeneration",
+        "Rate to you and Allies",
+        "Limited to 1 Runegraft of Consecration"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/Village/RuneCraftingPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/AtlasTrees/RuneGraftingIcon36.png"
+    },
+    "Runegraft of Fury": {
+      "dn": "Runegraft of Fury",
+      "is_tattoo": true,
+      "override_type": "AlternateMastery",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": true,
+      "stats": [
+        "Gain 3 Rage when you use a Life Flask",
+        "Limited to 1 Runegraft of Fury"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/Village/RuneCraftingPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/AtlasTrees/RuneGraftingIcon34.png"
+    },
+    "Runegraft of Gemcraft": {
+      "dn": "Runegraft of Gemcraft",
+      "is_tattoo": true,
+      "override_type": "AlternateMastery",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": true,
+      "stats": [
+        "+1 to Level of all non-Exceptional Support Gems",
+        "Limited to 1 Runegraft of Gemcraft"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/Village/RuneCraftingPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/AtlasTrees/RuneGraftingIcon14.png"
+    },
+    "Runegraft of Loyalty": {
+      "dn": "Runegraft of Loyalty",
+      "is_tattoo": true,
+      "override_type": "AlternateMastery",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": true,
+      "stats": [
+        "40% chance for Elemental Ailments inflicted on you to",
+        "be inflicted on a nearby Minion instead",
+        "Limited to 1 Runegraft of Loyalty"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/Village/RuneCraftingPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/AtlasTrees/RuneGraftingIcon23.png"
+    },
+    "Runegraft of Quaffing": {
+      "dn": "Runegraft of Quaffing",
+      "is_tattoo": true,
+      "override_type": "AlternateMastery",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": true,
+      "stats": [
+        "25% reduced Mana Recovery from Flasks",
+        "Non-instant Mana Recovery from Flasks is also Recovered as Life",
+        "Limited to 1 Runegraft of Quaffing"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/Village/RuneCraftingPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/AtlasTrees/RuneGraftingIcon21.png"
+    },
+    "Runegraft of Rallying": {
+      "dn": "Runegraft of Rallying",
+      "is_tattoo": true,
+      "override_type": "AlternateMastery",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": true,
+      "stats": [
+        "Gain 1 Fortification per 5 Valour consumed to place a Banner",
+        "Limited to 1 Runegraft of Rallying"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/Village/RuneCraftingPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/AtlasTrees/RuneGraftingIcon37.png"
+    },
+    "Runegraft of Refraction": {
+      "dn": "Runegraft of Refraction",
+      "is_tattoo": true,
+      "override_type": "AlternateMastery",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": true,
+      "stats": [
+        "Fire at most 1 Projectile",
+        "Projectiles Fork",
+        "Projectiles Chain an additional time",
+        "Limited to 1 Runegraft of Refraction"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/Village/RuneCraftingPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/AtlasTrees/RuneGraftingIcon7.png"
+    },
+    "Runegraft of Restitching": {
+      "dn": "Runegraft of Restitching",
+      "is_tattoo": true,
+      "override_type": "AlternateMastery",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": true,
+      "stats": [
+        "40% of Damage taken from Critical Strikes Recouped as Life",
+        "Limited to 1 Runegraft of Restitching"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/Village/RuneCraftingPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/AtlasTrees/RuneGraftingIcon22.png"
+    },
+    "Runegraft of Resurgence": {
+      "dn": "Runegraft of Resurgence",
+      "is_tattoo": true,
+      "override_type": "AlternateMastery",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": true,
+      "stats": [
+        "Arcane Surge also grants 15% increased Life Regeneration Rate to you",
+        "Limited to 1 Runegraft of Resurgence"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/Village/RuneCraftingPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/AtlasTrees/RuneGraftingIcon31.png"
+    },
+    "Runegraft of Rotblood": {
+      "dn": "Runegraft of Rotblood",
+      "is_tattoo": true,
+      "override_type": "AlternateMastery",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": true,
+      "stats": [
+        "Enemies Poisoned by you have 10% of Physical Damage they deal converted to Chaos",
+        "Limited to 1 Runegraft of Rotblood"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/Village/RuneCraftingPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/AtlasTrees/RuneGraftingIcon33.png"
+    },
+    "Runegraft of Stability": {
+      "dn": "Runegraft of Stability",
+      "is_tattoo": true,
+      "override_type": "AlternateMastery",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": true,
+      "stats": [
+        "Your Lucky or Unlucky effects are instead Unexciting",
+        "Limited to 1 Runegraft of Stability"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/Village/RuneCraftingPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/AtlasTrees/RuneGraftingIcon2.png"
+    },
+    "Runegraft of Suffering": {
+      "dn": "Runegraft of Suffering",
+      "is_tattoo": true,
+      "override_type": "AlternateMastery",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": true,
+      "stats": [
+        "50% increased Damage with Damaging Ailments you inflict while you are affected by the same Ailment",
+        "Limited to 1 Runegraft of Suffering"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/Village/RuneCraftingPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/AtlasTrees/RuneGraftingIcon27.png"
+    },
+    "Runegraft of Time": {
+      "dn": "Runegraft of Time",
+      "is_tattoo": true,
+      "override_type": "AlternateMastery",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": true,
+      "stats": [
+        "20% chance for Skills to not consume a Cooldown on use",
+        "Limited to 1 Runegraft of Time"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/Village/RuneCraftingPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/AtlasTrees/RuneGraftingIcon19.png"
+    },
+    "Runegraft of Treachery": {
+      "dn": "Runegraft of Treachery",
+      "is_tattoo": true,
+      "override_type": "AlternateMastery",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": true,
+      "stats": [
+        "15% increased Reservation Efficiency of Skills",
+        "Auras from your Skills which affect Allies also affect Enemies",
+        "Limited to 1 Runegraft of Treachery"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/Village/RuneCraftingPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/AtlasTrees/RuneGraftingIcon20.png"
+    },
+    "Runegraft of the Agile": {
+      "dn": "Runegraft of the Agile",
+      "is_tattoo": true,
+      "override_type": "AlternateMastery",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": true,
+      "stats": [
+        "Elusive's Effect on you is increased instead for the first 2 seconds",
+        "Limited to 1 Runegraft of the Agile"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/Village/RuneCraftingPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/AtlasTrees/RuneGraftingIcon32.png"
+    },
+    "Runegraft of the Angler": {
+      "dn": "Runegraft of the Angler",
+      "is_tattoo": true,
+      "override_type": "AlternateMastery",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": true,
+      "stats": [
+        "All hits are Critical Strikes while holding a Fishing Rod",
+        "Limited to 1 Runegraft of the Angler"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/Village/RuneCraftingPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/AtlasTrees/RuneGraftingIcon10.png"
+    },
+    "Runegraft of the Bound": {
+      "dn": "Runegraft of the Bound",
+      "is_tattoo": true,
+      "override_type": "AlternateMastery",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": true,
+      "stats": [
+        "20% reduced bonuses gained from Equipped Boots",
+        "20% increased bonuses gained from Equipped Gloves",
+        "Limited to 1 Runegraft of the Bound"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/Village/RuneCraftingPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/AtlasTrees/RuneGraftingIcon3.png"
+    },
+    "Runegraft of the Combatant": {
+      "dn": "Runegraft of the Combatant",
+      "is_tattoo": true,
+      "override_type": "AlternateMastery",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": true,
+      "stats": [
+        "50% increased Attack Damage against Enemies with a higher percentage of their Life remaining than you",
+        "Limited to 1 Runegraft of the Combatant"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/Village/RuneCraftingPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/AtlasTrees/RuneGraftingIcon4.png"
+    },
+    "Runegraft of the Fortress": {
+      "dn": "Runegraft of the Fortress",
+      "is_tattoo": true,
+      "override_type": "AlternateMastery",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": true,
+      "stats": [
+        "10% reduced Attributes",
+        "40% increased Global Defences",
+        "Limited to 1 Runegraft of the Fortress"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/Village/RuneCraftingPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/AtlasTrees/RuneGraftingIcon1.png"
+    },
+    "Runegraft of the Gauche": {
+      "dn": "Runegraft of the Gauche",
+      "is_tattoo": true,
+      "override_type": "AlternateMastery",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": true,
+      "stats": [
+        "Hit Damage with your Off Hand treats Enemy Monster",
+        "Elemental Resistance values as inverted",
+        "Limited to 1 Runegraft of the Gauche"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/Village/RuneCraftingPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/AtlasTrees/RuneGraftingIcon16.png"
+    },
+    "Runegraft of the Imbued": {
+      "dn": "Runegraft of the Imbued",
+      "is_tattoo": true,
+      "override_type": "AlternateMastery",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": true,
+      "stats": [
+        "Tinctures applied to you have 30% increased Effect while affected by no Flasks",
+        "Limited to 1 Runegraft of the Imbued"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/Village/RuneCraftingPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/AtlasTrees/RuneGraftingIcon30.png"
+    },
+    "Runegraft of the Jeweller": {
+      "dn": "Runegraft of the Jeweller",
+      "is_tattoo": true,
+      "override_type": "AlternateMastery",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": true,
+      "stats": [
+        "10% increased Damage for each unlinked Socket in Equipped Two Handed Weapon",
+        "Limited to 1 Runegraft of the Jeweller"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/Village/RuneCraftingPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/AtlasTrees/RuneGraftingIcon8.png"
+    },
+    "Runegraft of the Novamark": {
+      "dn": "Runegraft of the Novamark",
+      "is_tattoo": true,
+      "override_type": "AlternateMastery",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": true,
+      "stats": [
+        "Nova Spells Cast at a Marked target instead of around you if possible",
+        "Limited to 1 Runegraft of the Novamark"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/Village/RuneCraftingPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/AtlasTrees/RuneGraftingIcon25.png"
+    },
+    "Runegraft of the River": {
+      "dn": "Runegraft of the River",
+      "is_tattoo": true,
+      "override_type": "AlternateMastery",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": true,
+      "stats": [
+        "20% chance on reaching Low Life to recover to Full Life",
+        "Limited to 1 Runegraft of the River"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/Village/RuneCraftingPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/AtlasTrees/RuneGraftingIcon5.png"
+    },
+    "Runegraft of the Sinistral": {
+      "dn": "Runegraft of the Sinistral",
+      "is_tattoo": true,
+      "override_type": "AlternateMastery",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": true,
+      "stats": [
+        "10% more Attack speed with Offhand",
+        "Limited to 1 Runegraft of the Sinistral"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/Village/RuneCraftingPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/AtlasTrees/RuneGraftingIcon6.png"
+    },
+    "Runegraft of the Soulwick": {
+      "dn": "Runegraft of the Soulwick",
+      "is_tattoo": true,
+      "override_type": "AlternateMastery",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": true,
+      "stats": [
+        "Gain 1 Vaal Soul per second",
+        "Limited to 1 Runegraft of the Soulwick"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/Village/RuneCraftingPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/AtlasTrees/RuneGraftingIcon12.png"
+    },
+    "Runegraft of the Spellbound": {
+      "dn": "Runegraft of the Spellbound",
+      "is_tattoo": true,
+      "override_type": "AlternateMastery",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": true,
+      "stats": [
+        "Spells have Added Spell Damage equal to 30% of Physical Damage of",
+        "your Equipped Two handed Weapon",
+        "Limited to 1 Runegraft of the Spellbound"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/Village/RuneCraftingPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/AtlasTrees/RuneGraftingIcon26.png"
+    },
+    "Runegraft of the Warp": {
+      "dn": "Runegraft of the Warp",
+      "is_tattoo": true,
+      "override_type": "AlternateMastery",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": true,
+      "stats": [
+        "Buffs on you expire 30% slower",
+        "Debuffs on you expire 30% faster",
+        "Limited to 1 Runegraft of the Warp"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/Village/RuneCraftingPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/AtlasTrees/RuneGraftingIcon11.png"
+    },
+    "Runegraft of the Witchmark": {
+      "dn": "Runegraft of the Witchmark",
+      "is_tattoo": true,
+      "override_type": "AlternateMastery",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": true,
+      "stats": [
+        "Spells deal added Chaos Damage equal to 2% of your maximum Life",
+        "Spells Cost +8% of Life",
+        "Limited to 1 Runegraft of the Witchmark"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/Village/RuneCraftingPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/AtlasTrees/RuneGraftingIcon24.png"
+    },
+    "Solipsism": {
+      "dn": "Solipsism",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Intelligence provides no inherent bonus to Energy Shield",
+        "2% reduced Duration of Elemental Ailments on you per 15 Intelligence",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/Resilience.png"
+    },
+    "Supreme Ego": {
+      "dn": "Supreme Ego",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Auras from your Skills can only affect you",
+        "Aura Skills have 1% more Aura Effect per 2% of maximum Mana they Reserve",
+        "40% more Mana Reservation of Aura Skills",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/SupremeEgo.png"
+    },
+    "Tattoo of the Arohongui Makanga": {
+      "dn": "Tattoo of the Arohongui Makanga",
+      "is_tattoo": true,
+      "override_type": "ArohonguiTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "+1% to maximum Cold Resistance"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/ArohonguiTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/ColdResistNode.png"
+    },
+    "Tattoo of the Arohongui Moonwarden": {
+      "dn": "Tattoo of the Arohongui Moonwarden",
+      "is_tattoo": true,
+      "override_type": "ArohonguiTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "+6% to Cold Resistance"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/ArohonguiTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/ColdResistNode.png"
+    },
+    "Tattoo of the Arohongui Scout": {
+      "dn": "Tattoo of the Arohongui Scout",
+      "is_tattoo": true,
+      "override_type": "ArohonguiTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "10% chance to Avoid being Chilled",
+        "10% chance to Avoid being Frozen"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/ArohonguiTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/ColdResistNode.png"
+    },
+    "Tattoo of the Arohongui Shaman": {
+      "dn": "Tattoo of the Arohongui Shaman",
+      "is_tattoo": true,
+      "override_type": "ArohonguiTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "5% increased Effect of Herald Buffs on you"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/ArohonguiTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/HeraldReservationNode.png"
+    },
+    "Tattoo of the Arohongui Warmonger": {
+      "dn": "Tattoo of the Arohongui Warmonger",
+      "is_tattoo": true,
+      "override_type": "ArohonguiTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "5% chance to Freeze"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/ArohonguiTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/colddamage.png"
+    },
+    "Tattoo of the Arohongui Warrior": {
+      "dn": "Tattoo of the Arohongui Warrior",
+      "is_tattoo": true,
+      "override_type": "ArohonguiTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "5% increased Cold Damage"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/ArohonguiTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/colddamage.png"
+    },
+    "Tattoo of the Hinekora Deathwarden": {
+      "dn": "Tattoo of the Hinekora Deathwarden",
+      "is_tattoo": true,
+      "override_type": "HinekoraTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "6% reduced Effect of Curses on you"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/HinekoraTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/CursemitigationclusterNode.png"
+    },
+    "Tattoo of the Hinekora Makanga": {
+      "dn": "Tattoo of the Hinekora Makanga",
+      "is_tattoo": true,
+      "override_type": "HinekoraTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "8% increased Effect of your Curses"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/HinekoraTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/CurseEffectNode.png"
+    },
+    "Tattoo of the Hinekora Shaman": {
+      "dn": "Tattoo of the Hinekora Shaman",
+      "is_tattoo": true,
+      "override_type": "HinekoraTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "8% increased Mana Regeneration Rate"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/HinekoraTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/mana.png"
+    },
+    "Tattoo of the Hinekora Storyteller": {
+      "dn": "Tattoo of the Hinekora Storyteller",
+      "is_tattoo": true,
+      "override_type": "HinekoraTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "+3% to Chaos Resistance"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/HinekoraTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/skillduration.png"
+    },
+    "Tattoo of the Hinekora Warmonger": {
+      "dn": "Tattoo of the Hinekora Warmonger",
+      "is_tattoo": true,
+      "override_type": "HinekoraTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Minions have 5% increased maximum Life"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/HinekoraTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/minionlife.png"
+    },
+    "Tattoo of the Hinekora Warrior": {
+      "dn": "Tattoo of the Hinekora Warrior",
+      "is_tattoo": true,
+      "override_type": "HinekoraTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "3% increased maximum Energy Shield"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/HinekoraTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/energyshield.png"
+    },
+    "Tattoo of the Kitava Blood Drinker": {
+      "dn": "Tattoo of the Kitava Blood Drinker",
+      "is_tattoo": true,
+      "override_type": "KitavaTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "0.5% of Attack Damage Leeched as Life"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KitavaTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/lifegainpertarget.png"
+    },
+    "Tattoo of the Kitava Heart Eater": {
+      "dn": "Tattoo of the Kitava Heart Eater",
+      "is_tattoo": true,
+      "override_type": "KitavaTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Killing Blows have 4% chance to Consume corpses to recover 10% of Maximum Life"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KitavaTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/lifegainpertarget.png"
+    },
+    "Tattoo of the Kitava Makanga": {
+      "dn": "Tattoo of the Kitava Makanga",
+      "is_tattoo": true,
+      "override_type": "KitavaTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "80% increased Maximum total Life Recovery per second from Leech"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KitavaTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/lifegainpertarget.png"
+    },
+    "Tattoo of the Kitava Rebel": {
+      "dn": "Tattoo of the Kitava Rebel",
+      "is_tattoo": true,
+      "override_type": "KitavaTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "10% chance to Avoid Bleeding"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KitavaTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/Blood2.png"
+    },
+    "Tattoo of the Kitava Shaman": {
+      "dn": "Tattoo of the Kitava Shaman",
+      "is_tattoo": true,
+      "override_type": "KitavaTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Attacks have 5% chance to cause Bleeding"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KitavaTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/SkillscostingLifenode.png"
+    },
+    "Tattoo of the Kitava Warrior": {
+      "dn": "Tattoo of the Kitava Warrior",
+      "is_tattoo": true,
+      "override_type": "KitavaTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "5% increased Physical Damage"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KitavaTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/damage.png"
+    },
+    "Tattoo of the Ngamahu Firewalker": {
+      "dn": "Tattoo of the Ngamahu Firewalker",
+      "is_tattoo": true,
+      "override_type": "NgamahuTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "+6% to Fire Resistance"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/NgamahuTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/FireResistNode.png"
+    },
+    "Tattoo of the Ngamahu Makanga": {
+      "dn": "Tattoo of the Ngamahu Makanga",
+      "is_tattoo": true,
+      "override_type": "NgamahuTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "+1% to maximum Fire Resistance"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/NgamahuTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/FireResistNode.png"
+    },
+    "Tattoo of the Ngamahu Shaman": {
+      "dn": "Tattoo of the Ngamahu Shaman",
+      "is_tattoo": true,
+      "override_type": "NgamahuTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "10% reduced Ignite Duration on you"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/NgamahuTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/FireResistNode.png"
+    },
+    "Tattoo of the Ngamahu Warmonger": {
+      "dn": "Tattoo of the Ngamahu Warmonger",
+      "is_tattoo": true,
+      "override_type": "NgamahuTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "5% chance to Ignite"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/NgamahuTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/firedamage.png"
+    },
+    "Tattoo of the Ngamahu Warrior": {
+      "dn": "Tattoo of the Ngamahu Warrior",
+      "is_tattoo": true,
+      "override_type": "NgamahuTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "5% increased Fire Damage"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/NgamahuTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/firedamage.png"
+    },
+    "Tattoo of the Ngamahu Woodcarver": {
+      "dn": "Tattoo of the Ngamahu Woodcarver",
+      "is_tattoo": true,
+      "override_type": "NgamahuTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "5% increased Totem Life"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/NgamahuTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/totemandbrandlife.png"
+    },
+    "Tattoo of the Ramako Archer": {
+      "dn": "Tattoo of the Ramako Archer",
+      "is_tattoo": true,
+      "override_type": "RamakoTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "5% increased Global Accuracy Rating"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/RamakoTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/accuracy.png"
+    },
+    "Tattoo of the Ramako Fleetfoot": {
+      "dn": "Tattoo of the Ramako Fleetfoot",
+      "is_tattoo": true,
+      "override_type": "RamakoTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "2% increased Movement Speed"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/RamakoTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/MovementSpeedandEvasionPassive.png"
+    },
+    "Tattoo of the Ramako Makanga": {
+      "dn": "Tattoo of the Ramako Makanga",
+      "is_tattoo": true,
+      "override_type": "RamakoTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Skills fire an additional Projectile"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/RamakoTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/IncreasedProjectileSpeedNode.png"
+    },
+    "Tattoo of the Ramako Scout": {
+      "dn": "Tattoo of the Ramako Scout",
+      "is_tattoo": true,
+      "override_type": "RamakoTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "6% increased Evasion Rating"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/RamakoTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/evade.png"
+    },
+    "Tattoo of the Ramako Shaman": {
+      "dn": "Tattoo of the Ramako Shaman",
+      "is_tattoo": true,
+      "override_type": "RamakoTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "+2% chance to Suppress Spell Damage"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/RamakoTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/SpellSuppresionNode.png"
+    },
+    "Tattoo of the Ramako Sniper": {
+      "dn": "Tattoo of the Ramako Sniper",
+      "is_tattoo": true,
+      "override_type": "RamakoTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "5% increased Projectile Speed"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/RamakoTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/projectilespeed.png"
+    },
+    "Tattoo of the Rongokurai Brute": {
+      "dn": "Tattoo of the Rongokurai Brute",
+      "is_tattoo": true,
+      "override_type": "RongokuraiTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "10% increased Stun Threshold"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/RongokuraiTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/stunstr.png"
+    },
+    "Tattoo of the Rongokurai Goliath": {
+      "dn": "Tattoo of the Rongokurai Goliath",
+      "is_tattoo": true,
+      "override_type": "RongokuraiTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "10% increased Stun Duration on Enemies"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/RongokuraiTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/stunstr.png"
+    },
+    "Tattoo of the Rongokurai Guard": {
+      "dn": "Tattoo of the Rongokurai Guard",
+      "is_tattoo": true,
+      "override_type": "RongokuraiTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Guard Skills have 6% increased Duration"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/RongokuraiTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/dmgreduction.png"
+    },
+    "Tattoo of the Rongokurai Makanga": {
+      "dn": "Tattoo of the Rongokurai Makanga",
+      "is_tattoo": true,
+      "override_type": "RongokuraiTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "8% chance to Defend with 200% of Armour"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/RongokuraiTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/dmgreduction.png"
+    },
+    "Tattoo of the Rongokurai Turtle": {
+      "dn": "Tattoo of the Rongokurai Turtle",
+      "is_tattoo": true,
+      "override_type": "RongokuraiTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "You take 5% reduced Extra Damage from Critical Strikes"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/RongokuraiTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/dmgreduction.png"
+    },
+    "Tattoo of the Rongokurai Warrior": {
+      "dn": "Tattoo of the Rongokurai Warrior",
+      "is_tattoo": true,
+      "override_type": "RongokuraiTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "6% increased Armour"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/RongokuraiTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/dmgreduction.png"
+    },
+    "Tattoo of the Tasalio Bladedancer": {
+      "dn": "Tattoo of the Tasalio Bladedancer",
+      "is_tattoo": true,
+      "override_type": "TasalioTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Attacks have 5% chance to Maim on Hit"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/TasalioTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/StanceSmallPassive.png"
+    },
+    "Tattoo of the Tasalio Makanga": {
+      "dn": "Tattoo of the Tasalio Makanga",
+      "is_tattoo": true,
+      "override_type": "TasalioTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "8% increased Cooldown Recovery Rate"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/TasalioTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/ReducedSkillEffectDurationNode.png"
+    },
+    "Tattoo of the Tasalio Scout": {
+      "dn": "Tattoo of the Tasalio Scout",
+      "is_tattoo": true,
+      "override_type": "TasalioTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "4% increased Effect of your Marks"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/TasalioTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/MarkNode.png"
+    },
+    "Tattoo of the Tasalio Shaman": {
+      "dn": "Tattoo of the Tasalio Shaman",
+      "is_tattoo": true,
+      "override_type": "TasalioTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "5% chance to Hinder Enemies on Hit with Spells"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/TasalioTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/CurseCastSpeed.png"
+    },
+    "Tattoo of the Tasalio Tideshifter": {
+      "dn": "Tattoo of the Tasalio Tideshifter",
+      "is_tattoo": true,
+      "override_type": "TasalioTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "10% chance to Avoid being Stunned"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/TasalioTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/stundex.png"
+    },
+    "Tattoo of the Tasalio Warrior": {
+      "dn": "Tattoo of the Tasalio Warrior",
+      "is_tattoo": true,
+      "override_type": "TasalioTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "5% chance to Blind Enemies on Hit with Attacks"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/TasalioTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/AttackBlindNode.png"
+    },
+    "Tattoo of the Tawhoa Herbalist": {
+      "dn": "Tattoo of the Tawhoa Herbalist",
+      "is_tattoo": true,
+      "override_type": "TawhoaTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "4% increased Flask Effect Duration"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/TawhoaTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/flaskdex.png"
+    },
+    "Tattoo of the Tawhoa Makanga": {
+      "dn": "Tattoo of the Tawhoa Makanga",
+      "is_tattoo": true,
+      "override_type": "TawhoaTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Flasks applied to you have 8% increased Effect"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/TawhoaTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/flaskdex.png"
+    },
+    "Tattoo of the Tawhoa Naturalist": {
+      "dn": "Tattoo of the Tawhoa Naturalist",
+      "is_tattoo": true,
+      "override_type": "TawhoaTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "8% increased Life Recovery from Flasks"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/TawhoaTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/flaskstr.png"
+    },
+    "Tattoo of the Tawhoa Scout": {
+      "dn": "Tattoo of the Tawhoa Scout",
+      "is_tattoo": true,
+      "override_type": "TawhoaTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "10% chance to Avoid being Poisoned"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/TawhoaTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/Poison.png"
+    },
+    "Tattoo of the Tawhoa Shaman": {
+      "dn": "Tattoo of the Tawhoa Shaman",
+      "is_tattoo": true,
+      "override_type": "TawhoaTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "5% chance to Poison on Hit"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/TawhoaTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/LifeRecoupNode.png"
+    },
+    "Tattoo of the Tawhoa Warrior": {
+      "dn": "Tattoo of the Tawhoa Warrior",
+      "is_tattoo": true,
+      "override_type": "TawhoaTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "5% increased Chaos Damage"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/TawhoaTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/Poison.png"
+    },
+    "Tattoo of the Tukohama Brawler": {
+      "dn": "Tattoo of the Tukohama Brawler",
+      "is_tattoo": true,
+      "override_type": "TukohamaTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "10% chance to Knock Enemies Back on hit"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/TukohamaTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/knockback.png"
+    },
+    "Tattoo of the Tukohama Makanga": {
+      "dn": "Tattoo of the Tukohama Makanga",
+      "is_tattoo": true,
+      "override_type": "TukohamaTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "16% increased Life Regeneration rate"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/TukohamaTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/lifepercentage.png"
+    },
+    "Tattoo of the Tukohama Shaman": {
+      "dn": "Tattoo of the Tukohama Shaman",
+      "is_tattoo": true,
+      "override_type": "TukohamaTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Regenerate 0.3% of Life per second"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/TukohamaTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/lifepercentage.png"
+    },
+    "Tattoo of the Tukohama Warcaller": {
+      "dn": "Tattoo of the Tukohama Warcaller",
+      "is_tattoo": true,
+      "override_type": "TukohamaTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "8% increased Warcry Cooldown Recovery Rate"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/TukohamaTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/WarCryCooldown.png"
+    },
+    "Tattoo of the Tukohama Warmonger": {
+      "dn": "Tattoo of the Tukohama Warmonger",
+      "is_tattoo": true,
+      "override_type": "TukohamaTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "5% increased Melee Damage"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/TukohamaTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/StancesNode.png"
+    },
+    "Tattoo of the Tukohama Warrior": {
+      "dn": "Tattoo of the Tukohama Warrior",
+      "is_tattoo": true,
+      "override_type": "TukohamaTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Melee Hits which Stun have 5% chance to Fortify"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/TukohamaTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/FortifyNode.png"
+    },
+    "Tattoo of the Valako Makanga": {
+      "dn": "Tattoo of the Valako Makanga",
+      "is_tattoo": true,
+      "override_type": "ValakoTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "+1% to maximum Lightning Resistance"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/ValakoTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/LightningResistNode.png"
+    },
+    "Tattoo of the Valako Scout": {
+      "dn": "Tattoo of the Valako Scout",
+      "is_tattoo": true,
+      "override_type": "ValakoTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "10% reduced Effect of Shock on you"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/ValakoTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/LightningResistNode.png"
+    },
+    "Tattoo of the Valako Shaman": {
+      "dn": "Tattoo of the Valako Shaman",
+      "is_tattoo": true,
+      "override_type": "ValakoTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "5% chance to Shock"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/ValakoTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/ShieldNodeOffensive.png"
+    },
+    "Tattoo of the Valako Shieldbearer": {
+      "dn": "Tattoo of the Valako Shieldbearer",
+      "is_tattoo": true,
+      "override_type": "ValakoTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "+1% Chance to Block Attack Damage"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/ValakoTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/ShieldAttackDamage.png"
+    },
+    "Tattoo of the Valako Stormrider": {
+      "dn": "Tattoo of the Valako Stormrider",
+      "is_tattoo": true,
+      "override_type": "ValakoTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "+6% to Lightning Resistance"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/ValakoTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/LightningResistNode.png"
+    },
+    "Tattoo of the Valako Warrior": {
+      "dn": "Tattoo of the Valako Warrior",
+      "is_tattoo": true,
+      "override_type": "ValakoTattoo",
+      "is_keystone": false,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "5% increased Lightning Damage"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/ValakoTribePassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/lightningint.png"
+    },
+    "The Agnostic": {
+      "dn": "The Agnostic",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Removes all Energy Shield",
+        "While not on Full Life, Sacrifice 20% of Mana per Second to Recover that much Life",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/MiracleMaker.png"
+    },
+    "The Impaler": {
+      "dn": "The Impaler",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "When your Hits Impale Enemies, also Impale other Enemies near them",
+        "Inflict 5 additional Impales on Enemies you Impale",
+        "For 5 seconds after you Impale Enemies, they cannot be Impaled again, and Impales cannot be Called from them",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/ImpaleKeystone.png"
+    },
+    "Unwavering Stance": {
+      "dn": "Unwavering Stance",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Cannot Evade enemy Attacks",
+        "Cannot be Stunned",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/KeystoneUnwaveringStance.png"
+    },
+    "Vaal Pact": {
+      "dn": "Vaal Pact",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Life Leech from Melee Damage is Instant",
+        "Cannot Recover Life other than from Leech",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/vaalpact.png"
+    },
+    "Versatile Combatant": {
+      "dn": "Versatile Combatant",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "-10% to maximum Chance to Block Attack Damage",
+        "-10% to maximum Chance to Block Spell Damage",
+        "+2% Chance to Block Spell Damage for each 1% Overcapped Chance to Block Attack Damage",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/VersatileCombatant.png"
+    },
+    "Wicked Ward": {
+      "dn": "Wicked Ward",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Energy Shield Recharge is not interrupted by Damage if Recharge began Recently",
+        "40% less Energy Shield Recharge Rate",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/Occultist/EldrichBarrier.png"
+    },
+    "Wind Dancer": {
+      "dn": "Wind Dancer",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "20% less Attack Damage taken if you haven't been Hit by an Attack Recently",
+        "10% more chance to Evade Attacks if you have been Hit by an Attack Recently",
+        "20% more Attack Damage taken if you have been Hit by an Attack Recently",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/WindDancer.png"
+    },
+    "Zealot's Oath": {
+      "dn": "Zealot's Oath",
+      "is_tattoo": true,
+      "override_type": "KeystoneTattoo",
+      "is_keystone": true,
+      "is_notable": false,
+      "is_mastery": false,
+      "stats": [
+        "Life Regeneration is applied to Energy Shield instead",
+        "Limited to 1 Keystone Tattoo"
+      ],
+      "active_effect_image": "Art/2DArt/UIImages/InGame/AncestralTrial/PassiveTreeTattoos/KeystoneHinekoraPassiveBG.png",
+      "icon": "Art/2DArt/SkillIcons/passives/liferegentoenergyshield.png"
+    }
+  }
+}

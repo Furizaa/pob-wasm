@@ -237,24 +237,26 @@ pub fn parse_xml(xml: &str) -> Result<Build, ParseError> {
                     "Override" => {
                         // <Override nodeId="12345" dn="Acrobatics" icon="Art/.../icon.png"
                         //           activeEffectImage="Art/.../bg.png"/>
-                        // Mirrors PassiveSpec.lua:117-115 inner loop.
-                        // We parse what's available from the XML; the tattoo type data
-                        // (overrideType, isKeystone, etc.) is not in the XML — it comes
-                        // from tree.tattoo.nodes lookup by dn.
-                        // Since we don't have TattooPassives.lua data loaded in Rust yet,
-                        // we store a stub TattooOverrideNode with what we can from XML.
-                        // The override_type will remain empty until tattoo data is loaded.
+                        // Mirrors PassiveSpec.lua:146-170 inner loop.
+                        //
+                        // The tattoo type data (overrideType, isKeystone, stats, etc.) is not
+                        // in the XML — it comes from a tree.tattoo.nodes lookup by `dn`.
+                        // We store all XML attributes needed for both the primary lookup (by dn)
+                        // and the fallback lookup (by activeEffectImage + icon).
+                        // The override_type / stats fields remain empty until enrichment via
+                        // `enrich_hash_overrides_from_tattoo_data` in setup.rs (which requires
+                        // TattooPassives.lua data to be loaded).
+                        //
+                        // Mirrors PassiveSpec.lua:163-169: only store if the tattoo lookup
+                        // succeeds. We store unconditionally here and skip unknown tattoos
+                        // during enrichment in setup.rs (same effect: no crash, just a log).
                         if in_spec_overrides {
                             if let Some(node_id_str) = attrs.get("nodeId") {
                                 if let Ok(node_id) = node_id_str.parse::<u32>() {
                                     let dn = attrs.get("dn").cloned().unwrap_or_default();
-                                    // Store a stub override node. The override_type and type
-                                    // flags will be empty until tattoo data is enriched via
-                                    // `GameData::enrich_tattoo_overrides` (requires
-                                    // TattooPassives.lua data to be loaded). The is_tattoo
-                                    // flag is always true for override entries.
-                                    // Mirrors PassiveSpec.lua:101-108: if lookup succeeded,
-                                    // store with node_id; else skip (we store the stub always).
+                                    let active_effect_image =
+                                        attrs.get("activeEffectImage").cloned().unwrap_or_default();
+                                    let icon = attrs.get("icon").cloned().unwrap_or_default();
                                     let override_node = TattooOverrideNode {
                                         node_id,
                                         dn,
@@ -264,6 +266,8 @@ pub fn parse_xml(xml: &str) -> Result<Build, ParseError> {
                                         is_notable: false,
                                         is_mastery: false,
                                         stats: Vec::new(),
+                                        active_effect_image,
+                                        icon,
                                     };
                                     passive_spec.hash_overrides.insert(node_id, override_node);
                                 }

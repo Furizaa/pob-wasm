@@ -713,6 +713,16 @@ fn apply_passive_mods(build: &Build, env: &mut super::env::CalcEnv) {
     // Apply timeless jewel node replacements (SETUP-06).
     let timeless_overrides = crate::timeless_jewels::apply_timeless_jewels(build, tree, &data);
 
+    // ── TATTOO OVERRIDE ENRICHMENT (FIX-05) ──────────────────────────────────
+    // Mirrors PassiveSpec.lua:153-169: look up each Override's dn in tree.tattoo.nodes.
+    // If the dn is not found directly, attempt a fallback lookup by (activeEffectImage, icon).
+    // If the tattoo is found, enrich the hash_overrides entry with override_type, stats, etc.
+    // If the tattoo is NOT found even after fallback, skip it (don't apply any replacement).
+    //
+    // We build an enriched copy of hash_overrides rather than mutating build (Build is shared).
+    let enriched_hash_overrides =
+        enrich_hash_overrides(&build.passive_spec.hash_overrides, &data.tattoos);
+
     // Find reachable (connected) nodes, respecting mastery gate.
     // Mirrors PassiveSpec.lua ImportFromNodeList:266-277.
     let reachable = connected_passive_nodes(build, tree);
@@ -760,7 +770,8 @@ fn apply_passive_mods(build: &Build, env: &mut super::env::CalcEnv) {
 
         // Count tattoo types for allocated nodes that have a hash override.
         // Mirrors: if node.isTattoo and node.alloc and node.overrideType then
-        if let Some(override_node) = build.passive_spec.hash_overrides.get(&nid) {
+        // Use enriched_hash_overrides so override_type is populated from tattoo data.
+        if let Some(override_node) = enriched_hash_overrides.get(&nid) {
             if override_node.is_tattoo && !override_node.override_type.is_empty() {
                 *alloc_tattoo_types
                     .entry(override_node.override_type.clone())
@@ -855,6 +866,7 @@ fn apply_passive_mods(build: &Build, env: &mut super::env::CalcEnv) {
             true, // is_allocated
             tree,
             &timeless_overrides,
+            &enriched_hash_overrides,
             &effective_mastery_selections,
             &mut env.radius_jewel_list,
             &env.alloc_nodes,
@@ -876,6 +888,7 @@ fn apply_passive_mods(build: &Build, env: &mut super::env::CalcEnv) {
             false, // is_allocated
             tree,
             &timeless_overrides,
+            &enriched_hash_overrides,
             &effective_mastery_selections,
             &mut env.radius_jewel_list,
             &env.alloc_nodes,
@@ -985,12 +998,93 @@ fn apply_passive_mods(build: &Build, env: &mut super::env::CalcEnv) {
     }
 }
 
+/// Enrich `hash_overrides` entries from tattoo data.
+///
+/// Mirrors PassiveSpec.lua:153-169: for each Override XML entry (keyed by node_id
+/// in hash_overrides), look up the tattoo data by `dn` in `tree.tattoo.nodes`.
+/// If not found by dn, attempt a fallback lookup by `(activeEffectImage, icon)`.
+/// If found, copy the tattoo fields (override_type, is_keystone, is_notable,
+/// is_mastery, stats) into the TattooOverrideNode.
+/// If not found even after fallback, the entry is omitted (unknown tattoo is dropped).
+///
+/// Returns a new HashMap with enriched entries. The original `hash_overrides` is not
+/// mutated (Build is shared-ref).
+///
+/// Mirrors:
+///   if not self.tree.tattoo.nodes[child.attrib.dn] then
+///     for name, data in pairs(self.tree.tattoo.nodes) do
+///       if data.activeEffectImage == xml.activeEffectImage and data.icon == xml.icon then
+///         self.tree.tattoo.nodes[child.attrib.dn] = data  -- register alias
+///       end
+///     end
+///   end
+///   if self.tree.tattoo.nodes[child.attrib.dn] then
+///     self.hashOverrides[nodeId] = copyTable(self.tree.tattoo.nodes[child.attrib.dn])
+///     self.hashOverrides[nodeId].id = nodeId
+///   else
+///     ConPrintf("[PassiveSpecClass:Load] Failed to find a tattoo with dn: ...")
+///   end
+fn enrich_hash_overrides(
+    raw_overrides: &HashMap<u32, crate::build::types::TattooOverrideNode>,
+    tattoo_data: &crate::data::tattoos::TattooData,
+) -> HashMap<u32, crate::build::types::TattooOverrideNode> {
+    use crate::build::types::TattooOverrideNode;
+
+    let mut enriched: HashMap<u32, TattooOverrideNode> = HashMap::new();
+
+    for (&node_id, raw) in raw_overrides {
+        // Primary lookup: try to find by dn.
+        // Mirrors: self.tree.tattoo.nodes[child.attrib.dn]
+        let tattoo = tattoo_data.lookup_by_dn(&raw.dn).or_else(|| {
+            // Fallback lookup: by (activeEffectImage, icon).
+            // Mirrors: for name, data in pairs(self.tree.tattoo.nodes) do
+            //   if data.activeEffectImage == xml.activeEffectImage and
+            //      data.icon == xml.icon then ...
+            if !raw.active_effect_image.is_empty() || !raw.icon.is_empty() {
+                tattoo_data.lookup_by_images(&raw.active_effect_image, &raw.icon)
+            } else {
+                None
+            }
+        });
+
+        let Some(tattoo) = tattoo else {
+            // Failed to find the tattoo — skip this override entry.
+            // Mirrors: ConPrintf("[PassiveSpecClass:Load] Failed to find a tattoo with dn of: ...")
+            // In Lua the override is simply not stored; in Rust we drop it here.
+            continue;
+        };
+
+        // Enrich: copy tattoo fields into the override node.
+        // Mirrors: self.hashOverrides[nodeId] = copyTable(self.tree.tattoo.nodes[dn], true)
+        //          self.hashOverrides[nodeId].id = nodeId
+        enriched.insert(
+            node_id,
+            TattooOverrideNode {
+                node_id,
+                dn: tattoo.dn.clone(),
+                is_tattoo: true,
+                override_type: tattoo.override_type.clone(),
+                is_keystone: tattoo.is_keystone,
+                is_notable: tattoo.is_notable,
+                is_mastery: tattoo.is_mastery,
+                stats: tattoo.stats.clone(),
+                active_effect_image: tattoo.active_effect_image.clone(),
+                icon: tattoo.icon.clone(),
+            },
+        );
+    }
+
+    enriched
+}
+
 /// Build the mod list for a single passive node, implementing the two-pass
 /// radius jewel dispatch, PassiveSkillEffect scaling, and suppression checks.
 ///
 /// Mirrors calcs.buildModListForNode(env, node) from CalcSetup.lua lines 113-167.
 /// Also handles mastery node stat substitution (SETUP-09):
 ///   if the node is a mastery with a selection, use the effect's stats instead of node.stats.
+/// Also handles tattoo hash override stat substitution (FIX-05):
+///   if the node has an enriched hash override, use the tattoo's `sd` stats instead.
 ///
 /// Returns the final Vec<Mod> for this node.
 fn build_mod_list_for_node(
@@ -998,6 +1092,9 @@ fn build_mod_list_for_node(
     is_allocated: bool,
     tree: &crate::passive_tree::PassiveTree,
     timeless_overrides: &HashMap<u32, Vec<String>>,
+    // hash_overrides: node_id → enriched TattooOverrideNode (dn lookup + tattoo stats filled in).
+    // Mirrors self.hashOverrides in PassiveSpec.lua, used in ReplaceNode calls at lines 1119-1121.
+    hash_overrides: &HashMap<u32, crate::build::types::TattooOverrideNode>,
     // mastery_stats: mastery node_id → effective stat strings (already looked up from mastery_effects).
     // Mastery nodes NOT in this map are skipped (they have no allocated effect).
     mastery_stats: &HashMap<u32, Vec<String>>,
@@ -1033,8 +1130,33 @@ fn build_mod_list_for_node(
 
     let source = ModSource::new("Passive", &node.name);
 
-    // Collect base mods from the node's stats (or timeless overrides).
-    let stats: &[String] = if let Some(override_stats) = timeless_overrides.get(&node_id) {
+    // Collect base mods from the node's stats, applying overrides in the correct priority order.
+    //
+    // Mirrors PassiveSpec.lua's node mutation flow:
+    //   Line 1077:  timeless jewel ReplaceNode  →  node.sd = timeless stats
+    //   Line 1119:  tattoo ReplaceNode           →  node.sd = tattoo stats  (wins over timeless)
+    //
+    // In Rust we never mutate tree nodes, so we select the effective stats here:
+    //   1. hash_overrides (tattoo replacement) — highest priority, applied last in Lua
+    //   2. timeless_overrides (timeless jewel replacement)
+    //   3. node.stats (original passive tree data)
+    let stats: &[String] = if let Some(tattoo) = hash_overrides.get(&node_id) {
+        // Tattoo replacement: use the tattoo's sd stats.
+        // Mirrors PassiveSpec.lua:1119-1121: ReplaceNode(node, hashOverrides[node.id])
+        // which sets node.sd = tattoo.sd.
+        // Only apply if the tattoo data was successfully enriched (stats non-empty).
+        if !tattoo.stats.is_empty() {
+            &tattoo.stats
+        } else {
+            // Tattoo found in hash_overrides but no stats (enrichment failed — unknown tattoo).
+            // Fall through to timeless/original stats.
+            if let Some(override_stats) = timeless_overrides.get(&node_id) {
+                override_stats
+            } else {
+                &node.stats
+            }
+        }
+    } else if let Some(override_stats) = timeless_overrides.get(&node_id) {
         override_stats
     } else {
         &node.stats

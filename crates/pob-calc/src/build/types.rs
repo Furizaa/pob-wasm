@@ -48,16 +48,19 @@ pub struct PassiveSpec {
 ///
 /// Mirrors what `ReplaceNode` in PassiveSpec.lua copies from `tree.tattoo.nodes`
 /// onto the original tree node. Specifically captures the fields needed for
-/// multiplier counting in CalcSetup.lua lines 582–677.
+/// multiplier counting in CalcSetup.lua lines 582–677 and stat replacement in
+/// `build_mod_list_for_node`.
 ///
 /// Fields map to TattooPassives.lua entry fields:
-/// - `dn`            → `["dn"]`           (display name / key into `tree.tattoo.nodes`)
-/// - `is_tattoo`     → `["isTattoo"]`     (always `true` for tattoo nodes)
-/// - `override_type` → `["overrideType"]` (e.g. `"KeystoneTattoo"`, `"StrTattoo"`)
-/// - `is_keystone`   → `["ks"]`           (keystone tattoo flag)
-/// - `is_notable`    → `["not"]`          (notable tattoo flag; `["not"]` avoids keyword)
-/// - `is_mastery`    → `["m"]`            (mastery tattoo flag)
-/// - `stats`         → `["sd"]`           (stat description lines)
+/// - `dn`                  → `["dn"]`                (display name / key into `tree.tattoo.nodes`)
+/// - `is_tattoo`           → `["isTattoo"]`          (always `true` for tattoo nodes)
+/// - `override_type`       → `["overrideType"]`      (e.g. `"KeystoneTattoo"`, `"StrTattoo"`)
+/// - `is_keystone`         → `["ks"]`                (keystone tattoo flag)
+/// - `is_notable`          → `["not"]`               (notable tattoo flag; `["not"]` avoids keyword)
+/// - `is_mastery`          → `["m"]`                 (mastery tattoo flag)
+/// - `stats`               → `["sd"]`                (stat description lines)
+/// - `active_effect_image` → `["activeEffectImage"]` (artwork path for fallback lookup)
+/// - `icon`                → `["icon"]`              (icon path for fallback lookup)
 #[derive(Debug, Clone, Default)]
 pub struct TattooOverrideNode {
     /// The tree node ID this tattoo replaces (the slot's hash ID).
@@ -78,8 +81,16 @@ pub struct TattooOverrideNode {
     /// `true` if this is a mastery tattoo (node.m in TattooPassives.lua).
     pub is_mastery: bool,
     /// Stat description lines (the `sd` field from TattooPassives.lua).
-    /// Used to replace the original node's stats via `ReplaceNode`.
+    /// Used to replace the original node's stats in `build_mod_list_for_node`.
+    /// When non-empty, these override the tree node's `stats` array.
     pub stats: Vec<String>,
+    /// Active effect image path (the `["activeEffectImage"]` field).
+    /// Stored from XML `<Override activeEffectImage="...">` for the renamed-tattoo
+    /// fallback lookup (PassiveSpec.lua lines 153–160).
+    pub active_effect_image: String,
+    /// Icon path (the `["icon"]` field).
+    /// Stored from XML `<Override icon="...">` for the renamed-tattoo fallback.
+    pub icon: String,
 }
 
 #[derive(Debug, Clone)]

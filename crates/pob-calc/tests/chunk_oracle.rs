@@ -57,6 +57,13 @@ fn load_game_data() -> Option<Arc<GameData>> {
         let _ = data.load_pantheons_from_json(&pantheons_str);
     }
 
+    // Load tattoo passive data (for FIX-05-tattoo-data).
+    // Optional: gracefully skipped if the file is absent (builds without tattoos work fine).
+    let tattoos_path = format!("{data_dir}/tattoos.json");
+    if let Ok(tattoos_str) = std::fs::read_to_string(&tattoos_path) {
+        let _ = data.load_tattoos_from_json(&tattoos_str);
+    }
+
     Some(Arc::new(data))
 }
 

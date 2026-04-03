@@ -28,6 +28,31 @@ fn load_game_data() -> Option<Arc<GameData>> {
         let _ = data.load_gem_reqs_from_json(&gem_reqs_str);
     }
 
+    // Load legion jewel data (for SETUP-06 timeless jewel replacements).
+    let legion_path = format!("{data_dir}/legion.json");
+    if let Ok(legion_str) = std::fs::read_to_string(&legion_path) {
+        let _ = data.load_legion_data_from_json(&legion_str);
+    }
+
+    // Load mastery effects sidecar (for SETUP-09-mastery-selections).
+    let mastery_path = format!("{data_dir}/mastery_effects.json");
+    if let Ok(mastery_str) = std::fs::read_to_string(&mastery_path) {
+        let _ = data.load_mastery_effects_from_json(&mastery_str);
+    }
+
+    // Load pantheon god data (for SETUP-12-bandit-pantheon).
+    let pantheons_path = format!("{data_dir}/pantheons.json");
+    if let Ok(pantheons_str) = std::fs::read_to_string(&pantheons_path) {
+        let _ = data.load_pantheons_from_json(&pantheons_str);
+    }
+
+    // Load tattoo passive data (for FIX-05-tattoo-data).
+    // Optional: gracefully skipped if the file is absent (builds without tattoos work fine).
+    let tattoos_path = format!("{data_dir}/tattoos.json");
+    if let Ok(tattoos_str) = std::fs::read_to_string(&tattoos_path) {
+        let _ = data.load_tattoos_from_json(&tattoos_str);
+    }
+
     Some(Arc::new(data))
 }
 

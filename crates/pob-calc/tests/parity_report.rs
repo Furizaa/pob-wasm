@@ -15,7 +15,42 @@ use std::sync::Arc;
 fn load_game_data() -> Option<Arc<GameData>> {
     let data_dir = std::env::var("DATA_DIR").ok()?;
     let json = build_real_game_data_json(&data_dir).ok()?;
-    GameData::from_json(&json).ok().map(Arc::new)
+    let mut data = GameData::from_json(&json).ok()?;
+
+    // Load version-specific passive trees.
+    let tree_dir = format!("{data_dir}/tree");
+    for (version, filename) in &[("3_13", "poe1_3_13.json"), ("3_6", "poe1_3_6.json")] {
+        let path = format!("{tree_dir}/{filename}");
+        if let Ok(tree_str) = std::fs::read_to_string(&path) {
+            if let Ok(tree) = pob_calc::passive_tree::PassiveTree::from_json(&tree_str) {
+                data.add_versioned_tree(version.to_string(), tree);
+            }
+        }
+    }
+
+    // Load optional data files.
+    let gem_reqs_path = format!("{data_dir}/gem_reqs.json");
+    if let Ok(s) = std::fs::read_to_string(&gem_reqs_path) {
+        let _ = data.load_gem_reqs_from_json(&s);
+    }
+    let legion_path = format!("{data_dir}/legion.json");
+    if let Ok(s) = std::fs::read_to_string(&legion_path) {
+        let _ = data.load_legion_data_from_json(&s);
+    }
+    let mastery_path = format!("{data_dir}/mastery_effects.json");
+    if let Ok(s) = std::fs::read_to_string(&mastery_path) {
+        let _ = data.load_mastery_effects_from_json(&s);
+    }
+    let pantheons_path = format!("{data_dir}/pantheons.json");
+    if let Ok(s) = std::fs::read_to_string(&pantheons_path) {
+        let _ = data.load_pantheons_from_json(&s);
+    }
+    let tattoos_path = format!("{data_dir}/tattoos.json");
+    if let Ok(s) = std::fs::read_to_string(&tattoos_path) {
+        let _ = data.load_tattoos_from_json(&s);
+    }
+
+    Some(Arc::new(data))
 }
 
 fn build_real_game_data_json(data_dir: &str) -> Result<String, Box<dyn std::error::Error>> {
