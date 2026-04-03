@@ -185,6 +185,7 @@ pub fn get_mods(
                 ModValue::Bool(b) => serde_json::Value::Bool(*b),
                 ModValue::String(s) => serde_json::Value::String(s.clone()),
                 ModValue::ConqueredBy(_) => serde_json::Value::Null,
+                ModValue::EmbeddedMod(_) => serde_json::Value::Null,
             },
             mod_type: format!("{:?}", r.mod_type).to_uppercase(),
             source: r.source_category,
