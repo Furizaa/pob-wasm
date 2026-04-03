@@ -511,6 +511,16 @@ pub fn fields_for_chunk(chunk: &str) -> Option<&'static [&'static str]> {
         // verified by offence fields for Energy Blade builds.
         "FIX-07-energy-blade" => &[],
 
+        // FIX-08: PERF-02 Mana computation bug. Two builds have Mana ~32 too low,
+        // cascading into ManaReserved. Verified via Mana and ManaReserved fields.
+        "FIX-08-mana-computation" => &[
+            "Mana",
+            "ManaUnreserved",
+            "ManaUnreservedPercent",
+            "ManaReserved",
+            "ManaReservedPercent",
+        ],
+
         _ => return None,
     })
 }
@@ -563,6 +573,7 @@ pub fn all_chunk_ids() -> &'static [&'static str] {
         "FIX-05-tattoo-data",
         "FIX-06-perf02-medium-gaps",
         "FIX-07-energy-blade",
+        "FIX-08-mana-computation",
     ]
 }
 

@@ -153,9 +153,10 @@ FIX-04    Glorious Vanity normal node LUT replacement         timeless_jewels.rs
 FIX-05    Tattoo data loading & node stat replacement         xml_parser, setup.rs, passive_tree/
 FIX-06    PERF-02 medium gaps (recovery guards, ES flags)     defence.rs, perform.rs
 FIX-07    Energy Blade weapon creation & re-run               setup.rs
+FIX-08    PERF-02 Mana computation bug                        perform.rs
 ```
 
-Total: ~49 chunks, plus a variable number of TAIL chunks for edge cases discovered
+Total: ~50 chunks, plus a variable number of TAIL chunks for edge cases discovered
 during execution.
 
 ### 5.2 SETUP Chunk Details
@@ -282,6 +283,30 @@ recharge, (d) `EnergyShieldOnSpellBlock`/`EnergyShieldOnSuppress` not written,
 Energy Blade weapon item creation (CalcSetup.lua:979-1013) and the re-run
 trigger (CalcSetup.lua:1731-1741) are not implemented. Energy Blade builds
 get wrong weapon stats. **MEDIUM — no oracle builds, but Lua code exists.**
+
+**FIX-08 (PERF-02 Mana computation):** Two builds (phys_melee_slayer, coc_trigger)
+have incorrect Mana values propagating into ManaReserved. The slayer computes
+Mana≈640 instead of 672 (gap 32) and coc_trigger computes Mana≈842 instead of 874
+(gap 32). Root cause is in the PERF-02 Mana calculation — likely a missing INC/MORE
+source or an incorrect base value. Trace the Mana computation for these two builds
+against CalcPerform.lua `doActorLifeMana` (the Mana branch, lines ~100-130).
+**CRITICAL — wrong Mana cascades into reservation, regen, and all Mana-derived
+fields for these builds.**
+
+**PERF-04 architecture problem (noted for restart):** The current
+`accumulate_skill_reservations` in perform.rs iterates raw gem data from the
+build XML instead of iterating a properly-constructed `activeSkillList`. This is
+a fundamental shortcut that means it CANNOT handle: (a) support gems that add
+skill types (Blasphemy adding `HasReservation` to curses), (b) item-granted
+implicit supports (Heretic's Veil "Socketed Gems are Supported by Level 22
+Blasphemy"), (c) support-modified reservation values. The Lua iterates
+`env.player.activeSkillList` which was constructed during SETUP with full support
+gem merging. The Rust must do the same. When PERF-04 is restarted, the agent must
+rewrite `accumulate_skill_reservations` to iterate the active skill list built by
+SETUP-02, not raw XML gems. Until SETUP-02 is complete, wand_occultist will remain
+broken (gap 841 from missing Blasphemy reservation). **Also: `SupportBloodMagic`
+is missing from gems.json** — only `SupportBloodMagicUniquePrismGuardian` exists.
+This is a data pipeline bug, not a code bug.
 
 ## 6. Annotated Lua Reference Docs
 
