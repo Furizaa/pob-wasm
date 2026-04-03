@@ -252,16 +252,35 @@ pub struct RadiusJewelEntry {
     /// Set of passive node IDs within this jewel's radius.
     /// Mirrors `rad.nodes` — keyed by node_id.
     pub nodes: HashSet<u32>,
-    /// The per-node callback. Signature: `(node_id: Option<u32>, mods: &mut Vec<Mod>, data: &mut HashMap<String, f64>)`.
-    /// When `node_id` is None, this is the "finalise" call (after all nodes processed).
-    pub func: Box<dyn Fn(Option<u32>, &mut Vec<Mod>, &mut HashMap<String, f64>) + Send + Sync>,
+    /// The per-node callback. Signature:
+    ///   `(node_id: Option<u32>, node_mods: &mut Vec<Mod>, data: &mut HashMap<String, f64>, mod_acc: &mut Vec<Mod>)`
+    ///
+    /// - `node_id`: `Some(nid)` for per-node calls, `None` for the finalize call.
+    /// - `node_mods`: The current node's mod list (per-node) OR the main accumulator (finalize).
+    /// - `data`: Numeric per-pass accumulator (e.g. attribute tallies).
+    /// - `mod_acc`: Mod accumulator for callbacks that collect mods across nodes
+    ///   (e.g. "Grants all bonuses of Unallocated Small Passive Skills in Radius").
+    ///   During finalize, drain this into `node_mods` (the main accumulator).
+    ///
+    /// When `node_id` is None (finalize), this is the "finalize" call (after all nodes processed).
+    pub func: Box<
+        dyn Fn(Option<u32>, &mut Vec<Mod>, &mut HashMap<String, f64>, &mut Vec<Mod>) + Send + Sync,
+    >,
     /// Whether this is a Threshold, Self (allocated), SelfUnalloc, or Other jewel.
     pub jewel_type: RadiusJewelType,
     /// The passive tree socket node ID where this jewel is socketed.
     /// Used to set `rad.data.modSource = "Tree:{node_id}"`.
     pub node_id: u32,
-    /// Mutable per-pass accumulator (e.g. `{"Str": 45, "Dex": 30, "Int": 20}`).
+    /// Mutable per-pass accumulator for numeric tallies
+    /// (e.g. `{"Str": 45, "Dex": 30, "Int": 20}`).
     pub data: HashMap<String, f64>,
+    /// Mutable per-pass mod accumulator for callbacks that collect mods across nodes
+    /// (e.g. "Grants all bonuses of Unallocated Small Passive Skills in Radius").
+    /// Populated during per-node calls (node_id = Some); drained to main modList
+    /// during the finalise call (node_id = None).
+    ///
+    /// Mirrors `rad.data.modList` in the Lua jewelSelfUnallocFuncs callbacks.
+    pub mod_accumulator: Vec<Mod>,
 }
 
 /// The full calculation environment for one pass.

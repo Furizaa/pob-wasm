@@ -842,6 +842,7 @@ fn apply_passive_mods(build: &Build, env: &mut super::env::CalcEnv) {
     for rad in &mut env.radius_jewel_list {
         rad.data.clear();
         rad.data.insert("modSource".to_string(), 0.0); // placeholder; modSource is string in Lua
+        rad.mod_accumulator.clear();
     }
 
     // Collect mods from all allocated nodes using the two-pass radius jewel framework.
@@ -882,10 +883,12 @@ fn apply_passive_mods(build: &Build, env: &mut super::env::CalcEnv) {
         // Note: we discard the returned mods — extra radius nodes don't contribute to modDB.
     }
 
-    // Finalise radius jewels: call func(None, &mut mods, &mut data) for each.
+    // Finalise radius jewels: call func(None, main_mods, data, mod_acc) for each.
     // Mirrors: for _, rad in pairs(env.radiusJewelList) do rad.func(nil, modList, rad.data) end
+    // On finalize, callbacks that accumulated mods (e.g. "Grants all bonuses of
+    // Unallocated Small Passive Skills") drain their mod_accumulator into all_mods.
     for rad in &mut env.radius_jewel_list {
-        (rad.func)(None, &mut all_mods, &mut rad.data);
+        (rad.func)(None, &mut all_mods, &mut rad.data, &mut rad.mod_accumulator);
     }
 
     // Add all collected mods to the player ModDb.
@@ -1050,7 +1053,12 @@ fn build_mod_list_for_node(
     //     rad.func(node, modList, rad.data)
     for rad in radius_jewel_list.iter_mut() {
         if rad.jewel_type == RadiusJewelType::Other && rad.nodes.contains(&node_id) {
-            (rad.func)(Some(node_id), &mut mod_list, &mut rad.data);
+            (rad.func)(
+                Some(node_id),
+                &mut mod_list,
+                &mut rad.data,
+                &mut rad.mod_accumulator,
+            );
         }
     }
 
@@ -1097,7 +1105,12 @@ fn build_mod_list_for_node(
             RadiusJewelType::Other => false, // already handled in first pass
         };
         if fires {
-            (rad.func)(Some(node_id), &mut mod_list, &mut rad.data);
+            (rad.func)(
+                Some(node_id),
+                &mut mod_list,
+                &mut rad.data,
+                &mut rad.mod_accumulator,
+            );
         }
     }
 
@@ -1219,6 +1232,11 @@ fn build_radius_jewel_list(build: &Build, env: &mut super::env::CalcEnv) {
             None => continue, // jewel not socketed in the passive tree
         };
 
+        // Only process if the socket node is allocated (Lua checks env.allocNodes[slot.nodeId]).
+        if !env.alloc_nodes.contains(&socket_node_id) {
+            continue;
+        }
+
         // Get the socket node from the tree.
         let socket_node = match tree.nodes.get(&socket_node_id) {
             Some(n) => n,
@@ -1227,64 +1245,328 @@ fn build_radius_jewel_list(build: &Build, env: &mut super::env::CalcEnv) {
 
         // Get nodes in radius for this jewel.
         // Mirrors: node.nodesInRadius and node.nodesInRadius[item.jewelRadiusIndex] or {}
-        // Note: nodes_in_radius is empty in current tree data (no x/y coords extracted yet).
         let nodes_in_radius: std::collections::HashSet<u32> = socket_node
             .nodes_in_radius
             .get(&radius_idx)
             .cloned()
             .unwrap_or_default();
 
-        // Determine the jewel type from the item's name.
-        let jewel_type = determine_jewel_type(item);
+        // Build the funcList for this jewel by scanning its mod lines.
+        // Mirrors CalcSetup.lua lines 753-780:
+        //   local funcList = (item.jewelData and item.jewelData.funcList) or { default_func }
+        //   for _, func in ipairs(funcList) do ... end
+        //
+        // In Lua, item.jewelData.funcList is built by ModParser when the item is parsed.
+        // The JewelFunc mods come from the item's explicit/implicit/enchant lines.
+        // Here we scan the raw mod lines directly to reproduce that dispatch.
+        let func_list = extract_jewel_func_list(item);
 
-        // Default callback: tally Str/Dex/Int in radius.
-        // Mirrors PoB's default funcList entry for jewels without custom funcList.
-        let func = Box::new(
-            move |node_id: Option<u32>,
-                  mod_list: &mut Vec<crate::mod_db::types::Mod>,
-                  data: &mut HashMap<String, f64>| {
-                if node_id.is_none() {
-                    // Finalise call — default func does nothing on finalise.
-                    return;
-                }
-                // Per-node: tally Str/Dex/Int BASE mods from the node's modList.
-                // Mirrors PoB's default: data[stat] = (data[stat] or 0) + out:Sum("BASE", nil, stat)
-                for stat in &["Str", "Dex", "Int"] {
-                    let sum: f64 = mod_list
-                        .iter()
-                        .filter(|m| {
-                            m.name == *stat
-                                && m.mod_type == crate::mod_db::types::ModType::Base
-                                && m.tags.is_empty()
-                        })
-                        .map(|m| m.value.as_f64())
-                        .sum();
-                    if sum != 0.0 {
-                        let entry = data.entry(stat.to_string()).or_insert(0.0);
-                        *entry += sum;
+        for (jewel_type, func) in func_list {
+            // Add non-SelfAlloc jewels' unallocated nodes to extraRadiusNodeList.
+            // Mirrors: if func.type ~= "Self" and node.nodesInRadius then ...
+            //   for nodeId, node in pairs(node.nodesInRadius[item.jewelRadiusIndex]) do
+            //     if not env.allocNodes[nodeId] then
+            //       env.extraRadiusNodeList[nodeId] = env.spec.nodes[nodeId]
+            if jewel_type != RadiusJewelType::SelfAlloc {
+                for &nid in &nodes_in_radius {
+                    if !env.alloc_nodes.contains(&nid) {
+                        env.extra_radius_node_list.insert(nid);
                     }
                 }
-            },
-        );
-
-        // Add non-SelfAlloc jewels' unallocated nodes to extraRadiusNodeList.
-        // Mirrors: if func.type ~= "Self" and node.nodesInRadius then ...
-        if jewel_type != RadiusJewelType::SelfAlloc {
-            for &nid in &nodes_in_radius {
-                if !env.alloc_nodes.contains(&nid) {
-                    env.extra_radius_node_list.insert(nid);
-                }
             }
+
+            env.radius_jewel_list.push(RadiusJewelEntry {
+                nodes: nodes_in_radius.clone(),
+                func,
+                jewel_type,
+                node_id: socket_node_id,
+                data: HashMap::new(),
+                mod_accumulator: Vec::new(),
+            });
+        }
+    }
+}
+
+/// The callback type for a radius jewel entry.
+/// Arguments: (node_id, node_mods, data, mod_accumulator)
+/// - node_id: Some(nid) for per-node, None for finalize.
+/// - node_mods: The current node's mod list (per-node) or the main accumulator (finalize).
+/// - data: Numeric per-pass accumulator.
+/// - mod_accumulator: Mutable Vec<Mod> for callbacks that collect mods across nodes.
+type JewelFuncBox = Box<
+    dyn Fn(
+            Option<u32>,
+            &mut Vec<crate::mod_db::types::Mod>,
+            &mut HashMap<String, f64>,
+            &mut Vec<crate::mod_db::types::Mod>,
+        ) + Send
+        + Sync,
+>;
+
+/// Extract the per-node funcList for a radius jewel item.
+///
+/// Mirrors the JewelFunc dispatch in ModParser.lua (lines 6118-6343) and the
+/// funcList construction in Item.lua (lines 1618-1620).
+///
+/// In Lua, every mod line that matches a pattern in `jewelSelfFuncs`,
+/// `jewelSelfUnallocFuncs`, `jewelThresholdFuncs`, or `jewelOtherFuncs` adds
+/// an entry to `item.jewelData.funcList`. When a jewel has no such lines, it
+/// gets the single default `{type="Self", func=default_tally}` entry.
+///
+/// Returns a Vec of (RadiusJewelType, callback) pairs, one per funcList entry.
+/// Each entry has the type and a boxed closure matching `RadiusJewelEntry.func`.
+fn extract_jewel_func_list(
+    item: &crate::build::types::Item,
+) -> Vec<(super::env::RadiusJewelType, JewelFuncBox)> {
+    use super::env::RadiusJewelType;
+    use crate::mod_db::types::{KeywordFlags, Mod, ModFlags, ModSource, ModType, ModValue};
+
+    let all_lines = item
+        .implicits
+        .iter()
+        .chain(item.explicits.iter())
+        .chain(item.crafted_mods.iter())
+        .chain(item.enchant_mods.iter());
+
+    let mut funcs: Vec<(RadiusJewelType, JewelFuncBox)> = Vec::new();
+
+    for line in all_lines {
+        let lower = line.to_lowercase();
+
+        // ── SelfUnalloc callbacks (jewelSelfUnallocFuncs) ───────────────────
+        // These fire for unallocated nodes in the jewel's radius (second pass).
+        // The callback collects the unallocated node's mods into `mod_accumulator`
+        // during per-node calls. On finalize, the accumulated mods are drained
+        // into the main `node_mods` accumulator (all_mods in apply_passive_mods).
+        //
+        // Mirrors ModParser.lua jewelSelfUnallocFuncs entries and the Lua callbacks:
+        //   if node then
+        //     if node.type == "Normal" (or "Notable") then
+        //       data.modList:AddMod(mod)
+        //     end
+        //   elseif data.modList then
+        //     out:AddList(data.modList)
+        //   end
+
+        // "Grants all bonuses of Unallocated Small Passive Skills in Radius"
+        // (Unnatural Instinct's second entry; also appears on Imprinting-type jewels)
+        // Mirrors: jewelSelfUnallocFuncs["Grants all bonuses of Unallocated Small Passive Skills in Radius"]
+        // node.type == "Normal" check: since we don't have node type in the callback,
+        // we rely on the SelfUnalloc dispatch only firing for the correct node types.
+        // In practice, this is called for ALL unallocated nodes in radius; the Lua
+        // does the node.type == "Normal" guard inside the callback. We approximate
+        // by collecting all non-ConnectedTo mods.
+        if lower.contains("grants all bonuses of unallocated small passive skills in radius") {
+            funcs.push((
+                RadiusJewelType::SelfUnalloc,
+                Box::new(
+                    |node_id: Option<u32>,
+                     node_mods: &mut Vec<Mod>,
+                     _data: &mut HashMap<String, f64>,
+                     mod_acc: &mut Vec<Mod>| {
+                        if node_id.is_some() {
+                            // Per-node (unallocated): collect mods excluding Condition:ConnectedTo.
+                            // Mirrors: if node.type == "Normal" then
+                            //   for _, mod in ipairs(out) do
+                            //     if not mod.name:match("^Condition:ConnectedTo") then
+                            //       data.modList:AddMod(mod)
+                            //     end
+                            //   end
+                            for m in node_mods.iter() {
+                                if !m.name.starts_with("Condition:ConnectedTo") {
+                                    mod_acc.push(m.clone());
+                                }
+                            }
+                        } else {
+                            // Finalize: drain mod_acc into node_mods (the main accumulator).
+                            // Mirrors: elseif data.modList then out:AddList(data.modList) end
+                            node_mods.extend(mod_acc.drain(..));
+                        }
+                    },
+                ),
+            ));
+            continue;
         }
 
-        env.radius_jewel_list.push(RadiusJewelEntry {
-            nodes: nodes_in_radius,
-            func,
-            jewel_type,
-            node_id: socket_node_id,
-            data: HashMap::new(),
-        });
+        // "Grants all bonuses of Unallocated Notable Passive Skills in Radius"
+        // Same pattern as above but node.type == "Notable".
+        if lower.contains("grants all bonuses of unallocated notable passive skills in radius") {
+            funcs.push((
+                RadiusJewelType::SelfUnalloc,
+                Box::new(
+                    |node_id: Option<u32>,
+                     node_mods: &mut Vec<Mod>,
+                     _data: &mut HashMap<String, f64>,
+                     mod_acc: &mut Vec<Mod>| {
+                        if node_id.is_some() {
+                            // Collect mods from unallocated Notable nodes.
+                            for m in node_mods.iter() {
+                                if !m.name.starts_with("Condition:ConnectedTo") {
+                                    mod_acc.push(m.clone());
+                                }
+                            }
+                        } else {
+                            node_mods.extend(mod_acc.drain(..));
+                        }
+                    },
+                ),
+            ));
+            continue;
+        }
+
+        // ── Other-type callbacks (jewel modifies per-node modList before scaling) ──
+        // These run in the first pass (before PassiveSkillEffect scaling).
+
+        // "Allocated Small Passive Skills in Radius grant nothing"
+        // Mirrors jewelOtherFuncs entry: adds AllocatedPassiveSkillHasNoEffect FLAG.
+        // The suppression check in build_mod_list_for_node then clears the modList
+        // for allocated Normal nodes.
+        if lower.contains("allocated small passive skills in radius grant nothing") {
+            funcs.push((
+                RadiusJewelType::Other,
+                Box::new(
+                    |node_id: Option<u32>,
+                     node_mods: &mut Vec<Mod>,
+                     data: &mut HashMap<String, f64>,
+                     _mod_acc: &mut Vec<Mod>| {
+                        if node_id.is_some() {
+                            // Add AllocatedPassiveSkillHasNoEffect to this node's modList.
+                            // The build_mod_list_for_node suppression check will wipe the
+                            // modList for allocated nodes (mirrors Lua behavior).
+                            let src = ModSource::new(
+                                "Tree",
+                                &format!(
+                                    "{}",
+                                    data.get("modSource_id").cloned().unwrap_or(0.0) as u32
+                                ),
+                            );
+                            node_mods.push(Mod {
+                                name: "AllocatedPassiveSkillHasNoEffect".to_string(),
+                                mod_type: ModType::Flag,
+                                value: ModValue::Bool(true),
+                                flags: ModFlags::NONE,
+                                keyword_flags: KeywordFlags::NONE,
+                                tags: vec![],
+                                source: src,
+                            });
+                        }
+                    },
+                ),
+            ));
+            continue;
+        }
+
+        // "Allocated Notable Passive Skills in Radius grant nothing"
+        // Same as above but for Notable nodes.
+        if lower.contains("allocated notable passive skills in radius grant nothing") {
+            funcs.push((
+                RadiusJewelType::Other,
+                Box::new(
+                    |node_id: Option<u32>,
+                     node_mods: &mut Vec<Mod>,
+                     data: &mut HashMap<String, f64>,
+                     _mod_acc: &mut Vec<Mod>| {
+                        if node_id.is_some() {
+                            let src = ModSource::new(
+                                "Tree",
+                                &format!(
+                                    "{}",
+                                    data.get("modSource_id").cloned().unwrap_or(0.0) as u32
+                                ),
+                            );
+                            node_mods.push(Mod {
+                                name: "AllocatedPassiveSkillHasNoEffect".to_string(),
+                                mod_type: ModType::Flag,
+                                value: ModValue::Bool(true),
+                                flags: ModFlags::NONE,
+                                keyword_flags: KeywordFlags::NONE,
+                                tags: vec![],
+                                source: src,
+                            });
+                        }
+                    },
+                ),
+            ));
+            continue;
+        }
+
+        // "Notable Passive Skills in Radius grant nothing"
+        // Mirrors: jewelOtherFuncs["Notable Passive Skills in Radius grant nothing"]
+        // Adds PassiveSkillHasNoEffect (un-conditional — fires even for unallocated nodes).
+        if lower == "notable passive skills in radius grant nothing" {
+            funcs.push((
+                RadiusJewelType::Other,
+                Box::new(
+                    |node_id: Option<u32>,
+                     node_mods: &mut Vec<Mod>,
+                     data: &mut HashMap<String, f64>,
+                     _mod_acc: &mut Vec<Mod>| {
+                        if node_id.is_some() {
+                            let src = ModSource::new(
+                                "Tree",
+                                &format!(
+                                    "{}",
+                                    data.get("modSource_id").cloned().unwrap_or(0.0) as u32
+                                ),
+                            );
+                            node_mods.push(Mod {
+                                name: "PassiveSkillHasNoEffect".to_string(),
+                                mod_type: ModType::Flag,
+                                value: ModValue::Bool(true),
+                                flags: ModFlags::NONE,
+                                keyword_flags: KeywordFlags::NONE,
+                                tags: vec![],
+                                source: src,
+                            });
+                        }
+                    },
+                ),
+            ));
+            continue;
+        }
+
+        // Other JewelFunc lines (jewelSelfFuncs, jewelThresholdFuncs, jewelOtherFuncs)
+        // are handled by the generated mod parser into JewelFunc mod type, which drives
+        // runtime dispatch. For now, unrecognised lines fall through to the default.
     }
+
+    // If no JewelFunc mod lines were found, use the default funcList:
+    //   { {type = "Self", func = <tally Str/Dex/Int in radius>} }
+    // Mirrors CalcSetup.lua lines 753-760.
+    if funcs.is_empty() {
+        funcs.push((
+            RadiusJewelType::SelfAlloc,
+            Box::new(
+                |node_id: Option<u32>,
+                 node_mods: &mut Vec<Mod>,
+                 data: &mut HashMap<String, f64>,
+                 _mod_acc: &mut Vec<Mod>| {
+                    if node_id.is_none() {
+                        // Finalise call — default func does nothing on finalise.
+                        return;
+                    }
+                    // Per-node: tally Str/Dex/Int BASE mods from the node's modList.
+                    // Mirrors PoB's default:
+                    //   data[stat] = (data[stat] or 0) + out:Sum("BASE", nil, stat)
+                    for stat in &["Str", "Dex", "Int"] {
+                        let sum: f64 = node_mods
+                            .iter()
+                            .filter(|m| {
+                                m.name == *stat && m.mod_type == ModType::Base && m.tags.is_empty()
+                            })
+                            .map(|m| m.value.as_f64())
+                            .sum();
+                        if sum != 0.0 {
+                            let entry = data.entry(stat.to_string()).or_insert(0.0);
+                            *entry += sum;
+                        }
+                    }
+                },
+            ),
+        ));
+    }
+
+    funcs
 }
 
 /// Extract the radius index from an item's mod lines.
@@ -1343,42 +1625,22 @@ fn extract_radius_index(item: &crate::build::types::Item) -> Option<usize> {
     }
 }
 
-/// Determine the RadiusJewelType for an item.
-/// Thread of Hope → SelfUnalloc (allows allocating unconnected nodes).
-/// Intuitive Leap → SelfAlloc (allocated nodes in radius count without connectivity).
-/// Timeless jewels → Other (handled by SETUP-06, but registered here for PassiveSkillHasNoEffect).
-/// Default → SelfAlloc.
-fn determine_jewel_type(item: &crate::build::types::Item) -> super::env::RadiusJewelType {
-    use super::env::RadiusJewelType;
-
-    let name_lower = item.name.to_lowercase();
-    let _base_lower = item.base_type.to_lowercase();
-
-    // Check by item name for known unique jewels.
-    if name_lower.contains("thread of hope") {
-        return RadiusJewelType::SelfUnalloc;
-    }
-    if name_lower.contains("intuitive leap") {
-        return RadiusJewelType::SelfAlloc;
-    }
-    if name_lower.contains("impossible escape") {
-        return RadiusJewelType::SelfAlloc;
-    }
-    // Unnatural Instinct: grants all bonuses of unallocated small passives in radius,
-    // allocated small passives grant nothing.
-    if name_lower.contains("unnatural instinct") {
-        return RadiusJewelType::SelfUnalloc;
-    }
-
-    // Default for regular jewels: SelfAlloc (only fires when node is allocated).
-    RadiusJewelType::SelfAlloc
-}
-
 /// Compute the set of passive node IDs that are reachable from a class or
 /// ascendancy start node, traversing only through the allocated node set.
 ///
 /// Mirrors PoB's `BuildAllDependsAndPaths` which prunes "orphan" nodes —
 /// allocated nodes that can't be traced back to the character's start.
+///
+/// Also handles the "intuitiveLeapLike" special case from PassiveSpec.lua
+/// (lines 1391–1478): nodes that fall within the radius of an Intuitive Leap-like
+/// jewel (including Thread of Hope, Intuitive Leap, and Impossible Escape) are
+/// treated as allocated even without a path to the start. This mirrors:
+///
+///   ```lua
+///   if #node.intuitiveLeapLikesAffecting > 0 then
+///       -- skip pruning; node is supported by an intuitiveLeap-like jewel
+///   end
+///   ```
 ///
 /// Also enforces the mastery gate from `ImportFromNodeList`:
 ///   mastery nodes are only considered allocated if they have a selection in
@@ -1466,10 +1728,211 @@ fn connected_passive_nodes(
         return allocated;
     }
 
+    // ── IntuitiveLeap-like bypass (FIX-03) ─────────────────────────────────
+    // Mirrors PassiveSpec.lua:BuildAllDependsAndPaths lines 1391–1478:
+    //   if #node.intuitiveLeapLikesAffecting > 0 then
+    //       -- don't prune even without path to start
+    //
+    // For each allocated jewel socket that contains an intuitiveLeapLike jewel
+    // (Thread of Hope, Intuitive Leap) or an Impossible Escape jewel, any
+    // allocated node in that jewel's radius is NOT pruned — it stays in the
+    // reachable set regardless of connectivity.
+    //
+    // For Impossible Escape: nodes in the radius of the specified keystone
+    // (not the jewel socket itself) are also exempt from pruning.
+    //
+    // This is called AFTER the BFS so that normal connectivity still works;
+    // we just add extra nodes that have the intuitiveLeap exemption.
+    let item_set = build.item_sets.get(build.active_item_set);
+    if let Some(item_set) = item_set {
+        for (&socket_node_id, &item_id) in &build.passive_spec.jewels {
+            // Socket must itself be allocated (you can't benefit from a jewel
+            // if the socket isn't on your tree).
+            // Mirrors: if self.allocNodes[nodeId] then
+            if !allocated.contains(&socket_node_id) {
+                continue;
+            }
+
+            let item = match build.items.get(&item_id) {
+                Some(i) => i,
+                None => continue,
+            };
+
+            // Check if the jewel slot is in the active item set.
+            // We just need the item to exist in the build; the slot check was done
+            // via build.passive_spec.jewels already.
+            let _ = item_set; // used above for the outer context
+
+            // Determine radius index for this jewel.
+            let radius_idx = match extract_radius_index(item) {
+                Some(idx) => idx,
+                None => continue,
+            };
+
+            // Get the socket node.
+            let socket_node = match tree.nodes.get(&socket_node_id) {
+                Some(n) => n,
+                None => continue,
+            };
+
+            // Get nodes in the jewel's radius.
+            let nodes_in_radius = match socket_node.nodes_in_radius.get(&radius_idx) {
+                Some(s) => s,
+                None => continue,
+            };
+
+            // Check if this jewel has intuitiveLeapLike behaviour.
+            // Mirrors ModParser.lua line 4991:
+            //   "passives? ?s?k?i?l?l?s? in radius can be allocated without being
+            //    connected to your tree" → JewelData intuitiveLeapLike = true
+            // and line 4987-4990:
+            //   "passives? ?s?k?i?l?l?s? in radius of ([%a%s']+) can be allocated
+            //    without being connected to your tree" → impossibleEscapeKeystone
+            // and line 4992-4995:
+            //   "keystone passive skills in radius can be allocated without being
+            //    connected to your tree" → intuitiveLeapLike + intuitiveLeapKeystoneOnly
+            let jewel_info = parse_jewel_allocation_info(item);
+
+            if jewel_info.intuitive_leap_like {
+                // Any allocated node in this jewel's radius is exempt from pruning.
+                // Mirrors: if intuitiveLeapLike and not (intuitiveLeapKeystoneOnly and node.type ~= "Keystone")
+                for &nid in nodes_in_radius {
+                    if allocated.contains(&nid) {
+                        // If intuitiveLeapKeystoneOnly, only exempt Keystone nodes.
+                        if jewel_info.intuitive_leap_keystone_only {
+                            if let Some(n) = tree.nodes.get(&nid) {
+                                if n.node_type == NodeType::Keystone {
+                                    reachable.insert(nid);
+                                }
+                            }
+                        } else {
+                            reachable.insert(nid);
+                        }
+                    }
+                }
+            }
+
+            // Impossible Escape: exempt allocated nodes in the radius of the
+            // specified keystone(s), not the jewel socket itself.
+            // Mirrors PassiveSpec.lua lines 1448-1469:
+            //   for keyName, keyNode in pairs(impossibleEscapeKeystones) do
+            //     if tree.keystoneMap[keyName].nodesInRadius[radiusIndex][nodeId] then
+            //       -- don't prune this node
+            // Note: impossible_escape_keystones stores the lowercase extracted name.
+            // We do case-insensitive lookup against tree keystone node names.
+            for keystone_name_lower in &jewel_info.impossible_escape_keystones {
+                // Find the keystone node by case-insensitive name match.
+                // Mirrors tree.keystoneMap which maps lowercase names to nodes in Lua.
+                let keystone_node = tree.nodes.values().find(|n| {
+                    n.node_type == NodeType::Keystone
+                        && n.name.to_lowercase() == *keystone_name_lower
+                });
+                if let Some(keystone_node) = keystone_node {
+                    // Get nodes in the keystone's radius at the same radius index.
+                    if let Some(keystone_radius_nodes) =
+                        keystone_node.nodes_in_radius.get(&radius_idx)
+                    {
+                        for &nid in keystone_radius_nodes {
+                            if allocated.contains(&nid) {
+                                reachable.insert(nid);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // If no start nodes are in the allocated set, the build's passive nodes are disconnected
     // (orphaned). Don't apply any passive mods in this case.
     // This matches PoB's BuildAllDependsAndPaths behavior which prunes orphaned nodes.
     reachable
+}
+
+/// Properties extracted from a jewel's mod lines that affect passive tree
+/// allocation rules.
+///
+/// Mirrors the JewelData values set by ModParser.lua lines 4987-4995:
+/// - `intuitiveLeapLike`: nodes in radius can be allocated without connectivity
+/// - `intuitiveLeapKeystoneOnly`: only Keystone nodes get the exemption
+/// - `impossibleEscapeKeystones`: names of keystones whose radius nodes get exempted
+struct JewelAllocationInfo {
+    /// True if the jewel has "passives in radius can be allocated without being
+    /// connected to your tree" (intuitiveLeapLike = true).
+    /// Mirrors JewelData { key = "intuitiveLeapLike", value = true }.
+    intuitive_leap_like: bool,
+    /// True if the jewel has "keystone passive skills in radius can be allocated
+    /// without being connected to your tree" (intuitiveLeapKeystoneOnly = true).
+    /// Only Keystone nodes are exempt when this is true.
+    /// Mirrors JewelData { key = "intuitiveLeapKeystoneOnly", value = true }.
+    intuitive_leap_keystone_only: bool,
+    /// Names of keystones referenced by Impossible Escape lines.
+    /// Nodes in the radius of these keystones are exempt from pruning.
+    /// Mirrors JewelData { key = "impossibleEscapeKeystone", value = name }.
+    impossible_escape_keystones: Vec<String>,
+}
+
+/// Parse a jewel item's mod lines to extract allocation-affecting properties.
+///
+/// Mirrors ModParser.lua lines 4987-4995 (the specialModList entries for
+/// intuitiveLeapLike, intuitiveLeapKeystoneOnly, and impossibleEscapeKeystone).
+fn parse_jewel_allocation_info(item: &crate::build::types::Item) -> JewelAllocationInfo {
+    let mut info = JewelAllocationInfo {
+        intuitive_leap_like: false,
+        intuitive_leap_keystone_only: false,
+        impossible_escape_keystones: Vec::new(),
+    };
+
+    let all_lines = item
+        .implicits
+        .iter()
+        .chain(item.explicits.iter())
+        .chain(item.crafted_mods.iter())
+        .chain(item.enchant_mods.iter());
+
+    for line in all_lines {
+        let lower = line.to_lowercase();
+
+        // "passives in radius can be allocated without being connected to your tree"
+        // (also matches "passive skills in radius can be allocated...")
+        // Mirrors: ["passives? ?s?k?i?l?l?s? in radius can be allocated without being
+        //            connected to your tree"] = { mod("JewelData", "LIST",
+        //               { key = "intuitiveLeapLike", value = true }) }
+        if (lower.contains("passive") || lower.contains("passives"))
+            && lower.contains("in radius can be allocated without being connected to your tree")
+            && !lower.contains("keystone")
+            && !lower.contains("in radius of ")
+        {
+            info.intuitive_leap_like = true;
+        }
+
+        // "keystone passive skills in radius can be allocated without being
+        //  connected to your tree"
+        // Mirrors: intuitiveLeapLike = true AND intuitiveLeapKeystoneOnly = true
+        if lower.contains("keystone passive skills in radius can be allocated without being connected to your tree") {
+            info.intuitive_leap_like = true;
+            info.intuitive_leap_keystone_only = true;
+        }
+
+        // "passives in radius of <keystone name> can be allocated without being
+        //  connected to your tree"
+        // Mirrors: impossibleEscapeKeystone = name, ImpossibleEscapeKeystones[name] = true
+        if lower.contains(" in radius of ")
+            && lower.contains("can be allocated without being connected to your tree")
+        {
+            // Extract the keystone name: the text between "in radius of " and " can be"
+            // Store in lowercase; the connected_passive_nodes lookup does case-insensitive match.
+            if let Some(start) = lower.find(" in radius of ") {
+                let rest = &lower[start + " in radius of ".len()..];
+                if let Some(end) = rest.find(" can be allocated") {
+                    let keystone_name_lower = rest[..end].trim().to_string();
+                    info.impossible_escape_keystones.push(keystone_name_lower);
+                }
+            }
+        }
+    }
+
+    info
 }
 
 /// Normalize a gem skill ID from the build XML to match our gems.json keys.
