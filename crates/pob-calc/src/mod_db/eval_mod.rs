@@ -17,6 +17,12 @@ pub fn eval_mod(
     mod_db: &ModDb,
     output: &OutputTable,
 ) -> Option<f64> {
+    // Non-numeric values (String, EmbeddedMod, ConqueredBy) cannot be scaled by
+    // tags, but they CAN be gated by them (e.g. a SocketedIn tag on an ExtraSupport
+    // LIST mod means "only applies to gems socketed in this slot").  Use 1.0 as a
+    // sentinel so that gate evaluation runs normally.  If all gates pass, we return
+    // Some(1.0) to signal "applicable"; callers that need the real value read
+    // mod_entry.value directly.
     let mut value = match &mod_entry.value {
         ModValue::Number(n) => *n,
         ModValue::Bool(b) => {
@@ -26,7 +32,7 @@ pub fn eval_mod(
                 0.0
             }
         }
-        _ => return None,
+        _ => 1.0, // non-numeric sentinel — gate tags checked below, no scaling
     };
 
     for tag in &mod_entry.tags {

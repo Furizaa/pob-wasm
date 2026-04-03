@@ -7,11 +7,17 @@
 //   Phase 4 — Support collection (CalcSetup.lua:1441–1552):
 //       Walk all enabled socket groups; for each enabled support gem call
 //       add_best_support() into that group's support list.
+//       Also build a per-slot index: slot_support_lists[slot_name] = list of
+//       per-group support lists for every group socketed in that slot.
+//       Mirrors supportLists[slotName][group] (CalcSetup.lua:1460–1462).
 //
 //   Phase 5 — Active skill creation (CalcSetup.lua:1554–1676):
 //       Walk all enabled socket groups; for each enabled non-support gem call
 //       create_active_skill(), then append to active_skill_list.
 //       For the main socket group, set main_skill from mainActiveSkill index.
+//       For item-granted skills (group.source.is_some()), merge ALL support
+//       lists for the same slot into the applied_support_list (Lua:1611–1628).
+//       Also handles crossLinkedSupportGroups (Lua:1631–1649) — see TODO below.
 //
 //   Fallback — if no main_skill, build the default Melee active skill.
 //
@@ -26,7 +32,7 @@ use std::sync::LazyLock;
 use super::env::CalcEnv;
 use crate::build::types::{ActiveSkill, SupportEffect};
 use crate::data::gems::{GemData, GemsMap};
-use crate::mod_db::types::{KeywordFlags, ModFlags, SkillCfg};
+use crate::mod_db::types::{KeywordFlags, ModFlags, ModValue, SkillCfg};
 use crate::mod_db::ModDb;
 
 // ── Heuristic fallback lists (used when gem data is unavailable) ────────────
@@ -118,6 +124,44 @@ fn can_support(support_data: &GemData, active_skill_types: &[String]) -> bool {
         }
     }
     true
+}
+
+// ── ExtraSupport helpers ──────────────────────────────────────────────────────
+
+/// Parse an ExtraSupport mod value of the form "DisplayName:Level" (e.g. "Blasphemy:22").
+/// Returns (display_name, level_as_u8).  If the value has no colon, returns
+/// (whole_string, 1).
+fn parse_extra_support_value(val: &str) -> (String, u8) {
+    if let Some(colon) = val.rfind(':') {
+        let name = val[..colon].trim().to_string();
+        let level: u8 = val[colon + 1..].trim().parse().unwrap_or(1);
+        (name, level)
+    } else {
+        (val.trim().to_string(), 1)
+    }
+}
+
+/// Look up a gem's skill_id (map key) by its display_name.
+/// Tries exact match first, then "<name> Support" (Lua does the same:
+/// if grantedEffect and not grantedEffect.support then
+///   grantedEffect = env.data.skills["Support"..value.skillId]
+/// but since Rust stores the display_name, we try "<name> Support").
+/// Only returns gems that are supports (is_support = true).
+fn lookup_gem_id_by_display_name(gems: &crate::data::gems::GemsMap, name: &str) -> Option<String> {
+    // Exact match
+    for (id, gd) in gems {
+        if gd.is_support && gd.display_name.eq_ignore_ascii_case(name) {
+            return Some(id.clone());
+        }
+    }
+    // Try "<name> Support" (Lua: "Support"..value.skillId)
+    let with_support = format!("{} Support", name);
+    for (id, gd) in gems {
+        if gd.is_support && gd.display_name.eq_ignore_ascii_case(&with_support) {
+            return Some(id.clone());
+        }
+    }
+    None
 }
 
 // ── addBestSupport deduplication ─────────────────────────────────────────────
@@ -861,7 +905,15 @@ pub fn run(env: &mut CalcEnv, build: &crate::build::Build) {
     // ── Phase 4: Support collection ───────────────────────────────────────
     // For each enabled socket group, collect supports into per-group support lists.
     // support_lists[group_index] = Vec<SupportEffect>
+    //
+    // Mirrors CalcSetup.lua:1445–1552.
     let mut support_lists: Vec<Vec<SupportEffect>> = vec![Vec::new(); skill_set.skills.len()];
+
+    // Per-slot support index: slot_support_lists[slot_name] collects the
+    // support list for every group socketed in that slot.
+    // Mirrors supportLists[slotName] (CalcSetup.lua:1460–1462).
+    // Used in Phase 5 for item-granted skills (group.source.is_some()).
+    let mut slot_support_lists: HashMap<String, Vec<usize>> = HashMap::new();
 
     for (group_idx, group) in skill_set.skills.iter().enumerate() {
         // slotEnabled: for now, all groups are slot-enabled (weapon set switching
@@ -872,6 +924,16 @@ pub fn run(env: &mut CalcEnv, build: &crate::build::Build) {
         let is_active = is_main || (group.enabled && slot_enabled);
         if !is_active {
             continue;
+        }
+
+        // Build the per-slot index: record every active group's index under its slot.
+        // Mirrors CalcSetup.lua:1459–1462: if groupCfg.slotName then
+        //   supportLists[slotName][group] = {}
+        if !group.slot.is_empty() {
+            slot_support_lists
+                .entry(group.slot.clone())
+                .or_default()
+                .push(group_idx);
         }
 
         for gem in &group.gems {
@@ -896,7 +958,68 @@ pub fn run(env: &mut CalcEnv, build: &crate::build::Build) {
             };
             add_best_support(support_effect, &mut support_lists[group_idx]);
         }
+
+        // Collect ExtraSupport mods from item affixes (e.g. Heretic's Veil's
+        // "Socketed Gems are Supported by Level 22 Blasphemy").
+        //
+        // Mirrors CalcSetup.lua:1468–1491: for groups without group.source,
+        // query env.modDB:List(groupCfg, "ExtraSupport") and add each to the
+        // group's support list.
+        //
+        // The ExtraSupport mods in the mod_db carry a SocketedIn tag (added by
+        // add_item_mods() in setup.rs), so querying with cfg.slot_name = group.slot
+        // correctly filters to only the supports from the item in that slot.
+        //
+        // Lua value format: { skillId = "SupportBlasphemy", level = 22 }
+        // Rust value format: ModValue::String("Blasphemy:22") (display name, not skill ID)
+        if group.source.is_none() {
+            let cfg = SkillCfg {
+                slot_name: if group.slot.is_empty() {
+                    None
+                } else {
+                    Some(group.slot.clone())
+                },
+                ..Default::default()
+            };
+            let extra_supports =
+                env.player
+                    .mod_db
+                    .list("ExtraSupport", Some(&cfg), &env.player.output);
+            for m in extra_supports {
+                if let ModValue::String(val) = &m.value {
+                    // Parse "DisplayName:Level" (e.g. "Blasphemy:22")
+                    let (display_name, level) = parse_extra_support_value(val);
+                    // Look up gem by display_name (exact) or "DisplayName Support"
+                    let skill_id = lookup_gem_id_by_display_name(&env.data.gems, &display_name);
+                    if let Some(skill_id) = skill_id {
+                        let support_effect = SupportEffect {
+                            skill_id,
+                            level,
+                            quality: 0,
+                            gem_data: None,
+                        };
+                        add_best_support(support_effect, &mut support_lists[group_idx]);
+                    }
+                }
+            }
+        }
     }
+
+    // TODO: crossLinkedSupportGroups (Lua:1631–1649)
+    // In POB, env.crossLinkedSupportGroups is populated during item processing
+    // (CalcSetup.lua items pass) when items share a "linked slot" mechanic (e.g.
+    // some unique items that link two equipment slots so that supports in one slot
+    // apply to skills in the other). The structure is:
+    //   crossLinkedSupportGroups[supportSlot] = [supportedSlot1, supportedSlot2, ...]
+    // meaning: supports from `supportSlot` apply to skills socketed in `supportedSlotN`.
+    // When a skill's slot is listed as a crossLinkedSupportedSlot, all support lists
+    // for `supportSlot` are merged into that skill's appliedSupportList.
+    //
+    // This is NOT yet populated in the Rust CalcEnv.  Cross-linked slot support
+    // merging is therefore skipped here.  To implement, add a
+    //   cross_linked_support_groups: HashMap<String, Vec<String>>
+    // field to CalcEnv and populate it during add_item_mods() / setup, then
+    // iterate it the same way we iterate slot_support_lists below.
 
     // ── Phase 5: Active skill creation ─────────────────────────────────────
     let mut socket_group_skill_lists: Vec<Vec<usize>> = vec![Vec::new(); skill_set.skills.len()];
@@ -942,16 +1065,41 @@ pub fn run(env: &mut CalcEnv, build: &crate::build::Build) {
             }
 
             // Collect the applied support list for this active skill.
-            // For item-granted skills (group.source.is_some()), also merge
-            // supports from other groups in the same slot.
+            // Mirrors CalcSetup.lua:1605–1650.
+            //
+            // Lua:1606: if not group.noSupports then
+            //   appliedSupportList = copyTable(supportLists[group] or supportLists[slotName][group])
+            //   if group.source then
+            //     for _, supportGroup in pairs(supportLists[slotName]) do
+            //       for _, supportEffect in ipairs(supportGroup) do
+            //         addBestSupport(supportEffect, appliedSupportList, env.mode)
+            //
+            // For item-granted skills (group.source.is_some()), merge supports
+            // from ALL groups in the same slot into the applied support list.
+            // This is how Blasphemy (socketed in Heretic's Veil) gets applied
+            // to Temporal Chains and Enfeeble that are also granted by that item.
             let applied_support_list = if group.no_supports {
                 Vec::new()
+            } else if group.source.is_some() && !group.slot.is_empty() {
+                // Item-granted skill: start with the group's own supports (usually empty
+                // for item-granted groups), then merge ALL support lists for this slot.
+                // Lua:1607: appliedSupportList = copyTable(supportLists[group] or supportLists[slotName][group])
+                let mut merged = support_lists[group_idx].clone();
+
+                // Lua:1612–1628: if supportLists[slotName] then
+                //   for _, supportGroup in pairs(supportLists[slotName]) do
+                //     for _, supportEffect in ipairs(supportGroup) do
+                //       addBestSupport(supportEffect, appliedSupportList, env.mode)
+                if let Some(slot_group_indices) = slot_support_lists.get(&group.slot) {
+                    for &other_group_idx in slot_group_indices {
+                        for support_effect in support_lists[other_group_idx].iter() {
+                            add_best_support(support_effect.clone(), &mut merged);
+                        }
+                    }
+                }
+                merged
             } else {
                 support_lists[group_idx].clone()
-                // For item-granted skills, we would also merge supports from
-                // other groups in the same slot (Lua:1607–1628).  This requires
-                // knowing the slot, which we have in group.slot.  For now,
-                // the base case (non-item-granted) is the common path.
             };
 
             let slot_name = if !group.slot.is_empty() {
