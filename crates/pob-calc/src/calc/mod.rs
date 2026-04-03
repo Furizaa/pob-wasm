@@ -32,7 +32,7 @@ pub struct CalcResult {
 pub fn calculate(build: &Build, data: Arc<GameData>) -> Result<CalcResult, CalcError> {
     let mut env = setup::init_env(build, data)?;
 
-    perform::run(&mut env);
+    perform::run_with_build(&mut env, Some(build));
     defence::run(&mut env);
     defence_ehp::run(&mut env);
     active_skill::run(&mut env, build);

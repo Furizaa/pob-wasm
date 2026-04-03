@@ -60,6 +60,15 @@ pub struct GemLevelData {
     pub cooldown: f64,
     #[serde(default)]
     pub duration: f64,
+    // Reservation fields (auras, heralds, etc.)
+    #[serde(default)]
+    pub mana_reservation_flat: f64,
+    #[serde(default)]
+    pub mana_reservation_percent: f64,
+    #[serde(default)]
+    pub life_reservation_flat: f64,
+    #[serde(default)]
+    pub life_reservation_percent: f64,
 }
 
 #[derive(Debug, Clone, Deserialize)]

@@ -374,6 +374,43 @@ impl ModDb {
         false
     }
 
+    // ── Multi-name query methods ─────────────────────────────────────────
+    // These mirror Lua's modDB:Sum("INC", cfg, name1, name2, ...) where
+    // multiple stat names are queried and results combined.
+
+    /// Sum all mods across multiple stat names.
+    /// Mirrors Lua: modDB:Sum(modType, cfg, name1, name2)
+    pub fn sum_cfg_multi(
+        &self,
+        mod_type: ModType,
+        names: &[&str],
+        cfg: Option<&SkillCfg>,
+        output: &OutputTable,
+    ) -> f64 {
+        let mut total = 0.0;
+        for name in names {
+            total += self.sum_cfg(mod_type.clone(), name, cfg, output);
+        }
+        total
+    }
+
+    /// Multiply MORE mods across multiple stat names.
+    /// Mirrors Lua: modDB:More(cfg, name1, name2)
+    /// Each name's MORE mods are combined multiplicatively, then the results for
+    /// all names are multiplied together.
+    pub fn more_cfg_multi(
+        &self,
+        names: &[&str],
+        cfg: Option<&SkillCfg>,
+        output: &OutputTable,
+    ) -> f64 {
+        let mut result = 1.0_f64;
+        for name in names {
+            result *= self.more_cfg(name, cfg, output);
+        }
+        result
+    }
+
     // ── Legacy methods (backward-compatible wrappers) ────────────────────
 
     /// Legacy sum: delegates to sum_cfg with a minimal SkillCfg built from raw flags.

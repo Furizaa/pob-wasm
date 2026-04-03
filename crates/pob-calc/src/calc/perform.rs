@@ -4,6 +4,11 @@ use crate::mod_db::types::{KeywordFlags, Mod, ModFlags, ModSource, ModType, ModV
 /// Run all CalcPerform passes in order.
 /// Mirrors CalcPerform.lua's main execution flow.
 pub fn run(env: &mut CalcEnv) {
+    run_with_build(env, None);
+}
+
+/// Run all CalcPerform passes with optional build reference for reservation accumulation.
+pub fn run_with_build(env: &mut CalcEnv, build: Option<&crate::build::Build>) {
     // Mirrors CalcPerform.lua lines 1096-1097:
     // Reset keystonesAdded at the START of every perform pass, then merge keystones.
     // This ensures re-entrant calls pick up any newly-added "Keystone" LIST mods.
@@ -12,6 +17,11 @@ pub fn run(env: &mut CalcEnv) {
 
     do_actor_attribs_conditions(env);
     do_actor_life_mana(env);
+    // Per-skill reservation accumulation (CalcPerform.lua:1810-1919)
+    // Must run BEFORE doActorLifeManaReservation.
+    if let Some(build) = build {
+        accumulate_skill_reservations(env, build);
+    }
     do_actor_life_mana_reservation(env);
     do_actor_charges(env);
     do_actor_misc(env);
@@ -544,6 +554,473 @@ fn do_actor_life_mana(env: &mut CalcEnv) {
 // ---------------------------------------------------------------------------
 // Reservation
 // ---------------------------------------------------------------------------
+
+/// PoB's `floor(val, dec)` function (Common.lua:647-654).
+/// NOT `f64::floor()`. Floors to `dec` decimal places with a small epsilon
+/// to handle floating-point edge cases (e.g. 0.9999999999 → 1.0 after epsilon).
+fn pob_floor(val: f64, dec: u32) -> f64 {
+    let mult = 10f64.powi(dec as i32);
+    (val * mult + 0.0001).floor() / mult
+}
+
+/// PoB's `round(val, dec)` function (Common.lua:635-641).
+/// Rounds to `dec` decimal places using standard rounding.
+fn pob_round(val: f64, dec: u32) -> f64 {
+    let mult = 10f64.powi(dec as i32);
+    (val * mult + 0.5).floor() / mult
+}
+
+/// Mirrors CalcPerform.lua lines 1810–1919: per-skill reservation accumulation.
+///
+/// Iterates all enabled socket groups in the build's active skill set, identifies
+/// skills with HasReservation (that haven't converted reservation to cost), and
+/// computes each skill's flat and percent reservation contribution. Results are
+/// accumulated into `env.player.reserved_life`, `reserved_life_percent`,
+/// `reserved_mana`, `reserved_mana_percent`.
+fn accumulate_skill_reservations(env: &mut CalcEnv, build: &crate::build::Build) {
+    use crate::calc::setup::normalize_gem_skill_id;
+
+    // Step A1 — Initialize accumulators (CalcPerform.lua:1811–1816)
+    env.player.reserved_life = 0.0;
+    env.player.reserved_life_percent =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "ExtraLifeReserved", None, &env.player.output);
+    env.player.reserved_mana = 0.0;
+    env.player.reserved_mana_percent = 0.0;
+    env.player.uncancellable_life_reservation =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "ExtraLifeReserved", None, &env.player.output);
+    env.player.uncancellable_mana_reservation =
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "ExtraManaReserved", None, &env.player.output);
+
+    // Get the active skill set.
+    let active_skill_set = match build
+        .skill_sets
+        .get(build.active_skill_set)
+        .or_else(|| build.skill_sets.first())
+    {
+        Some(set) => set,
+        None => return,
+    };
+
+    // Get the active item set for slot-enabled checks.
+    let item_set = build.item_sets.get(build.active_item_set);
+
+    // Step A2 — Iterate active skills (CalcPerform.lua:1821–1917)
+    for skill_group in &active_skill_set.skills {
+        // Check group enabled
+        if !skill_group.enabled {
+            continue;
+        }
+
+        // Check slot-enabled (mirrors group.slotEnabled in Lua)
+        let slot_enabled = if skill_group.slot.is_empty() {
+            true
+        } else if let Some(iset) = item_set {
+            iset.slots.contains_key(&skill_group.slot)
+        } else {
+            false
+        };
+        if !slot_enabled {
+            continue;
+        }
+
+        // For each enabled gem in the group, check if it's an active (non-support) skill
+        // with HasReservation. In the Lua, each active gem in a group creates a separate
+        // activeSkill entry. We process each non-support gem independently.
+        for gem in &skill_group.gems {
+            if !gem.enabled {
+                continue;
+            }
+
+            let normalized_id = normalize_gem_skill_id(&gem.skill_id);
+            let gem_data = match env.data.gems.get(normalized_id) {
+                Some(gd) => gd,
+                None => continue,
+            };
+
+            // Skip support gems
+            if gem_data.is_support {
+                continue;
+            }
+
+            // Collect gem IDs to process for reservation. For Vaal gems with enableGlobal2=true,
+            // also process the base (non-Vaal) version (e.g. VaalDiscipline → Discipline).
+            // In the Lua, gemData.grantedEffectList[2] is the base version.
+            let mut gem_ids_to_process: Vec<&str> = Vec::new();
+
+            // Primary gem (enableGlobal1)
+            if gem.enable_global1 {
+                gem_ids_to_process.push(normalized_id);
+            }
+
+            // Vaal base version (enableGlobal2)
+            if gem.enable_global2 && normalized_id.starts_with("Vaal") {
+                let base_id = &normalized_id[4..]; // Strip "Vaal" prefix
+                if env.data.gems.contains_key(base_id) {
+                    gem_ids_to_process.push(base_id);
+                }
+            }
+
+            for process_id in &gem_ids_to_process {
+                let gem_data = match env.data.gems.get(*process_id) {
+                    Some(gd) => gd,
+                    None => continue,
+                };
+
+                // Check HasReservation and not ReservationBecomesCost
+                let has_reservation = gem_data.skill_types.iter().any(|t| t == "HasReservation");
+                let reservation_becomes_cost = gem_data
+                    .skill_types
+                    .iter()
+                    .any(|t| t == "ReservationBecomesCost");
+                if !has_reservation || reservation_becomes_cost {
+                    continue;
+                }
+
+                // Find the level data for this gem
+                let level_data = gem_data
+                    .levels
+                    .iter()
+                    .find(|l| l.level == gem.level)
+                    .or_else(|| gem_data.levels.last());
+                let level_data = match level_data {
+                    Some(ld) => ld,
+                    None => continue,
+                };
+
+                // Step A2a — Read base reservation values (CalcPerform.lua:1823–1836)
+
+                // Compute support mana multiplier product.
+                // In Lua: floor(skillModList:More(skillCfg, "SupportManaMultiplier"), 4)
+                // Since skill_mod_db isn't populated, compute from support gems directly.
+                let mut support_mana_mult = 1.0_f64;
+                for support_gem in &skill_group.gems {
+                    if !support_gem.enabled {
+                        continue;
+                    }
+                    let sup_id = normalize_gem_skill_id(&support_gem.skill_id);
+                    if let Some(sup_data) = env.data.gems.get(sup_id) {
+                        if sup_data.is_support {
+                            // Check if this support can support this active skill
+                            if can_support_skill(sup_data, &gem_data.skill_types) {
+                                // Look up the support's mana_multiplier for this level
+                                let sup_level = sup_data
+                                    .levels
+                                    .iter()
+                                    .find(|l| l.level == support_gem.level)
+                                    .or_else(|| sup_data.levels.last());
+                                if let Some(sl) = sup_level {
+                                    if sl.mana_multiplier != 0.0 {
+                                        // manaMultiplier is stored as a delta from 100.
+                                        // e.g. Enlighten L4 has mana_multiplier = -12, meaning 88%.
+                                        // Lua's SupportManaMultiplier is a MORE mod with this delta value.
+                                        // More formula: (1 + value/100) = (1 + (-12)/100) = 0.88
+                                        support_mana_mult *= 1.0 + sl.mana_multiplier / 100.0;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                // Also query the player modDB for any global SupportManaMultiplier MORE mods
+                let global_smm =
+                    env.player
+                        .mod_db
+                        .more_cfg("SupportManaMultiplier", None, &env.player.output);
+                support_mana_mult *= global_smm;
+
+                let mult = pob_floor(support_mana_mult, 4);
+
+                // Read base reservation amounts
+                // Lua: activeSkill.skillData.manaReservationFlat or
+                //      activeSkill.activeEffect.grantedEffectLevel.manaReservationFlat or 0
+                // We use the level data directly (equivalent to grantedEffectLevel).
+                // SkillData overrides come from SkillData LIST mods (e.g. "Grace reserves no mana").
+                let mut mana_base_flat = level_data.mana_reservation_flat;
+                let mut mana_base_percent = level_data.mana_reservation_percent;
+                let mut life_base_flat = level_data.life_reservation_flat;
+                let mut life_base_percent = level_data.life_reservation_percent;
+
+                // Track forced overrides per-skill (mirrors skillData["XReservationFlatForced"])
+                let mut mana_reservation_flat_forced: Option<f64> = None;
+                let mut mana_reservation_percent_forced: Option<f64> = None;
+                let mut life_reservation_flat_forced: Option<f64> = None;
+                let mut life_reservation_percent_forced: Option<f64> = None;
+
+                // Check for SkillData LIST mod overrides for this specific skill.
+                // In Lua, skillData overrides come from modDB:List(skillCfg, "SkillData") and
+                // skillModList:List(skillCfg, "SkillData").
+                // Build a minimal SkillCfg with the gem's display name for SkillName tag matching.
+                let skill_cfg = {
+                    use crate::mod_db::types::SkillCfg;
+                    SkillCfg {
+                        skill_name: Some(gem_data.display_name.clone()),
+                        skill_id: Some(normalized_id.to_string()),
+                        ..Default::default()
+                    }
+                };
+                let skill_data_overrides =
+                    env.player
+                        .mod_db
+                        .list("SkillData", Some(&skill_cfg), &env.player.output);
+                for sd_mod in &skill_data_overrides {
+                    if let ModValue::String(s) = &sd_mod.value {
+                        // SkillData mods use "key:value" string format
+                        if let Some((key, val_str)) = s.split_once(':') {
+                            let val: f64 = val_str.parse().unwrap_or(0.0);
+                            match key {
+                                "manaReservationFlat" => mana_base_flat = val,
+                                "manaReservationPercent" => mana_base_percent = val,
+                                "lifeReservationFlat" => life_base_flat = val,
+                                "lifeReservationPercent" => life_base_percent = val,
+                                "ManaReservationFlatForced" => {
+                                    mana_reservation_flat_forced = Some(val);
+                                }
+                                "ManaReservationPercentForced" => {
+                                    mana_reservation_percent_forced = Some(val);
+                                }
+                                "LifeReservationFlatForced" => {
+                                    life_reservation_flat_forced = Some(val);
+                                }
+                                "LifeReservationPercentForced" => {
+                                    life_reservation_percent_forced = Some(val);
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+
+                // Check for ManaCostGainAsReservation / LifeCostGainAsReservation flags
+                // (CalcPerform.lua:1828-1834)
+                let mana_cost_as_reservation = env.player.mod_db.flag_cfg(
+                    "ManaCostGainAsReservation",
+                    Some(&skill_cfg),
+                    &env.player.output,
+                );
+                if mana_cost_as_reservation {
+                    let mana_cost_base = env.player.mod_db.sum_cfg(
+                        ModType::Base,
+                        "ManaCostBase",
+                        Some(&skill_cfg),
+                        &env.player.output,
+                    );
+                    mana_base_flat = mana_cost_base + level_data.mana_cost;
+                }
+
+                let life_cost_as_reservation = env.player.mod_db.flag_cfg(
+                    "LifeCostGainAsReservation",
+                    Some(&skill_cfg),
+                    &env.player.output,
+                );
+                if life_cost_as_reservation {
+                    let life_cost_base = env.player.mod_db.sum_cfg(
+                        ModType::Base,
+                        "LifeCostBase",
+                        Some(&skill_cfg),
+                        &env.player.output,
+                    );
+                    life_base_flat = life_cost_base + level_data.life_cost;
+                }
+
+                // Step A2b — Blood Magic reservation shift (CalcPerform.lua:1837–1845)
+                let blood_magic_reserved = env.player.mod_db.flag_cfg(
+                    "BloodMagicReserved",
+                    Some(&skill_cfg),
+                    &env.player.output,
+                );
+
+                if blood_magic_reserved {
+                    life_base_flat += mana_base_flat;
+                    mana_base_flat = 0.0;
+                    life_reservation_flat_forced = mana_reservation_flat_forced.take();
+                    life_base_percent += mana_base_percent;
+                    mana_base_percent = 0.0;
+                    life_reservation_percent_forced = mana_reservation_percent_forced.take();
+                }
+
+                // Step A2c — Compute effective reservation per pool (CalcPerform.lua:1847–1871)
+                // Process both Mana and Life pools
+                struct PoolReservation {
+                    base_flat: f64,
+                    base_percent: f64,
+                    flat_forced: Option<f64>,
+                    percent_forced: Option<f64>,
+                }
+
+                let pools = [
+                    (
+                        "Mana",
+                        PoolReservation {
+                            base_flat: mana_base_flat,
+                            base_percent: mana_base_percent,
+                            flat_forced: mana_reservation_flat_forced,
+                            percent_forced: mana_reservation_percent_forced,
+                        },
+                    ),
+                    (
+                        "Life",
+                        PoolReservation {
+                            base_flat: life_base_flat,
+                            base_percent: life_base_percent,
+                            flat_forced: life_reservation_flat_forced,
+                            percent_forced: life_reservation_percent_forced,
+                        },
+                    ),
+                ];
+
+                for (pool_name, pool) in &pools {
+                    // Compute modifiers: more, inc, efficiency, efficiencyMore
+                    let reserved_name = format!("{}Reserved", pool_name);
+                    let efficiency_name = format!("{}ReservationEfficiency", pool_name);
+
+                    let more = env.player.mod_db.more_cfg_multi(
+                        &[&reserved_name, "Reserved"],
+                        None,
+                        &env.player.output,
+                    );
+                    let inc = env.player.mod_db.sum_cfg_multi(
+                        ModType::Inc,
+                        &[&reserved_name, "Reserved"],
+                        None,
+                        &env.player.output,
+                    );
+                    let efficiency = env
+                        .player
+                        .mod_db
+                        .sum_cfg_multi(
+                            ModType::Inc,
+                            &[&efficiency_name, "ReservationEfficiency"],
+                            None,
+                            &env.player.output,
+                        )
+                        .max(-100.0);
+                    let efficiency_more = env.player.mod_db.more_cfg_multi(
+                        &[&efficiency_name, "ReservationEfficiency"],
+                        None,
+                        &env.player.output,
+                    );
+
+                    // Store efficiency for Arcane Cloak calculations
+                    // (CalcPerform.lua:1853: env.player[name.."Efficiency"] = values.efficiency)
+                    match *pool_name {
+                        "Mana" => env.player.mana_efficiency = efficiency,
+                        "Life" => env.player.life_efficiency = efficiency,
+                        _ => {}
+                    }
+
+                    // Flat reservation (CalcPerform.lua:1854–1862)
+                    let reserved_flat = if let Some(forced) = pool.flat_forced {
+                        forced
+                    } else {
+                        let base_flat_val = (pool.base_flat * mult).floor();
+                        if more > 0.0 && inc > -100.0 && base_flat_val != 0.0 {
+                            pob_round(
+                                base_flat_val * (100.0 + inc) / 100.0 * more
+                                    / (1.0 + efficiency / 100.0)
+                                    / efficiency_more,
+                                0,
+                            )
+                            .max(0.0)
+                        } else {
+                            0.0
+                        }
+                    };
+
+                    // Percent reservation (CalcPerform.lua:1863–1871)
+                    let reserved_percent = if let Some(forced) = pool.percent_forced {
+                        forced
+                    } else {
+                        let base_percent_val = pool.base_percent * mult;
+                        if more > 0.0 && inc > -100.0 && base_percent_val != 0.0 {
+                            pob_round(
+                                base_percent_val * (100.0 + inc) / 100.0 * more
+                                    / (1.0 + efficiency / 100.0)
+                                    / efficiency_more,
+                                2,
+                            )
+                            .max(0.0)
+                        } else {
+                            0.0
+                        }
+                    };
+
+                    // Step A2d — Mine count and Blood Sacrament multipliers
+                    // (CalcPerform.lua:1872–1879)
+                    // activeMineCount and Blood Sacrament are not currently tracked on gems,
+                    // but we handle them if the data becomes available.
+                    // For now these multipliers are always 1.
+
+                    // Step A2e — Accumulate into env.player (CalcPerform.lua:1881–1916)
+                    let output_pool = get_output_f64(&env.player.output, pool_name);
+
+                    if reserved_flat != 0.0 {
+                        match *pool_name {
+                            "Mana" => env.player.reserved_mana += reserved_flat,
+                            "Life" => env.player.reserved_life += reserved_flat,
+                            _ => {}
+                        }
+                    }
+
+                    if reserved_percent != 0.0 {
+                        // Also compute absolute base for per-skill tooltip
+                        // (CalcPerform.lua:1899)
+                        let _per_skill_base =
+                            reserved_flat + (output_pool * reserved_percent / 100.0).ceil();
+
+                        match *pool_name {
+                            "Mana" => env.player.reserved_mana_percent += reserved_percent,
+                            "Life" => env.player.reserved_life_percent += reserved_percent,
+                            _ => {}
+                        }
+                    }
+
+                    // HasUncancellableReservation tracking (CalcPerform.lua:1914–1916)
+                    let has_uncancellable = env.player.mod_db.flag_cfg(
+                        "HasUncancellableReservation",
+                        None,
+                        &env.player.output,
+                    );
+                    if has_uncancellable {
+                        match *pool_name {
+                            "Life" => env.player.uncancellable_life_reservation += reserved_percent,
+                            "Mana" => env.player.uncancellable_mana_reservation += reserved_percent,
+                            _ => {}
+                        }
+                    }
+                }
+            } // end for process_id
+        }
+    }
+}
+
+/// Check if a support gem can support an active skill based on skill type requirements.
+/// Mirrors CalcActiveSkill.lua's canSupport logic.
+fn can_support_skill(support: &crate::data::gems::GemData, active_types: &[String]) -> bool {
+    // If the support has require_skill_types, at least one must match the active's types
+    if !support.require_skill_types.is_empty()
+        && !support
+            .require_skill_types
+            .iter()
+            .any(|req| active_types.iter().any(|t| t == req))
+    {
+        return false;
+    }
+    // If the support has exclude_skill_types, none may match the active's types
+    if support
+        .exclude_skill_types
+        .iter()
+        .any(|exc| active_types.iter().any(|t| t == exc))
+    {
+        return false;
+    }
+    true
+}
 
 /// Mirrors doActorLifeManaReservation() in CalcPerform.lua:519-553.
 /// Computes life/mana reserved and unreserved amounts and percentages.

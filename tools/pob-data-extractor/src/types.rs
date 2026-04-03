@@ -88,6 +88,14 @@ pub struct SkillLevelData {
     pub cooldown: f64,
     #[serde(skip_serializing_if = "is_zero_f64")]
     pub duration: f64,
+    #[serde(skip_serializing_if = "is_zero_f64")]
+    pub mana_reservation_flat: f64,
+    #[serde(skip_serializing_if = "is_zero_f64")]
+    pub mana_reservation_percent: f64,
+    #[serde(skip_serializing_if = "is_zero_f64")]
+    pub life_reservation_flat: f64,
+    #[serde(skip_serializing_if = "is_zero_f64")]
+    pub life_reservation_percent: f64,
 }
 
 // ---------------------------------------------------------------------------
