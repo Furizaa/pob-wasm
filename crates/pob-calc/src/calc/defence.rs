@@ -477,35 +477,96 @@ fn calc_resistances(env: &mut CalcEnv) {
 // ── Task 4: Full block ───────────────────────────────────────────────────────
 
 fn calc_block(env: &mut CalcEnv) {
-    let output = env.player.output.clone();
+    let mut output = env.player.output.clone();
 
-    // Block chance max
-    let block_max = {
-        let v = env
-            .player
-            .mod_db
-            .sum_cfg(ModType::Base, "BlockChanceMax", None, &output);
-        if v == 0.0 {
-            75.0
-        } else {
-            v
-        }
-    };
-    env.player.set_output("BlockChanceMax", block_max);
+    // data.misc.BlockChanceCap = 90
+    const BLOCK_CHANCE_CAP: f64 = 90.0;
 
-    // Attack block
-    let attack_block = if env
+    // ── Section 1: Block chance max (Lua lines 662-668) ─────────────────────
+    let block_max = env
         .player
         .mod_db
-        .flag_cfg("CannotBlockAttacks", None, &output)
+        .sum_cfg(ModType::Base, "BlockChanceMax", None, &output)
+        .min(BLOCK_CHANCE_CAP);
+
+    // Minion inheritance: parent/partyMember max block
+    if env
+        .player
+        .mod_db
+        .flag_cfg("MaximumBlockAttackChanceIsEqualToParent", None, &output)
     {
-        0.0
+        // actor.parent.output.BlockChanceMax — for minions inheriting parent's max.
+        // Not applicable for player actor; no parent. Fallback: keep block_max.
+    } else if env
+        .player
+        .mod_db
+        .flag_cfg("MaximumBlockAttackChanceIsEqualToPartyMember", None, &output)
+    {
+        // actor.partyMembers.output.BlockChanceMax — party member inheritance.
+        // Not applicable for player actor; no party members. Fallback: keep block_max.
+    }
+    env.player.set_output("BlockChanceMax", block_max);
+
+    // ── Section 2: Shield block and attack block (Lua lines 669-695) ────────
+    output.clone_from(&env.player.output);
+    env.player.set_output("BlockChanceOverCap", 0.0);
+    env.player.set_output("SpellBlockChanceOverCap", 0.0);
+
+    // Base block chance from shield (Weapon 2 / Weapon 3 armourData).
+    // In Rust, shield block is seeded as "ShieldBlockChance" BASE mod in setup.rs.
+    let base_block_chance = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "ShieldBlockChance", None, &output);
+    env.player.set_output("ShieldBlockChance", base_block_chance);
+
+    // Necromantic Aegis: replaces shield block with Override("ReplaceShieldBlock")
+    // if the keystone is NOT allocated. If Necro Aegis IS allocated, shield block
+    // goes to minions instead, so player keeps baseBlockChance as-is (which will be
+    // the original shield block if minion, or 0 if player with Necro Aegis).
+    let mut base_block_chance = base_block_chance;
+    if !env.keystones_added.contains("Necromantic Aegis") {
+        if let Some(v) = env
+            .player
+            .mod_db
+            .override_value("ReplaceShieldBlock", None, &output)
+        {
+            base_block_chance = v;
+        }
+    }
+    // Minion inheriting player block from Necromantic Aegis:
+    // actor == env.minion and env.keystonesAdded["Necromantic Aegis"]
+    //   and env.player.modDB:Override(nil, "ReplaceShieldBlock")
+    // Not applicable for player actor (actor != env.minion).
+
+    // ── Attack block main branches (Lua lines 685-695) ──────────────────────
+    let mut attack_block;
+    let mut block_over_cap = 0.0_f64;
+
+    if env
+        .player
+        .mod_db
+        .flag_cfg("BlockAttackChanceIsEqualToParent", None, &output)
+    {
+        // Minion inherits parent's block chance — not applicable for player.
+        attack_block = 0.0_f64.min(block_max);
+    } else if env
+        .player
+        .mod_db
+        .flag_cfg("BlockAttackChanceIsEqualToPartyMember", None, &output)
+    {
+        // Party member block inheritance — not applicable for player.
+        attack_block = 0.0_f64.min(block_max);
+    } else if env
+        .player
+        .mod_db
+        .flag_cfg("MaxBlockIfNotBlockedRecently", None, &output)
+    {
+        // Gladiator: always at max block
+        attack_block = block_max;
     } else {
-        let shield_block =
-            env.player
-                .mod_db
-                .sum_cfg(ModType::Base, "ShieldBlockChance", None, &output);
-        let base_block = env
+        // Normal case: (shieldBlock + flatBlock) * calcLib.mod(modDB, nil, "BlockChance")
+        let flat_block = env
             .player
             .mod_db
             .sum_cfg(ModType::Base, "BlockChance", None, &output);
@@ -513,58 +574,70 @@ fn calc_block(env: &mut CalcEnv) {
             .player
             .mod_db
             .sum_cfg(ModType::Inc, "BlockChance", None, &output);
-        ((shield_block + base_block) * (1.0 + inc_block / 100.0))
-            .min(block_max)
-            .max(0.0)
+        let more_block = env.player.mod_db.more_cfg("BlockChance", None, &output);
+        let total_block_chance =
+            (base_block_chance + flat_block) * (1.0 + inc_block / 100.0) * more_block;
+        attack_block = total_block_chance.min(block_max);
+        block_over_cap = (total_block_chance - block_max).max(0.0);
     };
     env.player.set_output("BlockChance", attack_block);
+    env.player.set_output("BlockChanceOverCap", block_over_cap);
 
-    // Projectile block
+    // ── Section 3: Projectile block (Lua line 697) ──────────────────────────
+    output.clone_from(&env.player.output);
     let extra_proj_block =
         env.player
             .mod_db
             .sum_cfg(ModType::Base, "ProjectileBlockChance", None, &output);
-    env.player.set_output(
-        "ProjectileBlockChance",
-        (attack_block + extra_proj_block).min(block_max).max(0.0),
-    );
+    let inc_block = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Inc, "BlockChance", None, &output);
+    let more_block = env.player.mod_db.more_cfg("BlockChance", None, &output);
+    let block_mod = (1.0 + inc_block / 100.0) * more_block;
+    let proj_block = (attack_block + extra_proj_block * block_mod).min(block_max);
+    env.player.set_output("ProjectileBlockChance", proj_block);
 
-    // Spell block max
-    let spell_block_max =
-        if env
-            .player
+    // ── Spell block max (Lua lines 698-702) ─────────────────────────────────
+    let spell_block_max = if env
+        .player
+        .mod_db
+        .flag_cfg("SpellBlockChanceMaxIsBlockChanceMax", None, &output)
+    {
+        block_max
+    } else {
+        env.player
             .mod_db
-            .flag_cfg("SpellBlockChanceMaxIsBlockChanceMax", None, &output)
-        {
-            block_max
-        } else {
-            let v = env
-                .player
-                .mod_db
-                .sum_cfg(ModType::Base, "SpellBlockChanceMax", None, &output);
-            if v == 0.0 {
-                75.0
-            } else {
-                v
-            }
-        };
+            .sum_cfg(ModType::Base, "SpellBlockChanceMax", None, &output)
+            .min(BLOCK_CHANCE_CAP)
+    };
     env.player
         .set_output("SpellBlockChanceMax", spell_block_max);
 
-    // Spell block
-    let spell_block = if env
+    // ── Spell block main branches (Lua lines 703-715) ───────────────────────
+    output.clone_from(&env.player.output);
+    let mut spell_block;
+    let mut spell_block_over_cap = 0.0_f64;
+    let mut spell_proj_block;
+
+    if env
         .player
         .mod_db
-        .flag_cfg("CannotBlockSpells", None, &output)
+        .flag_cfg("MaxSpellBlockIfNotBlockedRecently", None, &output)
     {
-        0.0
+        spell_block = spell_block_max;
+        spell_proj_block = spell_block_max;
     } else if env
         .player
         .mod_db
         .flag_cfg("SpellBlockChanceIsBlockChance", None, &output)
     {
-        attack_block.min(spell_block_max)
+        // Lua: output.SpellBlockChance = output.BlockChance (no re-cap)
+        spell_block = attack_block;
+        spell_proj_block = proj_block;
+        spell_block_over_cap = block_over_cap;
     } else {
+        // Normal spell block: BASE * calcLib.mod(modDB, nil, "SpellBlockChance")
         let base_spell_block =
             env.player
                 .mod_db
@@ -573,68 +646,147 @@ fn calc_block(env: &mut CalcEnv) {
             env.player
                 .mod_db
                 .sum_cfg(ModType::Inc, "SpellBlockChance", None, &output);
-        (base_spell_block * (1.0 + inc_spell_block / 100.0))
-            .min(spell_block_max)
-            .max(0.0)
-    };
-    env.player.set_output("SpellBlockChance", spell_block);
-
-    // Spell projectile block
-    let extra_spell_proj =
-        env.player
+        let more_spell_block = env
+            .player
             .mod_db
-            .sum_cfg(ModType::Base, "SpellProjectileBlockChance", None, &output);
-    env.player.set_output(
-        "SpellProjectileBlockChance",
-        (spell_block + extra_spell_proj)
+            .more_cfg("SpellBlockChance", None, &output);
+        let spell_block_mod = (1.0 + inc_spell_block / 100.0) * more_spell_block;
+        let total_spell_block = base_spell_block * spell_block_mod;
+        spell_block = total_spell_block.min(spell_block_max);
+        spell_block_over_cap = (total_spell_block - spell_block_max).max(0.0);
+
+        // Spell projectile block (Lua line 714)
+        let extra_spell_proj =
+            env.player
+                .mod_db
+                .sum_cfg(ModType::Base, "ProjectileSpellBlockChance", None, &output);
+        spell_proj_block = (spell_block + extra_spell_proj * spell_block_mod)
             .min(spell_block_max)
-            .max(0.0),
-    );
+            .max(0.0);
+    }
 
-    // Glancing Blows
-    let block_effect = if env.player.mod_db.flag_cfg("GlancingBlows", None, &output) {
-        65.0
-    } else {
-        100.0
-    };
-    env.player.set_output("BlockEffect", block_effect);
+    // ── Section 4: CannotBlock overrides (Lua lines 727-734) ────────────────
+    if env
+        .player
+        .mod_db
+        .flag_cfg("CannotBlockAttacks", None, &output)
+    {
+        attack_block = 0.0;
+        env.player.set_output("BlockChance", 0.0);
+        env.player.set_output("ProjectileBlockChance", 0.0);
+    }
+    if env
+        .player
+        .mod_db
+        .flag_cfg("CannotBlockSpells", None, &output)
+    {
+        spell_block = 0.0;
+        spell_proj_block = 0.0;
+    }
+
+    env.player.set_output("SpellBlockChance", spell_block);
     env.player
-        .set_output("DamageTakenOnBlock", 100.0 - block_effect);
+        .set_output("SpellBlockChanceOverCap", spell_block_over_cap);
+    env.player
+        .set_output("SpellProjectileBlockChance", spell_proj_block);
 
-    // Effective block chances (lucky/unlucky)
-    let lucky_block = env.player.mod_db.flag_cfg("LuckyBlock", None, &output);
-    let unlucky_block = env.player.mod_db.flag_cfg("UnluckyBlock", None, &output);
+    // ── Section 6: Effective block (lucky/unlucky, Lua lines 735-765) ───────
+    output.clone_from(&env.player.output);
 
-    let effective = |chance: f64| -> f64 {
-        let x = chance / 100.0;
-        let eff = if lucky_block {
-            1.0 - (1.0 - x) * (1.0 - x)
-        } else if unlucky_block {
-            x * x
+    let block_types: [(&str, f64); 4] = [
+        ("BlockChance", attack_block),
+        ("ProjectileBlockChance", get_output_f64(&env.player.output, "ProjectileBlockChance")),
+        ("SpellBlockChance", spell_block),
+        ("SpellProjectileBlockChance", spell_proj_block),
+    ];
+
+    let enemy_reduce_block = env
+        .enemy
+        .mod_db
+        .sum_cfg(ModType::Base, "reduceEnemyBlock", None, &output);
+
+    for (block_type, raw_chance) in &block_types {
+        // Apply enemy reduceEnemyBlock in effective mode
+        let eff_base = if env.mode_effective {
+            (*raw_chance - enemy_reduce_block).max(0.0)
         } else {
-            x
+            *raw_chance
         };
-        eff * 100.0
-    };
 
-    let eff_block = effective(attack_block);
-    let eff_spell_block = effective(spell_block);
-    let proj_block_val = get_output_f64(&env.player.output, "ProjectileBlockChance");
-    let spell_proj_val = get_output_f64(&env.player.output, "SpellProjectileBlockChance");
+        let mut block_rolls = 0_i32;
+        if env.mode_effective {
+            if env
+                .player
+                .mod_db
+                .flag_cfg(&format!("{block_type}IsLucky"), None, &output)
+            {
+                block_rolls += 1;
+            }
+            if env
+                .player
+                .mod_db
+                .flag_cfg(&format!("{block_type}IsUnlucky"), None, &output)
+            {
+                block_rolls -= 1;
+            }
+            if env
+                .player
+                .mod_db
+                .flag_cfg("ExtremeLuck", None, &output)
+            {
+                block_rolls *= 2;
+            }
+        }
+        // EHPUnluckyWorstOf config — not currently wired, but structure matches Lua.
+        // if let Some(worst_of) = env.config_input.ehp_unlucky_worst_of {
+        //     if worst_of != 1 { block_rolls = -(worst_of as i32) / 2; }
+        // }
 
-    env.player.set_output("EffectiveBlockChance", eff_block);
+        let eff_chance = if block_rolls != 0 {
+            let p = eff_base / 100.0;
+            if env
+                .player
+                .mod_db
+                .flag_cfg("Unexciting", None, &output)
+            {
+                // Unexciting: rolls 3 times, keeps median → 3p² - 2p³
+                (3.0 * p * p - 2.0 * p * p * p) * 100.0
+            } else if block_rolls > 0 {
+                // Lucky: 1 - (1-p)^(rolls+1)
+                (1.0 - (1.0 - p).powi(block_rolls + 1)) * 100.0
+            } else {
+                // Unlucky: p^|rolls| * effective
+                p.powi(block_rolls.abs()) * eff_base
+            }
+        } else {
+            eff_base
+        };
+
+        env.player
+            .set_output(&format!("Effective{block_type}"), eff_chance);
+    }
+
+    // EffectiveAverageBlockChance = average of all 4 effective block types (Lua line 765)
+    let eff_avg = (get_output_f64(&env.player.output, "EffectiveBlockChance")
+        + get_output_f64(&env.player.output, "EffectiveProjectileBlockChance")
+        + get_output_f64(&env.player.output, "EffectiveSpellBlockChance")
+        + get_output_f64(&env.player.output, "EffectiveSpellProjectileBlockChance"))
+        / 4.0;
     env.player
-        .set_output("EffectiveSpellBlockChance", eff_spell_block);
-    env.player
-        .set_output("EffectiveProjectileBlockChance", effective(proj_block_val));
-    env.player.set_output(
-        "EffectiveSpellProjectileBlockChance",
-        effective(spell_proj_val),
-    );
-    env.player.set_output(
-        "EffectiveAverageBlockChance",
-        (eff_block + eff_spell_block) / 2.0,
-    );
+        .set_output("EffectiveAverageBlockChance", eff_avg);
+
+    // ── Section 5: BlockEffect (Lua lines 766-770) ──────────────────────────
+    let block_effect = 100.0
+        - env
+            .player
+            .mod_db
+            .sum_cfg(ModType::Base, "BlockEffect", None, &output);
+    env.player.set_output("BlockEffect", block_effect);
+    if block_effect != 0.0 {
+        env.player.set_output_bool("ShowBlockEffect", true);
+        env.player
+            .set_output("DamageTakenOnBlock", 100.0 - block_effect);
+    }
 }
 
 // ── Defence for conditionals (CalcDefence.lua:480-506) ──────────────────────
@@ -1432,48 +1584,113 @@ fn calc_primary_defences(env: &mut CalcEnv) {
 fn calc_spell_suppression(env: &mut CalcEnv) {
     let output = env.player.output.clone();
 
-    let base = env
+    // data.misc.SuppressionChanceCap = 100
+    const SUPPRESSION_CHANCE_CAP: f64 = 100.0;
+    // data.misc.SuppressionEffect = 40
+    const SUPPRESSION_EFFECT_BASE: f64 = 40.0;
+
+    // ── Spell suppression chance (Lua lines 1117-1118) ──────────────────────
+    // Pure BASE sum — no INC multiplier for suppression chance.
+    let spell_suppression_chance = env
         .player
         .mod_db
         .sum_cfg(ModType::Base, "SpellSuppressionChance", None, &output);
-    let inc = env
+    let total_spell_suppression_chance = env
         .player
         .mod_db
-        .sum_cfg(ModType::Inc, "SpellSuppressionChance", None, &output);
-    let chance = (base * (1.0 + inc / 100.0)).clamp(0.0, 100.0);
+        .override_value("SpellSuppressionChance", None, &output)
+        .unwrap_or(spell_suppression_chance);
+
+    // Acrobatics: convert suppression to spell dodge (Lua lines 1122-1124)
+    if env
+        .player
+        .mod_db
+        .flag_cfg("ConvertSpellSuppressionToSpellDodge", None, &output)
+    {
+        env.player.mod_db.add(Mod {
+            name: "SpellDodgeChance".to_string(),
+            mod_type: ModType::Base,
+            value: ModValue::Number(spell_suppression_chance / 2.0),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            tags: Vec::new(),
+            source: ModSource::new("Keystone", "Acrobatics"),
+        });
+    }
+
+    let chance = total_spell_suppression_chance.min(SUPPRESSION_CHANCE_CAP);
     env.player.set_output("SpellSuppressionChance", chance);
 
-    // Suppression effect (default 50%)
-    let effect_base =
-        env.player
-            .mod_db
-            .sum_cfg(ModType::Base, "SpellSuppressionEffect", None, &output);
-    let effect = if effect_base == 0.0 {
-        50.0
-    } else {
-        effect_base
-    };
+    // ── Suppression effect (Lua line 1127) ──────────────────────────────────
+    let effect_mods = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "SpellSuppressionEffect", None, &output);
+    let effect = (SUPPRESSION_EFFECT_BASE + effect_mods).max(0.0);
     env.player.set_output("SpellSuppressionEffect", effect);
 
-    // Lucky/unlucky suppression
-    let lucky = env
-        .player
+    // ── Effective suppression (Lua lines 1129-1155) ─────────────────────────
+    let eff_base = if env
+        .enemy
         .mod_db
-        .flag_cfg("LuckySuppression", None, &output);
-    let unlucky = env
-        .player
-        .mod_db
-        .flag_cfg("UnluckySuppression", None, &output);
-    let x = chance / 100.0;
-    let eff = if lucky {
-        (1.0 - (1.0 - x) * (1.0 - x)) * 100.0
-    } else if unlucky {
-        x * x * 100.0
+        .flag_cfg("CannotBeSuppressed", None, &output)
+    {
+        0.0
     } else {
         chance
     };
+
+    let mut suppress_rolls = 0_i32;
+    if env.mode_effective {
+        if env
+            .player
+            .mod_db
+            .flag_cfg("SpellSuppressionChanceIsLucky", None, &output)
+        {
+            suppress_rolls += 1;
+        }
+        if env
+            .player
+            .mod_db
+            .flag_cfg("SpellSuppressionChanceIsUnlucky", None, &output)
+        {
+            suppress_rolls -= 1;
+        }
+        if env
+            .player
+            .mod_db
+            .flag_cfg("ExtremeLuck", None, &output)
+        {
+            suppress_rolls *= 2;
+        }
+    }
+    // EHPUnluckyWorstOf config — not currently wired.
+    // if let Some(worst_of) = ... { if worst_of != 1 { suppress_rolls = -(worst_of as i32) / 2; } }
+
+    let eff = if suppress_rolls != 0 {
+        let p = eff_base / 100.0;
+        if env
+            .player
+            .mod_db
+            .flag_cfg("Unexciting", None, &output)
+        {
+            (3.0 * p * p - 2.0 * p * p * p) * 100.0
+        } else if suppress_rolls > 0 {
+            (1.0 - (1.0 - p).powi(suppress_rolls + 1)) * 100.0
+        } else {
+            p.powi(suppress_rolls.abs()) * eff_base
+        }
+    } else {
+        eff_base
+    };
     env.player
         .set_output("EffectiveSpellSuppressionChance", eff);
+
+    // ── Suppression overcap (Lua line 1158) ─────────────────────────────────
+    env.player.set_output(
+        "SpellSuppressionChanceOverCap",
+        (total_spell_suppression_chance - SUPPRESSION_CHANCE_CAP).max(0.0),
+    );
 
     // SpellSuppressionAppliesToChanceToDefendWithArmour (CalcDefence.lua:1551-1558)
     // Foulborn Ancestral Vision: inject ArmourDefense MAX mods from spell suppression.
@@ -2480,12 +2697,17 @@ fn build_damage_shift_table(env: &mut CalcEnv) {
 fn calc_stun(env: &mut CalcEnv) {
     let output = env.player.output.clone();
 
+    // data.misc constants
+    const SERVER_TICK_RATE: f64 = 1.0 / 0.033; // ≈ 30.303
+    const STUN_BASE_DURATION: f64 = 0.35;
+
     let stun_immune = env.player.mod_db.flag_cfg("StunImmune", None, &output);
 
     if stun_immune {
         env.player.set_output("StunThreshold", f64::INFINITY);
         env.player.set_output("AvoidStun", 100.0);
         env.player.set_output("StunDuration", 0.0);
+        env.player.set_output("BlockDuration", 0.0);
         return;
     }
 
@@ -2534,17 +2756,44 @@ fn calc_stun(env: &mut CalcEnv) {
         .clamp(0.0, 100.0);
     env.player.set_output("StunAvoidChance", avoid);
 
-    // Stun duration: 0.35 / (1 + recovery_inc/100) * (1 + duration_inc/100)
-    let recovery_inc = env
-        .player
-        .mod_db
-        .sum_cfg(ModType::Inc, "StunRecovery", None, &output);
-    let duration_inc = env
-        .player
-        .mod_db
-        .sum_cfg(ModType::Inc, "StunDuration", None, &output);
-    let stun_duration = 0.35 / (1.0 + recovery_inc / 100.0) * (1.0 + duration_inc / 100.0);
-    env.player.set_output("StunDuration", stun_duration);
+    // ── Stun/block duration (Lua lines 2143-2156) ───────────────────────────
+    if avoid >= 100.0 {
+        // Stun immune via avoidance
+        env.player.set_output("StunDuration", 0.0);
+        env.player.set_output("BlockDuration", 0.0);
+    } else {
+        let duration_inc = env
+            .player
+            .mod_db
+            .sum_cfg(ModType::Inc, "StunDuration", None, &output);
+        let stun_duration_mult = 1.0 + duration_inc / 100.0;
+
+        let stun_recovery_inc = env
+            .player
+            .mod_db
+            .sum_cfg(ModType::Inc, "StunRecovery", None, &output);
+        let stun_recovery = 1.0 + stun_recovery_inc / 100.0;
+
+        // BlockDuration uses combined StunRecovery + BlockRecovery
+        let block_recovery_inc = env
+            .player
+            .mod_db
+            .sum_cfg_multi(ModType::Inc, &["StunRecovery", "BlockRecovery"], None, &output);
+        let stun_and_block_recovery = 1.0 + block_recovery_inc / 100.0;
+
+        // Server-tick aligned: ceil(raw * tickRate) / tickRate
+        let stun_duration =
+            (STUN_BASE_DURATION * stun_duration_mult / stun_recovery * SERVER_TICK_RATE).ceil()
+                / SERVER_TICK_RATE;
+        let block_duration = (STUN_BASE_DURATION * stun_duration_mult
+            / stun_and_block_recovery
+            * SERVER_TICK_RATE)
+            .ceil()
+            / SERVER_TICK_RATE;
+
+        env.player.set_output("StunDuration", stun_duration);
+        env.player.set_output("BlockDuration", block_duration);
+    }
 }
 
 // ── LifeRecoverable (CalcDefence.lua:2204-2218) ───────────────────────────────
@@ -2628,6 +2877,7 @@ mod tests {
         db.add(Mod::new_base("ChaosResistMax", 75.0, src()));
         // Default block max
         db.add(Mod::new_base("BlockChanceMax", 75.0, src()));
+        db.add(Mod::new_base("SpellBlockChanceMax", 75.0, src()));
         for m in mods {
             db.add(m);
         }
@@ -2741,15 +2991,17 @@ mod tests {
 
     #[test]
     fn glancing_blows_effect() {
+        // Glancing Blows keystone seeds "BlockEffect" BASE 65 (meaning "take 65% of
+        // damage from blocked hits"). BlockEffect output = 100 - 65 = 35.
         let mut env = make_env_with_mods(vec![
-            Mod::new_flag("GlancingBlows", src()),
+            Mod::new_base("BlockEffect", 65.0, src()),
             Mod::new_base("BlockChance", 50.0, src()),
         ]);
         run(&mut env);
-        assert_eq!(get_output_f64(&env.player.output, "BlockEffect"), 65.0);
+        assert_eq!(get_output_f64(&env.player.output, "BlockEffect"), 35.0);
         assert_eq!(
             get_output_f64(&env.player.output, "DamageTakenOnBlock"),
-            35.0
+            65.0
         );
     }
 

@@ -649,6 +649,68 @@ fn add_base_constants(db: &mut ModDb, data: &GameData) {
     let soul_eater_max = gc_or(gc, "soul_eater_maximum_stacks", 40.0);
     db.add(Mod::new_base("SoulEaterMax", soul_eater_max, src.clone()));
 
+    // --- Dual-wield inherent block chance ---
+    // CalcSetup.lua:517-518: BlockChance BASE from inherent_block_while_dual_wielding_%
+    // Conditional on DualWielding and NOT NoInherentBlock.
+    let cc = &data.misc.character_constants;
+    let dw_block = cc.get("inherent_block_while_dual_wielding_%").copied().unwrap_or(20.0);
+    // Normal variant (not doubled)
+    db.add(Mod {
+        name: "BlockChance".to_string(),
+        mod_type: ModType::Base,
+        value: ModValue::Number(dw_block),
+        flags: ModFlags::NONE,
+        keyword_flags: KeywordFlags::NONE,
+        tags: vec![
+            ModTag::Condition { var: "DualWielding".to_string(), neg: false },
+            ModTag::Condition { var: "NoInherentBlock".to_string(), neg: true },
+            ModTag::Condition { var: "DoubledInherentDualWieldingBlock".to_string(), neg: true },
+        ],
+        source: src.clone(),
+    });
+    // Doubled variant (for DoubledInherentDualWieldingBlock keystone)
+    db.add(Mod {
+        name: "BlockChance".to_string(),
+        mod_type: ModType::Base,
+        value: ModValue::Number(2.0 * dw_block),
+        flags: ModFlags::NONE,
+        keyword_flags: KeywordFlags::NONE,
+        tags: vec![
+            ModTag::Condition { var: "DualWielding".to_string(), neg: false },
+            ModTag::Condition { var: "NoInherentBlock".to_string(), neg: true },
+            ModTag::Condition { var: "DoubledInherentDualWieldingBlock".to_string(), neg: false },
+        ],
+        source: src.clone(),
+    });
+
+    // --- Dual-wield inherent attack speed ---
+    // CalcSetup.lua:515-516: Speed MORE from dual_wield_inherent_attack_speed_+%_final
+    let dw_speed = cc.get("dual_wield_inherent_attack_speed_+%_final").copied().unwrap_or(10.0);
+    db.add(Mod {
+        name: "Speed".to_string(),
+        mod_type: ModType::More,
+        value: ModValue::Number(dw_speed),
+        flags: ModFlags::ATTACK,
+        keyword_flags: KeywordFlags::NONE,
+        tags: vec![
+            ModTag::Condition { var: "DualWielding".to_string(), neg: false },
+            ModTag::Condition { var: "DoubledInherentDualWieldingSpeed".to_string(), neg: true },
+        ],
+        source: src.clone(),
+    });
+    db.add(Mod {
+        name: "Speed".to_string(),
+        mod_type: ModType::More,
+        value: ModValue::Number(2.0 * dw_speed),
+        flags: ModFlags::ATTACK,
+        keyword_flags: KeywordFlags::NONE,
+        tags: vec![
+            ModTag::Condition { var: "DualWielding".to_string(), neg: false },
+            ModTag::Condition { var: "DoubledInherentDualWieldingSpeed".to_string(), neg: false },
+        ],
+        source: src.clone(),
+    });
+
     // --- Conditional mods ---
     // Maimed: -30% inc MovementSpeed
     db.add(Mod {
