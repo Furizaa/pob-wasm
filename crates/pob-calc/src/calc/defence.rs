@@ -714,10 +714,15 @@ fn inject_pre_defence_mods(env: &mut CalcEnv) {
     let output = env.player.output.clone();
 
     // ArmourAppliesToEnergyShieldRecharge (CalcDefence.lua:772-780)
-    // Copies Armour INC mods as EnergyShieldRecharge INC mods.
-    // This is an uncommon mastery — skip tabulate for now; no oracle build uses it.
-    // The flag check is kept so that if the flag is present, the behaviour is correct
-    // once Tabulate is supported.
+    // Copies Armour INC mods as EnergyShieldRecharge INC mods via modDB:Tabulate.
+    // SKIP: Tabulate is not yet supported in Rust. No oracle build uses this mastery.
+    if env
+        .player
+        .mod_db
+        .flag_cfg("ArmourAppliesToEnergyShieldRecharge", None, &output)
+    {
+        // TODO: implement Tabulate to copy Armour INC → EnergyShieldRecharge INC
+    }
 
     // ArmourIncreasedByUncappedFireRes (CalcDefence.lua:782-788)
     if env
@@ -981,15 +986,23 @@ fn calc_primary_defences(env: &mut CalcEnv) {
         // CalcDefence.lua:859-882 — Ward from slot.
         if ward_base > 0.0 {
             if es_to_ward {
-                // EnergyShieldToWard: ward uses INC from "Ward"+"Defences"+"EnergyShield".
-                let slot_ward = ward_base
-                    * calc_def_mod(
-                        &env.player.mod_db,
+                // EnergyShieldToWard: INC from "Ward"+"Defences"+"EnergyShield", but More
+                // only from "Ward"+"Defences" (CalcDefence.lua:868-869).
+                // calc_def_mod cannot be used here because it would include More("EnergyShield").
+                let inc = env.player.mod_db.sum_cfg(ModType::Inc, "Ward", Some(&cfg), &output)
+                    + env
+                        .player
+                        .mod_db
+                        .sum_cfg(ModType::Inc, "Defences", Some(&cfg), &output)
+                    + env.player.mod_db.sum_cfg(
+                        ModType::Inc,
+                        "EnergyShield",
                         Some(&cfg),
                         &output,
-                        &["Ward", "Defences", "EnergyShield"],
                     );
-                ward += slot_ward;
+                let more = env.player.mod_db.more_cfg("Ward", Some(&cfg), &output)
+                    * env.player.mod_db.more_cfg("Defences", Some(&cfg), &output);
+                ward += ward_base * (1.0 + inc / 100.0) * more;
             } else {
                 let slot_ward = ward_base
                     * calc_def_mod(
