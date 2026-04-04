@@ -1413,7 +1413,8 @@ fn calc_leech(
         .flag_cfg("UnaffectedByNonInstantLifeLeech", None, output)
     {
         life_leech_rate = 0.0;
-        // Also zero LifeLeechInstances in the output (already written above, but LifeLeechRate=0 handles it)
+        // CalcOffence.lua:3824: output.LifeLeechInstances = 0
+        env.player.set_output("LifeLeechInstances", 0.0);
     }
 
     // ── Step 9: Cap + apply recovery rate mod (CalcOffence.lua:3826-3831) ───
