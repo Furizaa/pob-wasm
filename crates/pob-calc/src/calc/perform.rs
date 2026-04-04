@@ -2500,17 +2500,51 @@ fn do_regen_recharge_leech(env: &mut CalcEnv) {
 // Action speed
 // ---------------------------------------------------------------------------
 
-/// Compute action speed modifier: (1 + ActionSpeed inc/100) * ActionSpeed more, min 0.
+/// Compute action speed modifier. Mirrors calcs.actionSpeedMod (CalcPerform.lua:1067-1077).
+///
+/// Formula (INC-only, no More multiplier):
+///   action_speed_mod = 1 + (max(-TC_CAP, tc_inc) + as_inc) / 100
+/// Then clamped by MinimumActionSpeed floor and MaximumActionSpeedReduction cap.
 fn action_speed_mod(env: &mut CalcEnv) -> f64 {
-    let inc = env
+    // data.misc.TemporalChainsEffectCap = 75 (Data.lua:168)
+    const TEMPORAL_CHAINS_EFFECT_CAP: f64 = 75.0;
+
+    // TemporalChainsActionSpeed is tracked separately so it can be capped at -75%.
+    let tc_inc = env.player.mod_db.sum_cfg(
+        ModType::Inc,
+        "TemporalChainsActionSpeed",
+        None,
+        &env.player.output,
+    );
+    let as_inc = env.player.mod_db.sum_cfg(
+        ModType::Inc,
+        "ActionSpeed",
+        None,
+        &env.player.output,
+    );
+
+    // Temporal Chains contribution capped at -75% INC (m_max(-75, tc_inc))
+    let capped_tc = tc_inc.max(-TEMPORAL_CHAINS_EFFECT_CAP);
+    let mut action_speed_mod = 1.0 + (capped_tc + as_inc) / 100.0;
+
+    // Floor: MinimumActionSpeed (e.g. "Cannot Be Slowed to below Base Value" = 100)
+    let min_speed = env
         .player
         .mod_db
-        .sum_cfg(ModType::Inc, "ActionSpeed", None, &env.player.output);
-    let more = env
+        .max_value("MinimumActionSpeed", None, &env.player.output)
+        .unwrap_or(0.0);
+    action_speed_mod = action_speed_mod.max(min_speed / 100.0);
+
+    // Cap: MaximumActionSpeedReduction limits how much speed can be reduced
+    if let Some(max_red) = env
         .player
         .mod_db
-        .more_cfg("ActionSpeed", None, &env.player.output);
-    ((1.0 + inc / 100.0) * more).max(0.0)
+        .max_value("MaximumActionSpeedReduction", None, &env.player.output)
+    {
+        action_speed_mod = action_speed_mod.min((100.0 - max_red) / 100.0);
+    }
+
+    action_speed_mod
 }
 
 // ---------------------------------------------------------------------------

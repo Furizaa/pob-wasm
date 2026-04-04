@@ -1591,13 +1591,32 @@ fn calc_ward_recharge_delay(env: &mut CalcEnv) {
 fn calc_movement_and_avoidance(env: &mut CalcEnv) {
     let output = env.player.output.clone();
 
-    // Movement speed
-    let ms_inc = env
+    // Movement speed (CalcDefence.lua:1493-1506)
+    // Priority: Override > standard calcLib.mod
+    let mut ms = if let Some(override_val) =
+        env.player
+            .mod_db
+            .override_value("MovementSpeed", None, &output)
+    {
+        override_val
+    } else {
+        let ms_inc =
+            env.player
+                .mod_db
+                .sum_cfg(ModType::Inc, "MovementSpeed", None, &output);
+        let ms_more = env.player.mod_db.more_cfg("MovementSpeed", None, &output);
+        (1.0 + ms_inc / 100.0) * ms_more
+    };
+
+    // Floor: MovementSpeedCannotBeBelowBase prevents reduction below 100%
+    if env
         .player
         .mod_db
-        .sum_cfg(ModType::Inc, "MovementSpeed", None, &output);
-    let ms_more = env.player.mod_db.more_cfg("MovementSpeed", None, &output);
-    let ms = (1.0 + ms_inc / 100.0) * ms_more;
+        .flag_cfg("MovementSpeedCannotBeBelowBase", None, &output)
+    {
+        ms = ms.max(1.0);
+    }
+
     env.player.set_output("MovementSpeedMod", ms);
 
     let action_speed = env.player.action_speed_mod;

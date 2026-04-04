@@ -272,7 +272,6 @@ pub fn fields_for_chunk(chunk: &str) -> Option<&'static [&'static str]> {
         "PERF-08-action-speed-conditions" => &[
             "ActionSpeedMod",
             "MovementSpeedMod",
-            "MovementSpeed",
             "EffectiveMovementSpeedMod",
         ],
 
