@@ -65,152 +65,324 @@ pub fn run(env: &mut CalcEnv) {
 fn calc_resistances(env: &mut CalcEnv) {
     let output = env.player.output.clone();
 
+    // data.misc constants
+    const MAX_RESIST_CAP: f64 = 90.0; // data.misc.MaxResistCap
+    const RESIST_FLOOR: f64 = -200.0; // data.misc.ResistFloor
+
     // Physical resist is always 0
     env.player.set_output("PhysicalResist", 0.0);
 
-    // Compute max resists first so we can apply Melding
-    let elemental_types = ["Fire", "Cold", "Lightning"];
-    let mut max_resists: [f64; 4] = [0.0; 4]; // Fire, Cold, Lightning, Chaos
+    // ── Section 1: Resistance conversion (Lua lines 515-560) ─────────────────
+    // Pass 1: Convert MAX resist mods between types.
+    // For each resFrom→resTo pair with a non-zero MaxResConvertTo rate, sum all
+    // non-"Base"-sourced BASE mods on resFrom ResistMax and add a fraction to resTo.
+    for i in 0..RESIST_TYPE_NAMES.len() {
+        let res_from = RESIST_TYPE_NAMES[i];
+        let mut max_res: Option<f64> = None; // lazy-init: None = not yet computed
+        let mut new_mods: Vec<(String, f64)> = Vec::new();
+        for j in 0..RESIST_TYPE_NAMES.len() {
+            let res_to = RESIST_TYPE_NAMES[j];
+            let conv_stat = format!("{res_from}MaxResConvertTo{res_to}");
+            let conversion_rate =
+                env.player.mod_db.sum_cfg(ModType::Base, &conv_stat, None, &output) / 100.0;
+            if conversion_rate != 0.0 {
+                if max_res.is_none() {
+                    // Sum only non-"Base" sourced mods (exclude the 75 default seed)
+                    let tabulated = env.player.mod_db.tabulate_cfg(
+                        &format!("{res_from}ResistMax"),
+                        Some(ModType::Base),
+                        None,
+                        &output,
+                    );
+                    let sum: f64 = tabulated
+                        .iter()
+                        .filter(|m| m.source_category != "Base")
+                        .filter_map(|m| {
+                            if let ModValue::Number(v) = &m.value {
+                                Some(*v)
+                            } else {
+                                None
+                            }
+                        })
+                        .sum();
+                    max_res = Some(sum);
+                }
+                let max_res_val = max_res.unwrap();
+                if max_res_val != 0.0 {
+                    new_mods.push((format!("{res_to}ResistMax"), max_res_val * conversion_rate));
+                }
+            }
+        }
+        for (stat, value) in new_mods {
+            env.player.mod_db.add(Mod::new_base(
+                stat,
+                value,
+                ModSource::new("Conversion", format!("{res_from} To ... Max Resistance Conversion")),
+            ));
+        }
+    }
 
-    for (i, elem) in RESIST_TYPE_NAMES.iter().enumerate() {
+    // Pass 2: Convert actual RESIST mods between types (BASE, INC, MORE).
+    for i in 0..RESIST_TYPE_NAMES.len() {
+        let res_from = RESIST_TYPE_NAMES[i];
+        let mut res: Option<f64> = None; // lazy-init for BASE sum
+        let mut new_mods: Vec<Mod> = Vec::new();
+        for j in 0..RESIST_TYPE_NAMES.len() {
+            let res_to = RESIST_TYPE_NAMES[j];
+            let conv_stat = format!("{res_from}ResConvertTo{res_to}");
+            let conversion_rate =
+                env.player.mod_db.sum_cfg(ModType::Base, &conv_stat, None, &output) / 100.0;
+            if conversion_rate != 0.0 {
+                if res.is_none() {
+                    let tabulated = env.player.mod_db.tabulate_cfg(
+                        &format!("{res_from}Resist"),
+                        Some(ModType::Base),
+                        None,
+                        &output,
+                    );
+                    let sum: f64 = tabulated
+                        .iter()
+                        .filter(|m| m.source_category != "Base")
+                        .filter_map(|m| {
+                            if let ModValue::Number(v) = &m.value {
+                                Some(*v)
+                            } else {
+                                None
+                            }
+                        })
+                        .sum();
+                    res = Some(sum);
+                }
+                let res_val = res.unwrap();
+                if res_val != 0.0 {
+                    new_mods.push(Mod::new_base(
+                        format!("{res_to}Resist"),
+                        res_val * conversion_rate,
+                        ModSource::new(
+                            "Conversion",
+                            format!("{res_from} To {res_to} Resistance Conversion"),
+                        ),
+                    ));
+                }
+                // Also copy INC mods proportionally
+                for m in env.player.mod_db.tabulate_cfg(
+                    &format!("{res_from}Resist"),
+                    Some(ModType::Inc),
+                    None,
+                    &output,
+                ) {
+                    if let ModValue::Number(v) = &m.value {
+                        new_mods.push(Mod {
+                            name: format!("{res_to}Resist"),
+                            mod_type: ModType::Inc,
+                            value: ModValue::Number(v * conversion_rate),
+                            flags: ModFlags::NONE,
+                            keyword_flags: KeywordFlags::NONE,
+                            tags: Vec::new(),
+                            source: ModSource::new(m.source_category, m.source_name),
+                        });
+                    }
+                }
+                // Also copy MORE mods proportionally
+                for m in env.player.mod_db.tabulate_cfg(
+                    &format!("{res_from}Resist"),
+                    Some(ModType::More),
+                    None,
+                    &output,
+                ) {
+                    if let ModValue::Number(v) = &m.value {
+                        new_mods.push(Mod {
+                            name: format!("{res_to}Resist"),
+                            mod_type: ModType::More,
+                            value: ModValue::Number(v * conversion_rate),
+                            flags: ModFlags::NONE,
+                            keyword_flags: KeywordFlags::NONE,
+                            tags: Vec::new(),
+                            source: ModSource::new(m.source_category, m.source_name),
+                        });
+                    }
+                }
+            }
+        }
+        for m in new_mods {
+            env.player.mod_db.add(m);
+        }
+    }
+
+    // ── Section 2: Melding of the Flesh (Lua lines 562-578) ──────────────────
+    // If flag set, find the highest elemental max resist and override all elemental
+    // max resists to that value via OVERRIDE mods (so the main loop picks them up).
+    if env
+        .player
+        .mod_db
+        .flag_cfg("ElementalResistMaxIsHighestResistMax", None, &output)
+    {
+        let mut highest_resist_max: f64 = 0.0;
+        for elem in RESIST_TYPE_NAMES.iter() {
+            if *elem == "Chaos" {
+                continue;
+            }
+            let max_stat = format!("{elem}ResistMax");
+            let resist_max = env
+                .player
+                .mod_db
+                .override_value(&max_stat, None, &output)
+                .unwrap_or_else(|| {
+                    let base = env
+                        .player
+                        .mod_db
+                        .sum_cfg(ModType::Base, &max_stat, None, &output);
+                    let elemental = env.player.mod_db.sum_cfg(
+                        ModType::Base,
+                        "ElementalResistMax",
+                        None,
+                        &output,
+                    );
+                    (base + elemental).min(MAX_RESIST_CAP)
+                });
+            if resist_max > highest_resist_max {
+                highest_resist_max = resist_max;
+            }
+        }
+        for elem in RESIST_TYPE_NAMES.iter() {
+            if *elem == "Chaos" {
+                continue;
+            }
+            env.player.mod_db.add(Mod {
+                name: format!("{elem}ResistMax"),
+                mod_type: ModType::Override,
+                value: ModValue::Number(highest_resist_max),
+                flags: ModFlags::NONE,
+                keyword_flags: KeywordFlags::NONE,
+                tags: Vec::new(),
+                source: ModSource::new("Keystone", "Melding of the Flesh"),
+            });
+        }
+    }
+
+    // ── Section 3: Main resistance computation loop (Lua lines 580-634) ───────
+    // DOT cfg: matches global mods (NONE flags) and Dot-flagged mods.
+    let dot_cfg = SkillCfg {
+        flags: ModFlags::DOT,
+        ..Default::default()
+    };
+
+    for elem in RESIST_TYPE_NAMES.iter() {
+        let is_elemental = *elem != "Chaos";
+        let resist_stat = format!("{elem}Resist");
         let max_stat = format!("{elem}ResistMax");
-        let max_val = env
+
+        // max = Override or min(90, BASE sum including ElementalResistMax for elemental)
+        let max_resist = env
             .player
             .mod_db
             .override_value(&max_stat, None, &output)
             .unwrap_or_else(|| {
-                let base_max = env
+                let base = env
                     .player
                     .mod_db
                     .sum_cfg(ModType::Base, &max_stat, None, &output);
-                let elemental_max = if elemental_types.contains(elem) {
+                let elemental = if is_elemental {
                     env.player
                         .mod_db
                         .sum_cfg(ModType::Base, "ElementalResistMax", None, &output)
                 } else {
                     0.0
                 };
-                base_max + elemental_max
+                (base + elemental).min(MAX_RESIST_CAP)
             });
-        max_resists[i] = max_val;
-    }
 
-    // Melding of the Flesh: if flag set, all elemental max resists = highest
-    if env
-        .player
-        .mod_db
-        .flag_cfg("ElementalResistMaxIsHighestResistMax", None, &output)
-    {
-        let highest = max_resists[0].max(max_resists[1]).max(max_resists[2]);
-        max_resists[0] = highest; // Fire
-        max_resists[1] = highest; // Cold
-        max_resists[2] = highest; // Lightning
-                                  // Chaos (index 3) is not affected
-    }
-
-    // Now compute each resist type
-    for (i, elem) in RESIST_TYPE_NAMES.iter().enumerate() {
-        let resist_stat = format!("{elem}Resist");
-        let max_resist = max_resists[i];
-
-        let total_resist = env
+        // total = Override or base * max(0, (1 + INC/100) * More)
+        // dotTotal = dotBase * same multiplier (dotBase uses DOT-flagged cfg)
+        let (total_resist, dot_total) = match env
             .player
             .mod_db
             .override_value(&resist_stat, None, &output)
-            .unwrap_or_else(|| {
+        {
+            Some(ov) => (ov, ov), // dotTotal is nil when overridden → falls back to total
+            None => {
                 let base = env
                     .player
                     .mod_db
-                    .sum_cfg(ModType::Base, &resist_stat, None, &output);
-                let elemental = if elemental_types.contains(elem) {
-                    env.player
-                        .mod_db
-                        .sum_cfg(ModType::Base, "ElementalResist", None, &output)
-                } else {
-                    0.0
-                };
-                base + elemental
-            });
-
-        let capped = total_resist.min(max_resist);
-        let over_cap = total_resist - max_resist;
-        let over_75 = total_resist - 75.0;
-        let missing = max_resist - capped;
-
-        env.player.set_output(&resist_stat, capped);
-        env.player
-            .set_output(&format!("{elem}ResistTotal"), total_resist);
-        env.player
-            .set_output(&format!("{elem}ResistOverCap"), over_cap.max(0.0));
-        env.player
-            .set_output(&format!("{elem}ResistOver75"), over_75.max(0.0));
-        env.player
-            .set_output(&format!("Missing{elem}Resist"), missing.max(0.0));
-
-        // Over-time resist (same as capped for now)
-        env.player
-            .set_output(&format!("{elem}ResistOverTime"), capped);
-
-        // Totem resists: use their own base resist values (not player resists).
-        // CalcDefence.lua:594-621:
-        //   local base = modDB:Sum("BASE", nil, "Totem"..elem.."Resist",
-        //                          isElemental[elem] and "TotemElementalResist")
-        //   totemTotal = base * m_max(calcLib.mod(modDB, nil, "Totem"..elem.."Resist",
-        //                             isElemental[elem] and "TotemElementalResist"), 0)
-        //   totemTotal = m_modf(totemTotal)  -- truncate toward zero
-        //   totemMax   = m_modf(totemMax)
-        let totem_resist_stat = format!("Totem{elem}Resist");
-        let is_elemental = *elem != "Chaos";
-        let totem_base = {
-            let mut b = env
-                .player
-                .mod_db
-                .sum_cfg(ModType::Base, &totem_resist_stat, None, &output);
-            if is_elemental {
-                b +=
-                    env.player
-                        .mod_db
-                        .sum_cfg(ModType::Base, "TotemElementalResist", None, &output);
-            }
-            b
-        };
-        // calcLib.mod = (1 + INC/100) * More for both TotemXxxResist + TotemElementalResist
-        let totem_inc = {
-            let mut inc =
-                env.player
-                    .mod_db
-                    .sum_cfg(ModType::Inc, &totem_resist_stat, None, &output);
-            if is_elemental {
-                inc +=
-                    env.player
-                        .mod_db
-                        .sum_cfg(ModType::Inc, "TotemElementalResist", None, &output);
-            }
-            inc
-        };
-        let totem_more = {
-            let mut more = env
-                .player
-                .mod_db
-                .more_cfg(&totem_resist_stat, None, &output);
-            if is_elemental {
-                more *= env
+                    .sum_cfg(ModType::Base, &resist_stat, None, &output)
+                    + if is_elemental {
+                        env.player
+                            .mod_db
+                            .sum_cfg(ModType::Base, "ElementalResist", None, &output)
+                    } else {
+                        0.0
+                    };
+                // calcLib.mod returns (1 + INC/100) * More; clamped to 0 minimum
+                let inc = env
                     .player
                     .mod_db
-                    .more_cfg("TotemElementalResist", None, &output);
+                    .sum_cfg(ModType::Inc, &resist_stat, None, &output)
+                    + if is_elemental {
+                        env.player
+                            .mod_db
+                            .sum_cfg(ModType::Inc, "ElementalResist", None, &output)
+                    } else {
+                        0.0
+                    };
+                let more = env.player.mod_db.more_cfg(&resist_stat, None, &output)
+                    * if is_elemental {
+                        env.player.mod_db.more_cfg("ElementalResist", None, &output)
+                    } else {
+                        1.0
+                    };
+                let multiplier = ((1.0 + inc / 100.0) * more).max(0.0);
+                let total = base * multiplier;
+                // dotBase: same stat names but with DOT cfg (includes DOT-flagged mods)
+                let dot_base = env
+                    .player
+                    .mod_db
+                    .sum_cfg(ModType::Base, &resist_stat, Some(&dot_cfg), &output)
+                    + if is_elemental {
+                        env.player.mod_db.sum_cfg(
+                            ModType::Base,
+                            "ElementalResist",
+                            Some(&dot_cfg),
+                            &output,
+                        )
+                    } else {
+                        0.0
+                    };
+                let dot_t = dot_base * multiplier;
+                (total, dot_t)
             }
-            more
         };
-        let totem_mod = ((1.0 + totem_inc / 100.0) * totem_more).max(0.0);
-        let totem_total_raw = (totem_base * totem_mod).trunc(); // m_modf = truncate
 
-        // CalcDefence.lua:585:
-        // totemMax = Override("TotemXxxResistMax") or min(MaxResistCap, Sum("BASE", nil, "TotemXxxResistMax", ...))
-        // Totems have their OWN max resist cap (separate from player max).
-        // Game constants set TotemFireResistMax = TotemColdResistMax = TotemLightningResistMax =
-        // TotemChaosResistMax = 75 (see CalcSetup.lua:23-26). Player "+1% max fire resist" mods
-        // do NOT affect totems.
+        // Truncate toward zero (m_modf): trunc(-53.7) = -53, NOT floor(-53.7) = -54
+        let total_trunc = total_resist.trunc();
+        let dot_trunc = dot_total.trunc();
+        let max_trunc = max_resist.trunc();
+        let min_trunc = RESIST_FLOOR.trunc(); // -200.0 (already integer)
+
+        // Clamp: final = max(min, min(total, max)) = total.clamp(-200, max)
+        let final_resist = total_trunc.clamp(min_trunc, max_trunc);
+        let dot_final = dot_trunc.clamp(min_trunc, max_trunc);
+        let over_cap = (total_trunc - max_trunc).max(0.0);
+        let over_75 = (final_resist - 75.0).max(0.0); // Lua: m_max(0, final - 75)
+        let missing = (max_trunc - final_resist).max(0.0);
+
+        env.player.set_output(&resist_stat, final_resist);
+        env.player
+            .set_output(&format!("{elem}ResistTotal"), total_trunc);
+        env.player
+            .set_output(&format!("{elem}ResistOverCap"), over_cap);
+        env.player
+            .set_output(&format!("{elem}ResistOver75"), over_75);
+        env.player
+            .set_output(&format!("Missing{elem}Resist"), missing);
+        env.player
+            .set_output(&format!("{elem}ResistOverTime"), dot_final);
+
+        // ── Totem resists ────────────────────────────────────────────────────
+        // Totems have separate max resist stats (TotemXxxResistMax) that are
+        // not affected by player "+1 max resist" mods. Lua lines 585-621.
+        let totem_resist_stat = format!("Totem{elem}Resist");
         let totem_max_stat = format!("Totem{elem}ResistMax");
+
         let totem_max_raw = env
             .player
             .mod_db
@@ -230,19 +402,70 @@ fn calc_resistances(env: &mut CalcEnv) {
                 } else {
                     0.0
                 };
-                (base + elem_max).min(90.0) // MaxResistCap = 90
+                (base + elem_max).min(MAX_RESIST_CAP)
             });
-        let totem_max = totem_max_raw.trunc(); // m_modf = truncate
+        let totem_max = totem_max_raw.trunc();
 
-        // min = 0 for elemental, or the chaos resist floor for chaos.
-        // For simplicity, all resist types have floor 0 in standard builds.
-        let totem_capped = totem_total_raw.min(totem_max).max(0.0);
-        let totem_over_cap = (totem_total_raw - totem_max).max(0.0);
-        let missing_totem = (totem_max - totem_capped).max(0.0);
+        let totem_total_raw = match env
+            .player
+            .mod_db
+            .override_value(&totem_resist_stat, None, &output)
+        {
+            Some(ov) => ov,
+            None => {
+                let base = env
+                    .player
+                    .mod_db
+                    .sum_cfg(ModType::Base, &totem_resist_stat, None, &output)
+                    + if is_elemental {
+                        env.player.mod_db.sum_cfg(
+                            ModType::Base,
+                            "TotemElementalResist",
+                            None,
+                            &output,
+                        )
+                    } else {
+                        0.0
+                    };
+                let totem_inc = env
+                    .player
+                    .mod_db
+                    .sum_cfg(ModType::Inc, &totem_resist_stat, None, &output)
+                    + if is_elemental {
+                        env.player.mod_db.sum_cfg(
+                            ModType::Inc,
+                            "TotemElementalResist",
+                            None,
+                            &output,
+                        )
+                    } else {
+                        0.0
+                    };
+                let totem_more = env
+                    .player
+                    .mod_db
+                    .more_cfg(&totem_resist_stat, None, &output)
+                    * if is_elemental {
+                        env.player
+                            .mod_db
+                            .more_cfg("TotemElementalResist", None, &output)
+                    } else {
+                        1.0
+                    };
+                let totem_multiplier = ((1.0 + totem_inc / 100.0) * totem_more).max(0.0);
+                base * totem_multiplier
+            }
+        };
+        let totem_total = totem_total_raw.trunc();
+        // Totem final also uses RESIST_FLOOR as lower bound (same min as player)
+        let totem_final = totem_total.clamp(min_trunc, totem_max);
+        let totem_over_cap = (totem_total - totem_max).max(0.0);
+        let missing_totem = (totem_max - totem_final).max(0.0);
+
         env.player
-            .set_output(&format!("Totem{elem}Resist"), totem_capped);
+            .set_output(&format!("Totem{elem}Resist"), totem_final);
         env.player
-            .set_output(&format!("Totem{elem}ResistTotal"), totem_total_raw);
+            .set_output(&format!("Totem{elem}ResistTotal"), totem_total);
         env.player
             .set_output(&format!("Totem{elem}ResistOverCap"), totem_over_cap);
         env.player
