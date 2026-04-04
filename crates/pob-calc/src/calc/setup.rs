@@ -728,11 +728,13 @@ fn add_class_base_stats(build: &Build, db: &mut ModDb, data: &GameData) {
     db.add(Mod::new_base("Dex", dex_base, src.clone()));
     db.add(Mod::new_base("Int", int_base, src.clone()));
 
-    // Resistance penalty (act 10): -60 to elemental resists
+    // Resistance penalty (act 10): -60 to all resists including chaos
+    // CalcSetup.lua:485-488: modDB:NewMod("XxxResist", "BASE", env.configInput.resistancePenalty or -60, "Base")
     let penalty_src = ModSource::new("Base", "resistance penalty");
     db.add(Mod::new_base("FireResist", -60.0, penalty_src.clone()));
     db.add(Mod::new_base("ColdResist", -60.0, penalty_src.clone()));
     db.add(Mod::new_base("LightningResist", -60.0, penalty_src.clone()));
+    db.add(Mod::new_base("ChaosResist", -60.0, penalty_src.clone()));
 
     // Base accuracy: 2 * level
     let acc_src = ModSource::new("Base", "base accuracy");

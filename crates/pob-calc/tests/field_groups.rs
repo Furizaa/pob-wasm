@@ -289,10 +289,6 @@ pub fn fields_for_chunk(chunk: &str) -> Option<&'static [&'static str]> {
             "ChaosResist",
             "ChaosResistTotal",
             "ChaosResistOverCap",
-            "FireResistOver",
-            "ColdResistOver",
-            "LightningResistOver",
-            "ChaosResistOver",
         ],
 
         "DEF-02-armour-evasion-es-ward" => &[
