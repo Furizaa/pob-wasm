@@ -19,6 +19,8 @@ pub fn run(env: &mut CalcEnv) {
     // Must run BEFORE doActorLifeManaReservation.
     accumulate_skill_reservations(env);
     do_actor_life_mana_reservation(env);
+    // CalcPerform.lua:3271: defence for conditionals runs before charges/misc
+    super::defence::defence_for_conditionals(env);
     do_actor_charges(env);
     do_actor_misc(env);
     apply_buffs(env);
