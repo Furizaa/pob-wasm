@@ -45,6 +45,7 @@ pub fn armour_reduction(armour: f64, raw: f64) -> f64 {
 pub fn run(env: &mut CalcEnv) {
     calc_resistances(env);
     calc_block(env);
+    inject_pre_defence_mods(env);
     calc_primary_defences(env);
     calc_spell_suppression(env);
     calc_dodge(env);
@@ -634,6 +635,230 @@ fn calc_block(env: &mut CalcEnv) {
         "EffectiveAverageBlockChance",
         (eff_block + eff_spell_block) / 2.0,
     );
+}
+
+// ── Defence for conditionals (CalcDefence.lua:480-506) ──────────────────────
+
+/// Writes per-slot item base values to output so conditional modifiers
+/// (e.g. "do I have armour on helmet?") can evaluate correctly.
+/// Called from perform::run() before charges/misc, matching CalcPerform.lua:3271.
+pub fn defence_for_conditionals(env: &mut CalcEnv) {
+    let output = env.player.output.clone();
+    let gear_slots: Vec<(String, crate::build::types::ItemArmourData)> =
+        env.player.gear_slot_armour.clone();
+
+    for (slot, ad) in &gear_slots {
+        let ward_base = if !env
+            .player
+            .mod_db
+            .flag_cfg(&format!("GainNoWardFrom{slot}"), None, &output)
+        {
+            ad.ward
+        } else {
+            0.0
+        };
+        if ward_base > 0.0 {
+            env.player
+                .set_output(&format!("WardOn{slot}"), ward_base);
+        }
+
+        let es_base = if !env
+            .player
+            .mod_db
+            .flag_cfg(&format!("GainNoEnergyShieldFrom{slot}"), None, &output)
+        {
+            ad.energy_shield
+        } else {
+            0.0
+        };
+        if es_base > 0.0 {
+            env.player
+                .set_output(&format!("EnergyShieldOn{slot}"), es_base);
+        }
+
+        let armour_base = if !env
+            .player
+            .mod_db
+            .flag_cfg(&format!("GainNoArmourFrom{slot}"), None, &output)
+        {
+            ad.armour
+        } else {
+            0.0
+        };
+        if armour_base > 0.0 {
+            env.player
+                .set_output(&format!("ArmourOn{slot}"), armour_base);
+        }
+
+        let evasion_base = if !env
+            .player
+            .mod_db
+            .flag_cfg(&format!("GainNoEvasionFrom{slot}"), None, &output)
+        {
+            ad.evasion
+        } else {
+            0.0
+        };
+        if evasion_base > 0.0 {
+            env.player
+                .set_output(&format!("EvasionOn{slot}"), evasion_base);
+        }
+    }
+}
+
+// ── Pre-defence modDB injections (CalcDefence.lua:772-823) ──────────────────
+
+/// Inject INC mods into modDB based on already-computed output values.
+/// Must run after resistances and block are computed, before primary defences.
+fn inject_pre_defence_mods(env: &mut CalcEnv) {
+    let output = env.player.output.clone();
+
+    // ArmourAppliesToEnergyShieldRecharge (CalcDefence.lua:772-780)
+    // Copies Armour INC mods as EnergyShieldRecharge INC mods.
+    // This is an uncommon mastery — skip tabulate for now; no oracle build uses it.
+    // The flag check is kept so that if the flag is present, the behaviour is correct
+    // once Tabulate is supported.
+
+    // ArmourIncreasedByUncappedFireRes (CalcDefence.lua:782-788)
+    if env
+        .player
+        .mod_db
+        .flag_cfg("ArmourIncreasedByUncappedFireRes", None, &output)
+    {
+        let fire_resist_total = get_output_f64(&output, "FireResistTotal");
+        let source = env
+            .player
+            .mod_db
+            .first_mod_source("ArmourIncreasedByUncappedFireRes")
+            .unwrap_or(ModSource::new("Custom", "ArmourIncreasedByUncappedFireRes"));
+        env.player.mod_db.add(Mod {
+            name: "Armour".to_string(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(fire_resist_total),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            tags: Vec::new(),
+            source,
+        });
+    }
+
+    // ArmourIncreasedByOvercappedFireRes (CalcDefence.lua:789-795)
+    if env
+        .player
+        .mod_db
+        .flag_cfg("ArmourIncreasedByOvercappedFireRes", None, &output)
+    {
+        let fire_resist_over_cap = get_output_f64(&output, "FireResistOverCap");
+        let source = env
+            .player
+            .mod_db
+            .first_mod_source("ArmourIncreasedByOvercappedFireRes")
+            .unwrap_or(ModSource::new("Custom", "ArmourIncreasedByOvercappedFireRes"));
+        env.player.mod_db.add(Mod {
+            name: "Armour".to_string(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(fire_resist_over_cap),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            tags: Vec::new(),
+            source,
+        });
+    }
+
+    // EvasionRatingIncreasedByUncappedColdRes (CalcDefence.lua:796-802)
+    if env
+        .player
+        .mod_db
+        .flag_cfg("EvasionRatingIncreasedByUncappedColdRes", None, &output)
+    {
+        let cold_resist_total = get_output_f64(&output, "ColdResistTotal");
+        let source = env
+            .player
+            .mod_db
+            .first_mod_source("EvasionRatingIncreasedByUncappedColdRes")
+            .unwrap_or(ModSource::new("Custom", "EvasionRatingIncreasedByUncappedColdRes"));
+        env.player.mod_db.add(Mod {
+            name: "Evasion".to_string(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(cold_resist_total),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            tags: Vec::new(),
+            source,
+        });
+    }
+
+    // EvasionRatingIncreasedByOvercappedColdRes (CalcDefence.lua:803-809)
+    if env
+        .player
+        .mod_db
+        .flag_cfg("EvasionRatingIncreasedByOvercappedColdRes", None, &output)
+    {
+        let cold_resist_over_cap = get_output_f64(&output, "ColdResistOverCap");
+        let source = env
+            .player
+            .mod_db
+            .first_mod_source("EvasionRatingIncreasedByOvercappedColdRes")
+            .unwrap_or(ModSource::new("Custom", "EvasionRatingIncreasedByOvercappedColdRes"));
+        env.player.mod_db.add(Mod {
+            name: "Evasion".to_string(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(cold_resist_over_cap),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            tags: Vec::new(),
+            source,
+        });
+    }
+
+    // EnergyShieldIncreasedByChanceToBlockSpellDamage (CalcDefence.lua:810-816)
+    if env.player.mod_db.flag_cfg(
+        "EnergyShieldIncreasedByChanceToBlockSpellDamage",
+        None,
+        &output,
+    ) {
+        let spell_block = get_output_f64(&output, "SpellBlockChance");
+        let source = env
+            .player
+            .mod_db
+            .first_mod_source("EnergyShieldIncreasedByChanceToBlockSpellDamage")
+            .unwrap_or(ModSource::new(
+                "Custom",
+                "EnergyShieldIncreasedByChanceToBlockSpellDamage",
+            ));
+        env.player.mod_db.add(Mod {
+            name: "EnergyShield".to_string(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(spell_block),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            tags: Vec::new(),
+            source,
+        });
+    }
+
+    // EnergyShieldIncreasedByChaosResistance (CalcDefence.lua:817-823)
+    if env
+        .player
+        .mod_db
+        .flag_cfg("EnergyShieldIncreasedByChaosResistance", None, &output)
+    {
+        let chaos_resist = get_output_f64(&output, "ChaosResist");
+        let source = env
+            .player
+            .mod_db
+            .first_mod_source("EnergyShieldIncreasedByChaosResistance")
+            .unwrap_or(ModSource::new("Custom", "EnergyShieldIncreasedByChaosResistance"));
+        env.player.mod_db.add(Mod {
+            name: "EnergyShield".to_string(),
+            mod_type: ModType::Inc,
+            value: ModValue::Number(chaos_resist),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            tags: Vec::new(),
+            source,
+        });
+    }
 }
 
 // ── Task 5: Primary defences ─────────────────────────────────────────────────
@@ -1236,6 +1461,93 @@ fn calc_spell_suppression(env: &mut CalcEnv) {
     };
     env.player
         .set_output("EffectiveSpellSuppressionChance", eff);
+
+    // SpellSuppressionAppliesToChanceToDefendWithArmour (CalcDefence.lua:1551-1558)
+    // Foulborn Ancestral Vision: inject ArmourDefense MAX mods from spell suppression.
+    if env.player.mod_db.flag_cfg(
+        "SpellSuppressionAppliesToChanceToDefendWithArmour",
+        None,
+        &output,
+    ) {
+        let suppress_armour_pct = env
+            .player
+            .mod_db
+            .max_value(
+                "SpellSuppressionAppliesToChanceToDefendWithArmourPercent",
+                None,
+                &output,
+            )
+            .unwrap_or(0.0);
+        let armour_defense_pct = env
+            .player
+            .mod_db
+            .max_value(
+                "SpellSuppressionAppliesToChanceToDefendWithArmourPercentArmour",
+                None,
+                &output,
+            )
+            .unwrap_or(0.0);
+        let source =
+            ModSource::new("Custom", "Chance to Defend from Spell Suppression");
+
+        // Max Calc: ArmourDefense = armourDefensePercent - 100 (with ArmourMax condition)
+        env.player.mod_db.add(Mod {
+            name: "ArmourDefense".to_string(),
+            mod_type: ModType::Max,
+            value: ModValue::Number(armour_defense_pct - 100.0),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            tags: vec![crate::mod_db::types::ModTag::Condition {
+                var: "ArmourMax".to_string(),
+                neg: false,
+            }],
+            source: source.clone(),
+        });
+
+        // Average Calc
+        let avg_factor =
+            (suppress_armour_pct * chance / 100.0).min(1.0);
+        env.player.mod_db.add(Mod {
+            name: "ArmourDefense".to_string(),
+            mod_type: ModType::Max,
+            value: ModValue::Number(avg_factor * (armour_defense_pct - 100.0)),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            tags: vec![crate::mod_db::types::ModTag::Condition {
+                var: "ArmourAvg".to_string(),
+                neg: false,
+            }],
+            source: source.clone(),
+        });
+
+        // Min Calc
+        let min_factor =
+            (suppress_armour_pct * chance / 100.0).floor().min(1.0);
+        env.player.mod_db.add(Mod {
+            name: "ArmourDefense".to_string(),
+            mod_type: ModType::Max,
+            value: ModValue::Number(min_factor * (armour_defense_pct - 100.0)),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            tags: vec![crate::mod_db::types::ModTag::Condition {
+                var: "ArmourMax".to_string(),
+                neg: true,
+            }, crate::mod_db::types::ModTag::Condition {
+                var: "ArmourAvg".to_string(),
+                neg: true,
+            }],
+            source,
+        });
+    }
+
+    // ArmourDefense output (CalcDefence.lua:1559)
+    let armour_defense = env
+        .player
+        .mod_db
+        .max_value("ArmourDefense", None, &output)
+        .unwrap_or(0.0)
+        / 100.0;
+    env.player.set_output("ArmourDefense", armour_defense);
 }
 
 fn calc_dodge(env: &mut CalcEnv) {
