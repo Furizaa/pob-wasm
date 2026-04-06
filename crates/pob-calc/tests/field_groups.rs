@@ -361,9 +361,17 @@ pub fn fields_for_chunk(chunk: &str) -> Option<&'static [&'static str]> {
         ],
 
         "DEF-05-recovery-in-defence" => &[
-            // Recovery rates as computed in CalcDefence's pool-based recovery
-            // These overlap with PERF-07 fields but are the final computed values
-            // after defence-specific adjustments.
+            "EnergyShieldRecoveryCap",
+            "LifeOnBlock",
+            "ManaOnBlock",
+            "EnergyShieldOnBlock",
+            "EnergyShieldOnSpellBlock",
+            "LifeOnSuppress",
+            "EnergyShieldOnSuppress",
+            "LifeRecoup",
+            "ManaRecoup",
+            "EnergyShieldRecoup",
+            "anyRecoup",
         ],
 
         "DEF-06-ehp" => &[

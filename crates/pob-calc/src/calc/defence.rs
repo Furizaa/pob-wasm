@@ -1,6 +1,8 @@
 use super::env::{get_output_f64, CalcEnv};
 use crate::calc::calc_tools::calc_def_mod;
-use crate::mod_db::types::{KeywordFlags, Mod, ModFlags, ModSource, ModType, ModValue, SkillCfg};
+use crate::mod_db::types::{
+    KeywordFlags, Mod, ModFlags, ModSource, ModTag, ModType, ModValue, SkillCfg,
+};
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -53,6 +55,7 @@ pub fn run(env: &mut CalcEnv) {
     calc_leech_caps(env);
     calc_regeneration(env);
     calc_es_recharge(env);
+    calc_recoup(env);
     calc_ward_recharge_delay(env);
     calc_damage_reduction(env);
     calc_movement_and_avoidance(env);
@@ -1557,6 +1560,8 @@ fn calc_primary_defences(env: &mut CalcEnv) {
     };
     env.player
         .set_output("EnergyShieldRecoveryCap", es_recover_cap);
+    env.player
+        .set_output("CappingES", if capping_es { 1.0 } else { 0.0 });
 
     // ── Evade chance ──────────────────────────────────────────────────────────
     let evade_chance = if env.player.mod_db.flag_cfg("CannotEvade", None, &output)
@@ -2422,6 +2427,178 @@ fn calc_es_recharge(env: &mut CalcEnv) {
         // CalcDefence.lua:1380: output.EnergyShieldRecharge = 0
         env.player.set_output("EnergyShieldRecharge", 0.0);
     }
+}
+
+// ── Recoup (CalcDefence.lua:1383-1471) ───────────────────────────────────────
+
+/// Compute recoup fields: global recoup, per-damage-type recoup, and pseudo-recoup.
+/// Mirrors CalcDefence.lua:1383-1471.
+fn calc_recoup(env: &mut CalcEnv) {
+    let output = env.player.output.clone();
+    let recoup_types: [&str; 3] = ["Life", "Mana", "EnergyShield"];
+
+    let mut any_recoup: f64 = 0.0;
+
+    // ── 3a. Global recoup (Lua lines 1385-1408) ─────────────────────────────
+    let es_recoup_instead_of_life = env
+        .player
+        .mod_db
+        .flag_cfg("EnergyShieldRecoupInsteadOfLife", None, &output);
+
+    for recoup_type in &recoup_types {
+        if *recoup_type == "Life" && es_recoup_instead_of_life {
+            // Ghost Reaver: life recoup converts to ES recoup
+            env.player.set_output("LifeRecoup", 0.0);
+            let life_recoup = env
+                .player
+                .mod_db
+                .sum_cfg(ModType::Base, "LifeRecoup", None, &output);
+            env.player.mod_db.add(Mod::new_base(
+                "EnergyShieldRecoup",
+                life_recoup,
+                ModSource::new("Conversion", "Life Recoup Conversion"),
+            ));
+        } else {
+            let base_recoup = env.player.mod_db.sum_cfg(
+                ModType::Base,
+                &format!("{recoup_type}Recoup"),
+                None,
+                &output,
+            );
+            let recovery_rate_mod =
+                get_output_f64(&output, &format!("{recoup_type}RecoveryRateMod"));
+            let val = base_recoup * recovery_rate_mod;
+            env.player
+                .set_output(&format!("{recoup_type}Recoup"), val);
+            any_recoup += val;
+        }
+    }
+
+    // ── Absorption charges (Lua lines 1410-1414) ────────────────────────────
+    if env
+        .player
+        .mod_db
+        .flag_cfg("UsePowerCharges", None, &output)
+        && env
+            .player
+            .mod_db
+            .flag_cfg("PowerChargesConvertToAbsorptionCharges", None, &output)
+    {
+        let per_absorption = env.player.mod_db.sum_cfg(
+            ModType::Base,
+            "PerAbsorptionElementalEnergyShieldRecoup",
+            None,
+            &output,
+        );
+        for element in &["Cold", "Fire", "Lightning"] {
+            let mut m = Mod::new_base(
+                format!("{element}EnergyShieldRecoup"),
+                per_absorption,
+                ModSource::new("Conversion", "Absorption Charges"),
+            );
+            m.tags.push(ModTag::Multiplier {
+                var: "AbsorptionCharge".into(),
+                div: 1.0,
+                limit: None,
+                base: 0.0,
+            });
+            env.player.mod_db.add(m);
+        }
+    }
+
+    // ── 3b. Per-damage-type recoup (Lua lines 1417-1440) ────────────────────
+    for recoup_type in &recoup_types {
+        let recovery_rate_mod =
+            get_output_f64(&output, &format!("{recoup_type}RecoveryRateMod"));
+        for dmg_type in DMG_TYPE_NAMES.iter() {
+            if *recoup_type == "Life" && es_recoup_instead_of_life {
+                env.player
+                    .set_output(&format!("{dmg_type}LifeRecoup"), 0.0);
+                let life_recoup = env.player.mod_db.sum_cfg(
+                    ModType::Base,
+                    &format!("{dmg_type}LifeRecoup"),
+                    None,
+                    &output,
+                );
+                env.player.mod_db.add(Mod::new_base(
+                    format!("{dmg_type}EnergyShieldRecoup"),
+                    life_recoup,
+                    ModSource::new("Conversion", "Life Recoup Conversion"),
+                ));
+            } else {
+                let recoup = env.player.mod_db.sum_cfg(
+                    ModType::Base,
+                    &format!("{dmg_type}{recoup_type}Recoup"),
+                    None,
+                    &output,
+                );
+                let val = recoup * recovery_rate_mod;
+                env.player
+                    .set_output(&format!("{dmg_type}{recoup_type}Recoup"), val);
+                any_recoup += val;
+            }
+        }
+    }
+
+    // ── 3c. Pseudo-recoup (Lua lines 1442-1470) ────────────────────────────
+    for resource in &recoup_types {
+        let no_regen = env
+            .player
+            .mod_db
+            .flag_cfg(&format!("No{resource}Regen"), None, &output);
+        let cannot_gain = env
+            .player
+            .mod_db
+            .flag_cfg(&format!("CannotGain{resource}"), None, &output);
+        if no_regen || cannot_gain {
+            continue;
+        }
+
+        let phys_mitigated_pseudo = env.player.mod_db.sum_cfg(
+            ModType::Base,
+            &format!("PhysicalDamageMitigated{resource}PseudoRecoup"),
+            None,
+            &output,
+        );
+        if phys_mitigated_pseudo > 0.0 {
+            let mut duration = env.player.mod_db.sum_cfg(
+                ModType::Base,
+                &format!("PhysicalDamageMitigated{resource}PseudoRecoupDuration"),
+                None,
+                &output,
+            );
+            if duration == 0.0 {
+                duration = 4.0; // default 4 seconds
+            }
+            env.player.set_output(
+                &format!("PhysicalDamageMitigated{resource}PseudoRecoupDuration"),
+                duration,
+            );
+
+            // Pseudo-recoup uses Regen INC/More, not Recoup modifiers
+            let inc = env.player.mod_db.sum_cfg(
+                ModType::Inc,
+                &format!("{resource}Regen"),
+                None,
+                &output,
+            );
+            let more = env
+                .player
+                .mod_db
+                .more_cfg(&format!("{resource}Regen"), None, &output);
+            let recovery_rate_mod =
+                get_output_f64(&output, &format!("{resource}RecoveryRateMod"));
+
+            let val = phys_mitigated_pseudo * (1.0 + inc / 100.0) * more * recovery_rate_mod;
+            env.player.set_output(
+                &format!("PhysicalDamageMitigated{resource}PseudoRecoup"),
+                val,
+            );
+            any_recoup += val;
+        }
+    }
+
+    env.player.set_output("anyRecoup", any_recoup);
 }
 
 // ── Ward recharge delay (CalcDefence.lua:1473-1483) ──────────────────────────
