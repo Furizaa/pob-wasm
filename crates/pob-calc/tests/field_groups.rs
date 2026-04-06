@@ -414,11 +414,7 @@ pub fn fields_for_chunk(chunk: &str) -> Option<&'static [&'static str]> {
         ],
 
         // ── Tier 5: Offence (CalcOffence) ──
-        "OFF-01-base-damage" => &[
-            "AverageDamage",
-            "AverageBurstDamage",
-            "AverageBurstHits",
-        ],
+        "OFF-01-base-damage" => &["AverageDamage", "AverageBurstDamage", "AverageBurstHits"],
 
         "OFF-02-conversion" => &[
             // Conversion fields are intermediate — they manifest in per-type damage fields.
@@ -597,6 +593,14 @@ pub fn all_chunk_ids() -> &'static [&'static str] {
         "SETUP-14-tattoo-overrides",
         "SETUP-15-forbidden-flesh-flame",
         "SETUP-16-special-uniques",
+        "FIX-01-stat-name-mismatches",
+        "FIX-02-per-slot-defence",
+        "FIX-03-radius-jewel-callbacks",
+        "FIX-04-glorious-vanity-normals",
+        "FIX-05-tattoo-data",
+        "FIX-06-perf02-medium-gaps",
+        "FIX-07-energy-blade",
+        "FIX-08-mana-computation",
         "PERF-01-attributes",
         "PERF-02-life-mana-es",
         "PERF-03-charges",
@@ -622,14 +626,6 @@ pub fn all_chunk_ids() -> &'static [&'static str] {
         "TRIG-02-totem-trap-mine",
         "MIR-01-mirages",
         "AGG-01-full-dps",
-        "FIX-01-stat-name-mismatches",
-        "FIX-02-per-slot-defence",
-        "FIX-03-radius-jewel-callbacks",
-        "FIX-04-glorious-vanity-normals",
-        "FIX-05-tattoo-data",
-        "FIX-06-perf02-medium-gaps",
-        "FIX-07-energy-blade",
-        "FIX-08-mana-computation",
     ]
 }
 
