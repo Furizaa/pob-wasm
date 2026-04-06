@@ -462,7 +462,7 @@ fn calc_damage_taken_mult(env: &mut CalcEnv) {
         }
 
         // L1894-1906: Reflect multiplier
-        let reflect_inc = taken_inc
+        let mut reflect_inc = taken_inc
             + env.player.mod_db.sum_cfg(ModType::Inc, "ReflectedDamageTaken", None, &output)
             + env.player.mod_db.sum_cfg(ModType::Inc, &format!("{type_name}ReflectedDamageTaken"), None, &output);
         let mut reflect_more = taken_more
@@ -470,7 +470,7 @@ fn calc_damage_taken_mult(env: &mut CalcEnv) {
             * env.player.mod_db.more_cfg(&format!("{type_name}ReflectedDamageTaken"), None, &output);
         if is_elemental(i) {
             // L1899-1900
-            let _reflect_inc_extra = env.player.mod_db.sum_cfg(ModType::Inc, "ElementalReflectedDamageTaken", None, &output);
+            reflect_inc += env.player.mod_db.sum_cfg(ModType::Inc, "ElementalReflectedDamageTaken", None, &output);
             reflect_more *= env.player.mod_db.more_cfg("ElementalReflectedDamageTaken", None, &output);
         }
         let taken_reflect = ((1.0 + reflect_inc / 100.0) * reflect_more).max(0.0);
@@ -1123,59 +1123,747 @@ fn calc_total_pool(env: &mut CalcEnv) {
 
 // ── 14. numberOfHitsToDie simulation (L2529-2826) ────────────────────────────
 
+/// Pool state for the iterative hit simulation (mirrors Lua poolTable).
+#[derive(Clone)]
+struct PoolTable {
+    allies: [AllyPool; 7], // frostShield, spectres, totems, vaalRejuvTotems, radianceSentinel, voidSpawn, soulLink
+    aegis_per_type: [f64; 5],
+    aegis_shared: f64,
+    aegis_shared_elemental: f64,
+    guard_per_type: [f64; 5],
+    guard_shared: f64,
+    ward: f64,
+    energy_shield: f64,
+    mana: f64,
+    life: f64,
+    life_loss_lost_over_time: f64,
+    life_below_half_loss_lost_over_time: f64,
+    overkill_damage: f64,
+    damage_taken_that_can_be_recouped: [f64; 5],
+}
+
+#[derive(Clone, Copy)]
+struct AllyPool {
+    remaining: f64,
+    percent: f64,
+}
+
+/// Damage input for a single call to numberOfHitsToDie.
+#[derive(Clone)]
+struct DamageIn {
+    per_type: [f64; 5],
+    cycles: f64,
+    iterations: i32,
+    cycles_ran: bool,
+    track_recoupable: bool,
+    track_life_loss_over_time: bool,
+    ward_bypass: f64,
+    gain_when_hit: bool,
+    life_when_hit: f64,
+    mana_when_hit: f64,
+    es_when_hit: f64,
+    missing_life_before_enemy_hit: f64,
+    missing_mana_before_enemy_hit: f64,
+    per_type_es_bypass: [Option<f64>; 5], // BlockedDamageDoesntBypassES override
+}
+
+/// Lua: calcs.reducePoolsByDamage (L163-409)
+/// Reduces pool state by the given per-type damage. Returns the modified pool.
+fn reduce_pools_by_damage(
+    env: &CalcEnv,
+    pool: &mut PoolTable,
+    damage_table: &[f64; 5],
+    damage_active: &[bool; 5], // which types have non-zero damage
+) {
+    let output = &env.player.output;
+    let life_loss_below_half_prevented = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "LifeLossBelowHalfPrevented", None, output);
+    let prevented_life_loss = get_output_f64(output, "preventedLifeLoss");
+    let prevented_life_loss_total = get_output_f64(output, "preventedLifeLossTotal");
+    let max_life = get_output_f64(output, "Life");
+    let ward_not_break = env
+        .player
+        .mod_db
+        .flag_cfg("WardNotBreak", None, output);
+    let restore_ward = if ward_not_break { pool.ward } else { 0.0 };
+
+    // Ceil all damage values (L168-170)
+    let mut damage = [0.0f64; 5];
+    for i in 0..5 {
+        damage[i] = if damage_table[i] > 0.0 {
+            damage_table[i].ceil()
+        } else {
+            0.0
+        };
+    }
+
+    // L233-252: Initialize MoM(+EB(+Bypass)) pools
+    let life_hit_pool_initial = calc_life_hit_pool_with_loss_prevention(
+        pool.life,
+        max_life,
+        prevented_life_loss,
+        life_loss_below_half_prevented,
+    );
+    let es_protects_mana = env
+        .player
+        .mod_db
+        .flag_cfg("EnergyShieldProtectsMana", None, output);
+    let shared_mom = get_output_f64(output, "sharedMindOverMatter");
+    let mut mom_pools_remaining = [0.0f64; 5];
+    let mut es_pools_remaining = [0.0f64; 5];
+    for (i, type_name) in DMG_TYPE_NAMES.iter().enumerate() {
+        if !damage_active[i] { continue; }
+        let type_mom = get_output_f64(output, &format!("{type_name}MindOverMatter"));
+        let mom_effect = (shared_mom + type_mom).min(100.0) / 100.0;
+        let max_mom = if mom_effect < 1.0 {
+            life_hit_pool_initial / (1.0 - mom_effect) - life_hit_pool_initial
+        } else {
+            pool.mana
+        };
+        let mom_pool = if mom_effect < 1.0 { max_mom.min(pool.mana) } else { pool.mana };
+        let life_plus_mom = life_hit_pool_initial + mom_pool;
+        let es_bypass = get_output_f64(output, &format!("{type_name}EnergyShieldBypass")) / 100.0;
+        let es_pool = if es_bypass > 0.0 {
+            (life_plus_mom / es_bypass - life_plus_mom).min(pool.energy_shield)
+        } else {
+            pool.energy_shield
+        };
+        if es_protects_mana && es_bypass < 1.0 {
+            es_pools_remaining[i] = (max_mom * (1.0 - es_bypass))
+                .min(pool.energy_shield)
+                .min(life_plus_mom / (1.0 - (1.0 - es_bypass) * mom_effect) - life_plus_mom)
+                .floor();
+            mom_pools_remaining[i] = (max_mom - es_pools_remaining[i]).min(mom_pool).floor();
+        } else {
+            es_pools_remaining[i] = es_pool.floor();
+            mom_pools_remaining[i] = mom_pool.floor();
+        }
+    }
+
+    let mut ward = pool.ward.max(0.0);
+    let mut energy_shield = pool.energy_shield.max(0.0);
+    let mut mana = pool.mana.max(0.0);
+    let mut life = pool.life.max(0.0);
+    let mut life_loss_lost_over_time = pool.life_loss_lost_over_time;
+    let mut life_below_half_loss_lost_over_time = pool.life_below_half_loss_lost_over_time;
+    let mut overkill_damage = 0.0f64;
+
+    // L254-383: Per-type damage reduction through pools
+    for i in 0..5 {
+        let mut damage_remainder = damage[i];
+        if damage_remainder <= 0.0 {
+            continue;
+        }
+        let type_name = DMG_TYPE_NAMES[i];
+
+        // Allies taken before you (L257-266)
+        for ally in pool.allies.iter_mut() {
+            if ally.remaining > 0.0 && ally.percent > 0.0 {
+                let temp = (damage_remainder * ally.percent).min(ally.remaining);
+                ally.remaining = (ally.remaining - temp).floor();
+                damage_remainder -= temp;
+            }
+        }
+
+        // Recoup tracking (L268)
+        pool.damage_taken_that_can_be_recouped[i] += damage_remainder;
+
+        // Aegis per-type (L269-274)
+        if pool.aegis_per_type[i] > 0.0 {
+            let temp = damage_remainder.min(pool.aegis_per_type[i]);
+            pool.aegis_per_type[i] -= temp;
+            damage_remainder -= temp;
+        }
+        // Aegis shared elemental (L275-280)
+        if is_elemental(i) && pool.aegis_shared_elemental > 0.0 {
+            let temp = damage_remainder.min(pool.aegis_shared_elemental);
+            pool.aegis_shared_elemental -= temp;
+            damage_remainder -= temp;
+        }
+        // Aegis shared (L281-286)
+        if pool.aegis_shared > 0.0 {
+            let temp = damage_remainder.min(pool.aegis_shared);
+            pool.aegis_shared -= temp;
+            damage_remainder -= temp;
+        }
+        // Guard per-type (L287-292)
+        let type_guard_rate = get_output_f64(output, &format!("{type_name}GuardAbsorbRate"));
+        if pool.guard_per_type[i] > 0.0 {
+            let temp = (damage_remainder * type_guard_rate / 100.0).min(pool.guard_per_type[i]);
+            pool.guard_per_type[i] = (pool.guard_per_type[i] - temp).floor();
+            damage_remainder -= temp;
+        }
+        // Guard shared (L293-298)
+        let shared_guard_rate = get_output_f64(output, "sharedGuardAbsorbRate");
+        if pool.guard_shared > 0.0 {
+            let temp = (damage_remainder * shared_guard_rate / 100.0).min(pool.guard_shared);
+            pool.guard_shared = (pool.guard_shared - temp).floor();
+            damage_remainder -= temp;
+        }
+        // Ward (L299-304)
+        if ward > 0.0 {
+            let ward_bypass_pct = env
+                .player
+                .mod_db
+                .sum_cfg(ModType::Base, "WardBypass", None, output);
+            let temp = (damage_remainder * (1.0 - ward_bypass_pct / 100.0)).min(ward);
+            ward -= temp;
+            damage_remainder -= temp;
+        }
+        // ES (L305-316) — non-EB path
+        let mom_effect_i = {
+            let type_mom = get_output_f64(output, &format!("{type_name}MindOverMatter"));
+            (shared_mom + type_mom).min(100.0) / 100.0
+        };
+        let es_bypass = get_output_f64(output, &format!("{type_name}EnergyShieldBypass")) / 100.0;
+        if energy_shield > 0.0 && !es_protects_mana && es_bypass < 1.0 {
+            let temp = (damage_remainder * (1.0 - es_bypass)).min(es_pools_remaining[i]);
+            for j in 0..5 {
+                if damage_active[j] {
+                    es_pools_remaining[j] = (es_pools_remaining[j] - temp).max(0.0);
+                }
+            }
+            energy_shield -= temp;
+            damage_remainder -= temp;
+        }
+        // MoM (L317-336)
+        if mom_effect_i > 0.0 {
+            let mom_damage = (damage_remainder * mom_effect_i).ceil();
+            let mut mom_damage_remaining = mom_damage;
+            // ES protects mana (L319-328)
+            if es_protects_mana && energy_shield > 0.0 && es_bypass < 1.0 {
+                let temp = (mom_damage_remaining * (1.0 - es_bypass))
+                    .ceil()
+                    .min(es_pools_remaining[i]);
+                for j in 0..5 {
+                    if damage_active[j] {
+                        es_pools_remaining[j] = (es_pools_remaining[j] - temp).floor().max(0.0);
+                    }
+                }
+                energy_shield -= temp;
+                damage_remainder -= temp;
+                mom_damage_remaining -= temp;
+            }
+            // Mana pool (L329-335)
+            let temp = mom_damage_remaining.ceil().min(mom_pools_remaining[i]);
+            for j in 0..5 {
+                if damage_active[j] {
+                    mom_pools_remaining[j] = (mom_pools_remaining[j] - temp).floor().max(0.0);
+                }
+            }
+            mana -= temp;
+            damage_remainder -= temp;
+        }
+        // Prevented life loss (L337-373)
+        if prevented_life_loss_total > 0.0 {
+            let half_life = max_life * 0.5;
+            let life_over_half = (life - half_life).max(0.0);
+            let prevent_percent = prevented_life_loss / 100.0;
+            let pool_above_low = life_over_half / (1.0 - prevent_percent);
+            let prevent_below_half_percent = life_loss_below_half_prevented / 100.0;
+            let damage_that_life_can_still_take = pool_above_low
+                + life.min(half_life).max(0.0) / (1.0 - prevent_below_half_percent)
+                    / (1.0 - prevented_life_loss / 100.0);
+            if damage_that_life_can_still_take < damage_remainder {
+                overkill_damage += damage_remainder - damage_that_life_can_still_take;
+                damage_remainder = damage_that_life_can_still_take;
+            }
+            if get_output_f64(output, "preventedLifeLossBelowHalf") != 0.0 {
+                let damage_to_split = damage_remainder.min(pool_above_low);
+                let lost_life = damage_to_split * (1.0 - prevent_percent);
+                let prevented_loss = damage_to_split * prevent_percent;
+                damage_remainder -= damage_to_split;
+                life_loss_lost_over_time += prevented_loss;
+                life -= lost_life;
+                if life <= half_life {
+                    let unspecific = damage_remainder * prevent_percent;
+                    life_loss_lost_over_time += unspecific;
+                    damage_remainder -= unspecific;
+                    let specific = damage_remainder * prevent_below_half_percent;
+                    life_below_half_loss_lost_over_time += specific;
+                    damage_remainder -= specific;
+                }
+            } else {
+                let temp = damage_remainder * prevented_life_loss / 100.0;
+                life_loss_lost_over_time += temp;
+                damage_remainder -= temp;
+            }
+        }
+        // Life (L374-379)
+        if life > 0.0 {
+            let temp = damage_remainder.min(life);
+            life -= temp;
+            damage_remainder -= temp;
+        }
+        overkill_damage += damage_remainder;
+    }
+
+    pool.ward = restore_ward.floor();
+    pool.energy_shield = energy_shield.floor();
+    pool.mana = mana.floor();
+    pool.life = life.floor();
+    pool.life_loss_lost_over_time = life_loss_lost_over_time.ceil();
+    pool.life_below_half_loss_lost_over_time = life_below_half_loss_lost_over_time.ceil();
+    pool.overkill_damage = overkill_damage.ceil();
+}
+
+/// Lua: numberOfHitsToDie (L2529-2705)
+/// Iteratively reduces pools until life hits 0 to determine number of hits to die.
+fn number_of_hits_to_die(
+    env: &CalcEnv,
+    damage_in: &mut DamageIn,
+) -> f64 {
+    let output = &env.player.output;
+    let data = &env.data;
+
+    let mut num_hits: f64 = 0.0;
+
+    // L2536-2545: check damage isn't 0 and ward doesn't mitigate all
+    let mut total_dmg = 0.0;
+    for d in damage_in.per_type.iter() {
+        total_dmg += *d;
+    }
+    if total_dmg == 0.0 {
+        return f64::INFINITY;
+    }
+    let ward_val = get_output_f64(output, "Ward");
+    if env.player.mod_db.flag_cfg("WardNotBreak", None, output) && ward_val > 0.0 && total_dmg < ward_val {
+        return f64::INFINITY;
+    }
+
+    // L2547-2594: Build pool table
+    let ward = if !env.player.mod_db.flag_cfg("WardNotBreak", None, output) && damage_in.cycles > 1.0 {
+        0.0
+    } else {
+        ward_val
+    };
+    let mut allies = [AllyPool { remaining: 0.0, percent: 0.0 }; 7];
+    let frost_shield_life = get_output_f64(output, "FrostShieldLife");
+    if frost_shield_life > 0.0 {
+        allies[0] = AllyPool { remaining: frost_shield_life, percent: get_output_f64(output, "FrostShieldDamageMitigation") / 100.0 };
+    }
+    // Spectres, totems etc. — typically 0 for oracle builds, but initialize from output
+    let spectre_life = get_output_f64(output, "TotalSpectreLife");
+    if spectre_life > 0.0 {
+        allies[1] = AllyPool { remaining: spectre_life, percent: get_output_f64(output, "SpectreAllyDamageMitigation") / 100.0 };
+    }
+    let totem_life = get_output_f64(output, "TotalTotemLife");
+    if totem_life > 0.0 {
+        allies[2] = AllyPool { remaining: totem_life, percent: get_output_f64(output, "TotemAllyDamageMitigation") / 100.0 };
+    }
+    let vaal_rejuv_totem_life = get_output_f64(output, "TotalVaalRejuvenationTotemLife");
+    if vaal_rejuv_totem_life > 0.0 {
+        allies[3] = AllyPool { remaining: vaal_rejuv_totem_life, percent: get_output_f64(output, "VaalRejuvenationTotemAllyDamageMitigation") / 100.0 };
+    }
+    let radiance_sentinel_life = get_output_f64(output, "TotalRadianceSentinelLife");
+    if radiance_sentinel_life > 0.0 {
+        allies[4] = AllyPool { remaining: radiance_sentinel_life, percent: get_output_f64(output, "RadianceSentinelAllyDamageMitigation") / 100.0 };
+    }
+    let void_spawn_life = get_output_f64(output, "TotalVoidSpawnLife");
+    if void_spawn_life > 0.0 {
+        allies[5] = AllyPool { remaining: void_spawn_life, percent: get_output_f64(output, "VoidSpawnAllyDamageMitigation") / 100.0 };
+    }
+    let allied_es = get_output_f64(output, "AlliedEnergyShield");
+    if allied_es > 0.0 {
+        allies[6] = AllyPool { remaining: allied_es, percent: get_output_f64(output, "SoulLinkMitigation") / 100.0 };
+    }
+
+    let mut pool = PoolTable {
+        allies,
+        aegis_per_type: std::array::from_fn(|i| get_output_f64(output, &format!("{}Aegis", DMG_TYPE_NAMES[i]))),
+        aegis_shared: get_output_f64(output, "sharedAegis"),
+        aegis_shared_elemental: get_output_f64(output, "sharedElementalAegis"),
+        guard_per_type: std::array::from_fn(|i| get_output_f64(output, &format!("{}GuardAbsorb", DMG_TYPE_NAMES[i]))),
+        guard_shared: get_output_f64(output, "sharedGuardAbsorb"),
+        ward,
+        energy_shield: get_output_f64(output, "EnergyShieldRecoveryCap"),
+        mana: get_output_f64(output, "ManaUnreserved").max(0.0),
+        life: get_output_f64(output, "LifeRecoverable").max(0.0),
+        life_loss_lost_over_time: get_output_f64(output, "LifeLossLostOverTime"),
+        life_below_half_loss_lost_over_time: get_output_f64(output, "LifeBelowHalfLossLostOverTime"),
+        overkill_damage: 0.0,
+        damage_taken_that_can_be_recouped: [0.0; 5],
+    };
+
+    // L2597-2603: Tracking flags — only on first cycle
+    if damage_in.cycles == 1.0 {
+        // keep track_recoupable and track_life_loss_over_time as set by caller
+    } else {
+        damage_in.track_recoupable = false;
+        damage_in.track_life_loss_over_time = false;
+    }
+
+    // L2604: ward bypass
+    if damage_in.ward_bypass == 0.0 {
+        damage_in.ward_bypass = env
+            .player
+            .mod_db
+            .sum_cfg(ModType::Base, "WardBypass", None, output);
+    }
+
+    // L2606-2609: Vaal Arctic Armour
+    let vaal_arctic_armour_mitigation = get_output_f64(output, "VaalArcticArmourMitigation");
+    let mut vaal_arctic_hits_left = get_output_f64(output, "VaalArcticArmourLife");
+    if damage_in.cycles > 1.0 {
+        vaal_arctic_hits_left = 0.0;
+    }
+
+    let max_damage = data.misc.pob_misc.ehp_calc_max_damage;
+    let max_iterations = data.misc.pob_misc.ehp_calc_max_iterations_to_calc;
+    let life_unreserved = get_output_f64(output, "LifeUnreserved").max(0.0);
+    let life_recoverable = get_output_f64(output, "LifeRecoverable").max(0.0);
+    let mana_unreserved = get_output_f64(output, "ManaUnreserved").max(0.0);
+    let es_cap = get_output_f64(output, "EnergyShieldRecoveryCap");
+
+    let mut iteration_multiplier: f64 = 1.0;
+    let mut damage_total: f64;
+
+    // L2615-2682: Main loop
+    while pool.life > 0.0 && damage_in.iterations < max_iterations {
+        damage_in.iterations += 1;
+        damage_total = 0.0;
+
+        // L2619: Vaal Arctic Armour multiplier
+        let vaal_mult = if vaal_arctic_hits_left > 0.0 {
+            1.0 - vaal_arctic_armour_mitigation * (vaal_arctic_hits_left / iteration_multiplier).min(1.0)
+        } else {
+            1.0
+        };
+        vaal_arctic_hits_left -= iteration_multiplier;
+
+        // L2621-2625: Scale per-type damage
+        let mut scaled_damage = [0.0f64; 5];
+        let mut damage_active = [false; 5];
+        for i in 0..5 {
+            let d = damage_in.per_type[i];
+            if d > 0.0 {
+                scaled_damage[i] = d * iteration_multiplier * vaal_mult;
+                damage_active[i] = true;
+            }
+            damage_total += d;
+        }
+
+        // L2626-2639: GainWhenHit scaling for speedup/cycles
+        if damage_in.gain_when_hit && (iteration_multiplier > 1.0 || damage_in.cycles > 1.0) {
+            let gain_mult = iteration_multiplier * damage_in.cycles;
+            if damage_in.missing_life_before_enemy_hit != 0.0 {
+                pool.life = (pool.life
+                    + damage_in.missing_life_before_enemy_hit
+                        * (life_unreserved - pool.life)
+                        * (gain_mult - 1.0)
+                        / 100.0)
+                    .min(gain_mult * life_recoverable);
+            }
+            if damage_in.missing_mana_before_enemy_hit != 0.0 {
+                pool.mana = (pool.mana
+                    + damage_in.missing_mana_before_enemy_hit
+                        * (mana_unreserved - pool.mana)
+                        * (gain_mult - 1.0)
+                        / 100.0)
+                    .min(gain_mult * mana_unreserved);
+            }
+            if damage_in.gain_when_hit {
+                pool.life = (pool.life + damage_in.life_when_hit * (gain_mult - 1.0))
+                    .min(gain_mult * life_recoverable);
+                pool.mana = (pool.mana + damage_in.mana_when_hit * (gain_mult - 1.0))
+                    .min(gain_mult * mana_unreserved);
+                pool.energy_shield = (pool.energy_shield + damage_in.es_when_hit * (gain_mult - 1.0))
+                    .min(gain_mult * es_cap);
+            }
+        }
+        // L2640-2645: MissingLife/Mana before hit (non-speedup)
+        if damage_in.missing_life_before_enemy_hit != 0.0 && pool.life > 0.0 {
+            pool.life = (pool.life
+                + damage_in.missing_life_before_enemy_hit
+                    * (life_unreserved - pool.life)
+                    / 100.0)
+                .min(life_recoverable);
+        }
+        if damage_in.missing_mana_before_enemy_hit != 0.0 && pool.mana > 0.0 {
+            pool.mana = (pool.mana
+                + damage_in.missing_mana_before_enemy_hit
+                    * (mana_unreserved - pool.mana)
+                    / 100.0)
+                .min(mana_unreserved);
+        }
+
+        // L2646: reduce pools by damage
+        reduce_pools_by_damage(env, &mut pool, &scaled_damage, &damage_active);
+
+        // L2648-2651: infinite survival check
+        if pool.life > 0.0 && damage_total >= max_damage {
+            return f64::INFINITY;
+        }
+
+        // L2652-2656: GainWhenHit after hit
+        if damage_in.gain_when_hit && pool.life > 0.0 {
+            pool.life = (pool.life + damage_in.life_when_hit).min(life_recoverable);
+            pool.mana = (pool.mana + damage_in.mana_when_hit).min(mana_unreserved);
+            pool.energy_shield = (pool.energy_shield + damage_in.es_when_hit).min(es_cap);
+        }
+
+        iteration_multiplier = 1.0;
+
+        // L2657-2680: Recursive speedup
+        let speed_up = data.misc.pob_misc.ehp_calc_speed_up as f64;
+        if !damage_in.cycles_ran && pool.life > 0.0 && damage_in.iterations < max_iterations {
+            let mut speedup_din = DamageIn {
+                per_type: std::array::from_fn(|j| damage_in.per_type[j] * speed_up),
+                cycles: damage_in.cycles * speed_up,
+                iterations: damage_in.iterations,
+                cycles_ran: false,
+                track_recoupable: false,
+                track_life_loss_over_time: false,
+                ward_bypass: damage_in.ward_bypass,
+                gain_when_hit: damage_in.gain_when_hit,
+                life_when_hit: damage_in.life_when_hit,
+                mana_when_hit: damage_in.mana_when_hit,
+                es_when_hit: damage_in.es_when_hit,
+                missing_life_before_enemy_hit: damage_in.missing_life_before_enemy_hit,
+                missing_mana_before_enemy_hit: damage_in.missing_mana_before_enemy_hit,
+                per_type_es_bypass: damage_in.per_type_es_bypass,
+            };
+            let sub_result = number_of_hits_to_die(env, &mut speedup_din);
+            if sub_result == f64::INFINITY {
+                return f64::INFINITY;
+            }
+            iteration_multiplier = ((sub_result - 1.0) * speed_up - 1.0).max(1.0);
+            damage_in.iterations = speedup_din.iterations;
+            damage_in.cycles_ran = true;
+        }
+
+        num_hits += iteration_multiplier;
+    }
+
+    // L2683-2691: Tracking outputs
+    if damage_in.track_recoupable {
+        // Write recoupable damage — caller handles output writes
+    }
+
+    // L2693-2695: Overkill adjustment
+    if pool.life == 0.0 && damage_in.cycles == 1.0 {
+        damage_total = 0.0;
+        for d in damage_in.per_type.iter() {
+            damage_total += *d;
+        }
+        if damage_total > 0.0 {
+            num_hits -= pool.overkill_damage / damage_total;
+        }
+    }
+
+    // L2696-2703: Final infinite check
+    damage_total = 0.0;
+    for i in 0..5 {
+        damage_total += damage_in.per_type[i] * num_hits;
+    }
+    if pool.life >= 0.0 && damage_total >= max_damage {
+        return f64::INFINITY;
+    }
+
+    num_hits
+}
+
 fn calc_number_of_hits_to_die(env: &mut CalcEnv) {
     let output = env.player.output.clone();
 
-    // Simplified numberOfHitsToDie: uses pool / damage approach
-    // The full Lua simulation (iterative pool reduction) is complex.
-    // We implement the key components: block, suppress, avoidance, then divide.
-
-    // L2707-2714: NumberOfDamagingHits (raw, no block/suppress)
-    let mut total_damage_per_hit = 0.0;
-    for type_name in DMG_TYPE_NAMES.iter() {
-        total_damage_per_hit += get_output_f64(&output, &format!("{type_name}TakenHit"));
-    }
-
-    // Use TotalHitPool (which includes MoM + ES + ward from calc_total_pool + calc_max_hit_taken)
-    // For the simplified model, use PhysicalTotalHitPool as representative
-    let total_hit_pool = get_output_f64(&output, "PhysicalTotalHitPool");
-    let ward = get_output_f64(&output, "Ward");
-    let pool_with_ward = total_hit_pool + ward;
-
-    let num_damaging_hits = if total_damage_per_hit > 0.0 {
-        pool_with_ward / total_damage_per_hit
-    } else {
-        f64::INFINITY
+    // L2707-2714: NumberOfDamagingHits (raw, no block/suppress/avoidance)
+    let mut damage_in_raw = DamageIn {
+        per_type: std::array::from_fn(|i| get_output_f64(&output, &format!("{}TakenHit", DMG_TYPE_NAMES[i]))),
+        cycles: 1.0,
+        iterations: 0,
+        cycles_ran: false,
+        track_recoupable: false,
+        track_life_loss_over_time: false,
+        ward_bypass: 0.0,
+        gain_when_hit: false,
+        life_when_hit: 0.0,
+        mana_when_hit: 0.0,
+        es_when_hit: 0.0,
+        missing_life_before_enemy_hit: 0.0,
+        missing_mana_before_enemy_hit: 0.0,
+        per_type_es_bypass: [None; 5],
     };
+    let num_damaging_hits = number_of_hits_to_die(env, &mut damage_in_raw);
     env.player
         .set_output("NumberOfDamagingHits", num_damaging_hits);
 
-    // L2717-2826: NumberOfMitigatedDamagingHits (with block, suppress, avoidance)
+    // L2717-2810: NumberOfMitigatedDamagingHits (with block/suppress/avoidance)
+    // damageCategoryConfig = "Average" for our purposes
+    // L2719-2722: For Average config, use EffectiveAverageBlockChance
     let block_chance = get_output_f64(&output, "EffectiveAverageBlockChance") / 100.0;
-    let block_effect = get_output_f64(&output, "BlockEffect");
-    let block_mult = 1.0 - block_chance * block_effect / 100.0;
+    let cannot_be_blocked = env
+        .enemy
+        .mod_db
+        .flag_cfg("CannotBeBlocked", None, &output);
+    let block_chance = if cannot_be_blocked { 0.0 } else { block_chance };
+    let block_effect_val = get_output_f64(&output, "BlockEffect");
+    let block_effect = 1.0 - block_chance * block_effect_val / 100.0;
 
+    // L2727-2756: Suppression
     let suppress_chance = get_output_f64(&output, "EffectiveSpellSuppressionChance") / 100.0;
-    let suppress_eff = get_output_f64(&output, "SpellSuppressionEffect");
-    let suppress_mult = if suppress_chance < 1.0 {
-        // For Average config, suppression applies to half of hits
-        1.0 - (suppress_chance / 2.0) * suppress_eff / 100.0
-    } else {
-        1.0 // Already factored into damage taken
-    };
+    let suppress_effect_val = get_output_f64(&output, "SpellSuppressionEffect");
+    let suppression_effect;
+    let mut life_when_hit = 0.0;
+    let mut mana_when_hit = 0.0;
+    let mut es_when_hit = 0.0;
 
-    let configured_damage_chance = 100.0 * block_mult * suppress_mult;
+    let disable_ehp_gain_on_block = env
+        .config_booleans
+        .get("DisableEHPGainOnBlock")
+        .copied()
+        .unwrap_or(false);
+
+    // L2731-2740: gain on block
+    if !disable_ehp_gain_on_block && num_damaging_hits > 1.0 {
+        life_when_hit = get_output_f64(&output, "LifeOnBlock") * block_chance;
+        mana_when_hit = get_output_f64(&output, "ManaOnBlock") * block_chance;
+        es_when_hit = get_output_f64(&output, "EnergyShieldOnBlock") * block_chance;
+        // Average config: add SpellBlock ES gain / 2
+        es_when_hit += get_output_f64(&output, "EnergyShieldOnSpellBlock") / 2.0 * block_chance;
+    }
+
+    // L2742-2756: suppression effect
+    if suppress_chance < 1.0 {
+        // Average: suppress_chance / 2
+        let eff_suppress = suppress_chance / 2.0;
+        es_when_hit += get_output_f64(&output, "EnergyShieldOnSuppress") * eff_suppress;
+        life_when_hit += get_output_f64(&output, "LifeOnSuppress") * eff_suppress;
+        suppression_effect = 1.0 - eff_suppress * suppress_effect_val / 100.0;
+    } else {
+        // 100% suppression: already factored into damage taken
+        es_when_hit += get_output_f64(&output, "EnergyShieldOnSuppress") * 0.5; // Average
+        life_when_hit += get_output_f64(&output, "LifeOnSuppress") * 0.5;
+        suppression_effect = 1.0;
+    }
+
+    // L2757-2762: extra avoid chance (Average: AvoidProjectilesChance / 2)
+    let extra_avoid_chance = get_output_f64(&output, "AvoidProjectilesChance") / 2.0;
+
+    // L2763-2774: gain when hit (Defiance of Destiny, block/suppress gains)
+    let mut missing_life = 0.0;
+    let mut missing_mana = 0.0;
+    let mut gain_when_hit = false;
+    if !disable_ehp_gain_on_block && num_damaging_hits > 1.0 {
+        missing_life = env
+            .player
+            .mod_db
+            .sum_cfg(ModType::Base, "MissingLifeBeforeEnemyHit", None, &output);
+        missing_mana = env
+            .player
+            .mod_db
+            .sum_cfg(ModType::Base, "MissingManaBeforeEnemyHit", None, &output);
+        if life_when_hit != 0.0
+            || mana_when_hit != 0.0
+            || es_when_hit != 0.0
+            || missing_life != 0.0
+            || missing_mana != 0.0
+        {
+            gain_when_hit = true;
+        }
+    } else {
+        life_when_hit = 0.0;
+        mana_when_hit = 0.0;
+        es_when_hit = 0.0;
+    }
+
+    // L2775-2808: Per-type damage with block/suppress/avoidance applied
+    let specific_type_avoidance = env
+        .player
+        .output
+        .get("specificTypeAvoidance")
+        .map(|v| matches!(v, crate::calc::env::OutputValue::Bool(true)))
+        .unwrap_or(false);
+    let avoid_chance_cap = env.data.misc.pob_misc.avoid_chance_cap;
+    let ehp_unlucky_worst_of = env
+        .config_numbers
+        .get("EHPUnluckyWorstOf")
+        .copied()
+        .unwrap_or(1.0) as i32;
+
+    let mut average_avoid_chance = 0.0;
+    let mut per_type_damage = [0.0f64; 5];
+    let mut per_type_es_bypass: [Option<f64>; 5] = [None; 5];
+
+    // L2776-2779: BlockedDamageDoesntBypassES
+    let blocked_doesnt_bypass = env
+        .player
+        .mod_db
+        .flag_cfg("BlockedDamageDoesntBypassES", None, &output);
+
+    for (i, type_name) in DMG_TYPE_NAMES.iter().enumerate() {
+        if blocked_doesnt_bypass {
+            let type_bypass = get_output_f64(&output, &format!("{type_name}EnergyShieldBypass"));
+            if type_bypass < 100.0 && i != DMG_CHAOS {
+                per_type_es_bypass[i] = Some(type_bypass * (1.0 - block_chance));
+            }
+        }
+
+        let mut avoid_chance = 0.0;
+        if specific_type_avoidance {
+            avoid_chance = (get_output_f64(&output, &format!("Avoid{type_name}DamageChance")) + extra_avoid_chance)
+                .min(avoid_chance_cap);
+            // L2784-2790: Unlucky config
+            if ehp_unlucky_worst_of > 1 {
+                avoid_chance = avoid_chance / 100.0 * avoid_chance;
+                if ehp_unlucky_worst_of == 4 {
+                    avoid_chance = avoid_chance / 100.0 * avoid_chance;
+                }
+            }
+            average_avoid_chance += avoid_chance;
+        }
+
+        per_type_damage[i] = get_output_f64(&output, &format!("{type_name}TakenHit"))
+            * (block_effect * suppression_effect * (1.0 - avoid_chance / 100.0));
+    }
+
+    // L2795-2807: Recoup and life loss over time initialization
+    let any_recoup = get_output_f64(&output, "anyRecoup");
+    let track_recoupable = any_recoup > 0.0;
+    if track_recoupable {
+        for type_name in DMG_TYPE_NAMES.iter() {
+            env.player
+                .set_output(&format!("{type_name}RecoupableDamageTaken"), 0.0);
+        }
+    }
+    let prevented_total = get_output_f64(&output, "preventedLifeLossTotal");
+    let track_life_loss = prevented_total > 0.0;
+    if track_life_loss {
+        env.player.set_output("LifeLossLostOverTime", 0.0);
+        env.player
+            .set_output("LifeBelowHalfLossLostOverTime", 0.0);
+    }
+
+    average_avoid_chance /= 5.0;
+    let configured_damage_chance =
+        100.0 * (block_effect * suppression_effect * (1.0 - average_avoid_chance / 100.0));
     env.player
         .set_output("ConfiguredDamageChance", configured_damage_chance);
 
-    let num_mitigated = if configured_damage_chance != 100.0 && total_damage_per_hit > 0.0 {
-        // Iteratively compute with block/suppress reducing damage
-        let mitigated_dmg = total_damage_per_hit * block_mult * suppress_mult;
-        if mitigated_dmg > 0.0 {
-            pool_with_ward / mitigated_dmg
-        } else {
-            f64::INFINITY
-        }
+    // L2810: NumberOfMitigatedDamagingHits
+    let num_mitigated = if configured_damage_chance != 100.0
+        || track_recoupable
+        || track_life_loss
+        || gain_when_hit
+    {
+        let mut damage_in = DamageIn {
+            per_type: per_type_damage,
+            cycles: 1.0,
+            iterations: 0,
+            cycles_ran: false,
+            track_recoupable,
+            track_life_loss_over_time: track_life_loss,
+            ward_bypass: 0.0,
+            gain_when_hit,
+            life_when_hit,
+            mana_when_hit,
+            es_when_hit,
+            missing_life_before_enemy_hit: missing_life,
+            missing_mana_before_enemy_hit: missing_mana,
+            per_type_es_bypass,
+        };
+        number_of_hits_to_die(env, &mut damage_in)
     } else {
         num_damaging_hits
     };
