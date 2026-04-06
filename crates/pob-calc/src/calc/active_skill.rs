@@ -829,25 +829,39 @@ pub fn build_active_skill_mod_list_with_gems(
                     // Cluster Traps adds ActiveTrapLimit BASE 5).
                     for cs in &sup_gd.constant_stats {
                         // Map known stat IDs to their mod names (mirrors SkillStatMap.lua).
-                        let mod_name = match cs.stat_id.as_str() {
+                        // Some stats need specific ModFlags to match correctly in queries.
+                        let mapping: Option<(&str, ModFlags)> = match cs.stat_id.as_str() {
                             // Base counts (from characterConstants stat map)
-                            "base_number_of_totems_allowed" => Some("ActiveTotemLimit"),
-                            "base_number_of_ballistas_allowed" => Some("ActiveBallistaLimit"),
-                            "base_number_of_traps_allowed" => Some("ActiveTrapLimit"),
-                            "base_number_of_remote_mines_allowed" => Some("ActiveMineLimit"),
-                            "base_number_of_brands_allowed" => Some("ActiveBrandLimit"),
+                            "base_number_of_totems_allowed" => Some(("ActiveTotemLimit", ModFlags::NONE)),
+                            "base_number_of_ballistas_allowed" => Some(("ActiveBallistaLimit", ModFlags::NONE)),
+                            "base_number_of_traps_allowed" => Some(("ActiveTrapLimit", ModFlags::NONE)),
+                            "base_number_of_remote_mines_allowed" => Some(("ActiveMineLimit", ModFlags::NONE)),
+                            "base_number_of_brands_allowed" => Some(("ActiveBrandLimit", ModFlags::NONE)),
                             // Additional counts (SkillStatMap.lua entries)
-                            "number_of_additional_traps_allowed" => Some("ActiveTrapLimit"),
-                            "number_of_additional_remote_mines_allowed" => Some("ActiveMineLimit"),
-                            "number_of_additional_ballistas_allowed" => Some("ActiveBallistaLimit"),
+                            "number_of_additional_traps_allowed" => Some(("ActiveTrapLimit", ModFlags::NONE)),
+                            "number_of_additional_remote_mines_allowed" => Some(("ActiveMineLimit", ModFlags::NONE)),
+                            "number_of_additional_ballistas_allowed" => Some(("ActiveBallistaLimit", ModFlags::NONE)),
+                            // Repeat counts (SkillStatMap.lua — Spell Echo, Multistrike, etc.)
+                            // base_spell_repeat_count: ModFlag.Cast restricts to spells
+                            "base_spell_repeat_count" => Some(("RepeatCount", ModFlags::CAST)),
+                            // base_melee_attack_repeat_count: needs ModFlagOr(WeaponMelee|Unarmed)
+                            // + SkillType(RequiresShield) tags — use MELEE as approximation
+                            "base_melee_attack_repeat_count" => Some(("RepeatCount", ModFlags::MELEE)),
+                            // skill_repeat_count: needs SkillType(Multicastable) tag — use CAST
+                            // as approximation (Multicastable skills are cast skills)
+                            "skill_repeat_count" => Some(("RepeatCount", ModFlags::CAST)),
                             _ => None,
                         };
-                        if let Some(name) = mod_name {
-                            skill.skill_mod_db.add(Mod::new_base(
-                                name,
-                                cs.value,
-                                ModSource::new("Support", &se.skill_id),
-                            ));
+                        if let Some((name, mod_flags)) = mapping {
+                            skill.skill_mod_db.add(Mod {
+                                name: name.into(),
+                                mod_type: ModType::Base,
+                                value: ModValue::Number(cs.value),
+                                flags: mod_flags,
+                                keyword_flags: KeywordFlags::NONE,
+                                tags: Vec::new(),
+                                source: ModSource::new("Support", &se.skill_id),
+                            });
                         }
                     }
                 }

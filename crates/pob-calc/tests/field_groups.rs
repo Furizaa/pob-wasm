@@ -418,8 +418,6 @@ pub fn fields_for_chunk(chunk: &str) -> Option<&'static [&'static str]> {
             "AverageDamage",
             "AverageBurstDamage",
             "AverageBurstHits",
-            "MainHand.AverageDamage",
-            "OffHand.AverageDamage",
         ],
 
         "OFF-02-conversion" => &[

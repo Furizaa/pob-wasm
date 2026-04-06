@@ -21,6 +21,10 @@ fn build_skill_cfg(env: &CalcEnv) -> SkillCfg {
     if skill.is_spell {
         flags = flags | ModFlags::SPELL;
     }
+    // CAST flag: non-attack skills use Cast flag (CalcActiveSkill.lua:348)
+    if !skill.is_attack {
+        flags = flags | ModFlags::CAST;
+    }
     // HIT flag: attacks and spells that deal damage are hits
     flags = flags | ModFlags::HIT;
     if skill.is_melee {
@@ -65,6 +69,13 @@ pub fn run(env: &mut CalcEnv, build: &Build) {
         env.player.set_output("CombinedDPS", 0.0);
         env.player.set_output("MinionDPS", 0.0);
         env.player.set_output("MinionCount", minion_count);
+        // Summoner: compute AverageBurstHits from Repeats (e.g. Spell Echo on spectre skill)
+        let repeats = compute_repeats(env, &build_skill_cfg(env));
+        env.player.set_output("Repeats", repeats);
+        let burst_hits = compute_average_burst_hits(env, repeats);
+        env.player.set_output("AverageBurstHits", burst_hits);
+        env.player.set_output("AverageDamage", 0.0);
+        env.player.set_output("AverageBurstDamage", 0.0);
         return;
     }
 
@@ -361,6 +372,24 @@ pub fn run(env: &mut CalcEnv, build: &Build) {
     let average_damage = average_hit_final * hit_chance;
     env.player.set_output("AverageDamage", average_damage);
 
+    // ── Repeats & burst damage (CalcOffence.lua:762, 2086–2089, 3529–3531) ──
+
+    let repeats = compute_repeats(env, &cfg);
+    env.player.set_output("Repeats", repeats);
+
+    let burst_hits = compute_average_burst_hits(env, repeats);
+    env.player.set_output("AverageBurstHits", burst_hits);
+
+    // repeatPenalty: seal repeat penalty for Unleash-style skills
+    // Lua: skillModList:Flag(nil, "HasSeals") and activeSkill.skillTypes[SkillType.CanRapidFire]
+    //   and not skillModList:Flag(nil, "NoRepeatBonuses") and calcLib.mod(skillModList, skillCfg, "SealRepeatPenalty") or 1
+    let repeat_penalty = compute_seal_repeat_penalty(env, &cfg);
+
+    let average_burst_damage =
+        average_damage + average_damage * (burst_hits - 1.0) * repeat_penalty;
+    env.player
+        .set_output("AverageBurstDamage", average_burst_damage);
+
     let total_dps = average_damage * uses_per_sec;
     env.player.set_output("TotalDPS", total_dps);
 
@@ -450,6 +479,150 @@ fn apply_conversion(
     }
 
     (out_min, out_max)
+}
+
+// ── Repeats & burst damage helpers ─────────────────────────────────────────
+
+/// Compute output.Repeats = 1 + skillModList:Sum("BASE", skillCfg, "RepeatCount")
+/// Mirrors CalcOffence.lua:762.
+fn compute_repeats(env: &CalcEnv, cfg: &SkillCfg) -> f64 {
+    let output_snap = env.player.output.clone();
+    let player_repeat = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "RepeatCount", Some(cfg), &output_snap);
+    let skill_repeat = env
+        .player
+        .main_skill
+        .as_ref()
+        .map(|s| {
+            s.skill_mod_db
+                .sum_cfg(ModType::Base, "RepeatCount", Some(cfg), &output_snap)
+        })
+        .unwrap_or(0.0);
+    1.0 + player_repeat + skill_repeat
+}
+
+/// Compute AverageBurstHits from skillData.averageBurstHits, Repeats > 1, or SealMax.
+/// Mirrors CalcOffence.lua:894 (SealMax), 2086–2089 (averageBurstHits / Repeats), 3529.
+///
+/// IMPORTANT: For attacks (multi-weapon-pass skills), the Lua checks output.Repeats on
+/// the per-weapon sub-table which hasn't been set yet at line 2088, so the Repeats > 1
+/// path only fires for spells (single-pass where output IS globalOutput, already has Repeats).
+fn compute_average_burst_hits(env: &CalcEnv, repeats: f64) -> f64 {
+    let is_attack = env
+        .player
+        .main_skill
+        .as_ref()
+        .map(|s| s.is_attack)
+        .unwrap_or(false);
+
+    // Check skillData.averageBurstHits first
+    if let Some(skill) = env.player.main_skill.as_ref() {
+        if let Some(&abh) = skill.skill_data.get("averageBurstHits") {
+            return abh;
+        }
+    }
+    // SealMax path: output.SealMax is set if HasSeals && CanRapidFire && !NoRepeatBonuses
+    let seal_max = get_output_f64(&env.player.output, "SealMax");
+    if seal_max > 0.0 {
+        return seal_max;
+    }
+    // Repeats path: only for non-attacks (spells), because in the Lua the per-weapon
+    // pass output doesn't have Repeats set at the point this check runs (line 2088).
+    if !is_attack && repeats > 1.0 {
+        return repeats;
+    }
+    // Default
+    1.0
+}
+
+/// Compute seal repeat penalty for Unleash-style skills.
+/// Lua: skillModList:Flag(nil, "HasSeals") and activeSkill.skillTypes[SkillType.CanRapidFire]
+///   and not skillModList:Flag(nil, "NoRepeatBonuses")
+///   and calcLib.mod(skillModList, skillCfg, "SealRepeatPenalty") or 1
+fn compute_seal_repeat_penalty(env: &CalcEnv, cfg: &SkillCfg) -> f64 {
+    let output_snap = env.player.output.clone();
+
+    // Lua uses nil cfg: skillModList:Flag(nil, "HasSeals")
+    let has_seals = env
+        .player
+        .mod_db
+        .flag_cfg("HasSeals", None, &output_snap)
+        || env
+            .player
+            .main_skill
+            .as_ref()
+            .map(|s| s.skill_mod_db.flag_cfg("HasSeals", None, &output_snap))
+            .unwrap_or(false);
+
+    if !has_seals {
+        return 1.0;
+    }
+
+    let can_rapid_fire = env
+        .player
+        .main_skill
+        .as_ref()
+        .map(|s| s.skill_types.iter().any(|t| t == "CanRapidFire"))
+        .unwrap_or(false);
+
+    if !can_rapid_fire {
+        return 1.0;
+    }
+
+    // Lua uses nil cfg: skillModList:Flag(nil, "NoRepeatBonuses")
+    let no_repeat_bonuses = env
+        .player
+        .mod_db
+        .flag_cfg("NoRepeatBonuses", None, &output_snap)
+        || env
+            .player
+            .main_skill
+            .as_ref()
+            .map(|s| {
+                s.skill_mod_db
+                    .flag_cfg("NoRepeatBonuses", None, &output_snap)
+            })
+            .unwrap_or(false);
+
+    if no_repeat_bonuses {
+        return 1.0;
+    }
+
+    // calcLib.mod(skillModList, skillCfg, "SealRepeatPenalty") = (1 + INC/100) * MORE
+    let inc = env.player.mod_db.sum_cfg(
+        ModType::Inc,
+        "SealRepeatPenalty",
+        Some(cfg),
+        &output_snap,
+    ) + env
+        .player
+        .main_skill
+        .as_ref()
+        .map(|s| {
+            s.skill_mod_db.sum_cfg(
+                ModType::Inc,
+                "SealRepeatPenalty",
+                Some(cfg),
+                &output_snap,
+            )
+        })
+        .unwrap_or(0.0);
+    let more = env
+        .player
+        .mod_db
+        .more_cfg("SealRepeatPenalty", Some(cfg), &output_snap)
+        * env
+            .player
+            .main_skill
+            .as_ref()
+            .map(|s| {
+                s.skill_mod_db
+                    .more_cfg("SealRepeatPenalty", Some(cfg), &output_snap)
+            })
+            .unwrap_or(1.0);
+    (1.0 + inc / 100.0) * more
 }
 
 // ── Per-type average hit (for ailment calculations) ─────────────────────────
