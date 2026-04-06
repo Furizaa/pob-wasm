@@ -2590,29 +2590,15 @@ fn calc_movement_and_avoidance(env: &mut CalcEnv) {
     env.player.set_output("ImpaleAvoidChance", impale_avoid);
 
     // CalcDefence.lua:1541-1544 — Status effect / ailment immunities
-    let cb_immune = env
-        .player
-        .mod_db
-        .flag_cfg("CorruptedBloodImmune", None, &output);
-    if cb_immune {
-        env.player
-            .mod_db
-            .set_condition("CorruptedBloodImmunity", true);
-    }
+    // Lua writes these as output booleans: output.XImmunity = modDB:Flag(nil, "XImmune")
+    let cb_immune = env.player.mod_db.flag_cfg("CorruptedBloodImmune", None, &output);
+    env.player.set_output_bool("CorruptedBloodImmunity", cb_immune);
     let maim_immune = env.player.mod_db.flag_cfg("MaimImmune", None, &output);
-    if maim_immune {
-        env.player.mod_db.set_condition("MaimImmunity", true);
-    }
+    env.player.set_output_bool("MaimImmunity", maim_immune);
     let hinder_immune = env.player.mod_db.flag_cfg("HinderImmune", None, &output);
-    if hinder_immune {
-        env.player.mod_db.set_condition("HinderImmunity", true);
-    }
+    env.player.set_output_bool("HinderImmunity", hinder_immune);
     let knockback_immune = env.player.mod_db.flag_cfg("KnockbackImmune", None, &output);
-    if knockback_immune {
-        env.player
-            .mod_db
-            .set_condition("KnockbackImmunity", true);
-    }
+    env.player.set_output_bool("KnockbackImmunity", knockback_immune);
 
     // CalcDefence.lua:1546-1550 — SpellSuppressionAppliesToAilmentAvoidance (Ancestral Vision)
     if env
