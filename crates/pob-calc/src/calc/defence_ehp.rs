@@ -98,14 +98,6 @@ fn calc_not_hit_chances(env: &mut CalcEnv) {
     // damageCategoryConfig defaults to "Average"
     env.player.set_output("ConfiguredNotHitChance", avg_not_hit);
     env.player.set_output("ConfiguredEvadeChance", avg_evade);
-
-    // Lua:1089-1094 noSplitEvade: true when melee and projectile evade are equal
-    if (melee_evade - proj_evade).abs() < 0.001 {
-        env.player.set_output_bool("noSplitEvade", true);
-        env.player.set_output("EvadeChance", melee_evade);
-    } else {
-        env.player.set_output_bool("splitEvade", true);
-    }
 }
 
 // ── 2. Enemy damage estimation (L1658-1790) ──────────────────────────────────
@@ -337,15 +329,44 @@ fn calc_enemy_damage(env: &mut CalcEnv) {
     env.player.set_output("enemySkillTime", enemy_skill_time);
 }
 
-/// Simplified calcs.actionSpeedMod for the enemy.
-/// Lua: calcs.actionSpeedMod reads modDB:Sum("INC", nil, "ActionSpeed") etc.
+/// calcs.actionSpeedMod for the enemy actor (CalcPerform.lua:1067-1077).
+/// Includes TemporalChainsActionSpeed (capped), ActionSpeed INC,
+/// MinimumActionSpeed floor, and MaximumActionSpeedReduction cap.
 fn calc_action_speed_mod(env: &CalcEnv) -> f64 {
+    // data.misc.TemporalChainsEffectCap = 75
+    const TEMPORAL_CHAINS_EFFECT_CAP: f64 = 75.0;
+
     let output = &env.enemy.output;
-    let action_speed_inc = env
+    let tc_inc = env
+        .enemy
+        .mod_db
+        .sum_cfg(ModType::Inc, "TemporalChainsActionSpeed", None, output);
+    let as_inc = env
         .enemy
         .mod_db
         .sum_cfg(ModType::Inc, "ActionSpeed", None, output);
-    (1.0 + action_speed_inc / 100.0).max(0.0)
+
+    let capped_tc = tc_inc.max(-TEMPORAL_CHAINS_EFFECT_CAP);
+    let mut action_speed = 1.0 + (capped_tc + as_inc) / 100.0;
+
+    // Floor: MinimumActionSpeed
+    let min_speed = env
+        .enemy
+        .mod_db
+        .max_value("MinimumActionSpeed", None, output)
+        .unwrap_or(0.0);
+    action_speed = action_speed.max(min_speed / 100.0);
+
+    // Cap: MaximumActionSpeedReduction
+    if let Some(max_red) = env
+        .enemy
+        .mod_db
+        .max_value("MaximumActionSpeedReduction", None, output)
+    {
+        action_speed = action_speed.min((100.0 - max_red) / 100.0);
+    }
+
+    action_speed
 }
 
 /// calcLib.mod(db, cfg, names...) = (1 + Sum("INC", cfg, names) / 100) * More(cfg, names)
@@ -939,10 +960,16 @@ fn calc_guard(env: &mut CalcEnv) {
     if shared_guard_rate > 0.0 {
         env.player
             .set_output_bool("OnlySharedGuard", true);
-        let guard_absorb = env
+        // Lua: calcLib.val(modDB, "GuardAbsorbLimit") = base * (1+inc/100) * more
+        let guard_base = env
             .player
             .mod_db
             .sum_cfg(ModType::Base, "GuardAbsorbLimit", None, &output);
+        let guard_absorb = if guard_base != 0.0 {
+            guard_base * calc_def_mod(&env.player.mod_db, None, &output, &["GuardAbsorbLimit"], None)
+        } else {
+            0.0
+        };
         env.player.set_output("sharedGuardAbsorb", guard_absorb);
     }
 
@@ -966,15 +993,17 @@ fn calc_guard(env: &mut CalcEnv) {
             env.player.set_output_bool("AnyGuard", true);
             env.player
                 .set_output_bool("OnlySharedGuard", false);
-            let absorb = env
+            // Lua: calcLib.val(modDB, type.."GuardAbsorbLimit")
+            let absorb_stat = format!("{type_name}GuardAbsorbLimit");
+            let absorb_base = env
                 .player
                 .mod_db
-                .sum_cfg(
-                    ModType::Base,
-                    &format!("{type_name}GuardAbsorbLimit"),
-                    None,
-                    &output,
-                );
+                .sum_cfg(ModType::Base, &absorb_stat, None, &output);
+            let absorb = if absorb_base != 0.0 {
+                absorb_base * calc_def_mod(&env.player.mod_db, None, &output, &[&absorb_stat], None)
+            } else {
+                0.0
+            };
             env.player
                 .set_output(&format!("{type_name}GuardAbsorb"), absorb);
         }
