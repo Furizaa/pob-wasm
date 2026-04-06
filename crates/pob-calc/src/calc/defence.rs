@@ -1783,19 +1783,86 @@ fn calc_spell_suppression(env: &mut CalcEnv) {
 fn calc_dodge(env: &mut CalcEnv) {
     let output = env.player.output.clone();
 
-    let attack_dodge = env
+    // CalcDefence.lua:1160-1176
+    const DODGE_CHANCE_CAP: f64 = 75.0;
+
+    let total_attack_dodge = env
         .player
         .mod_db
-        .sum_cfg(ModType::Base, "AttackDodgeChance", None, &output)
-        .clamp(0.0, 75.0);
+        .sum_cfg(ModType::Base, "AttackDodgeChance", None, &output);
+    let total_spell_dodge = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "SpellDodgeChance", None, &output);
+
+    let attack_dodge_max = DODGE_CHANCE_CAP;
+
+    // SpellDodgeChanceMax: Override or BASE sum (default 0 if no mods)
+    let spell_dodge_max = env
+        .player
+        .mod_db
+        .override_value("SpellDodgeChanceMax", None, &output)
+        .unwrap_or_else(|| {
+            env.player
+                .mod_db
+                .sum_cfg(ModType::Base, "SpellDodgeChanceMax", None, &output)
+        });
+
+    // Enemy reduce dodge
+    let enemy_reduce_dodge = env
+        .enemy
+        .mod_db
+        .sum_cfg(ModType::Base, "reduceEnemyDodge", None, &output);
+
+    // Capped dodge values
+    let attack_dodge = total_attack_dodge.min(attack_dodge_max);
     env.player.set_output("AttackDodgeChance", attack_dodge);
 
-    let spell_dodge = env
-        .player
-        .mod_db
-        .sum_cfg(ModType::Base, "SpellDodgeChance", None, &output)
-        .clamp(0.0, 75.0);
+    let spell_dodge = total_spell_dodge.min(spell_dodge_max);
     env.player.set_output("SpellDodgeChance", spell_dodge);
+
+    // Effective dodge (with enemy reduction and CannotBeDodged)
+    let cannot_be_dodged = env
+        .enemy
+        .mod_db
+        .flag_cfg("CannotBeDodged", None, &output);
+
+    let eff_attack_dodge = if cannot_be_dodged {
+        0.0
+    } else {
+        (total_attack_dodge - enemy_reduce_dodge).max(0.0).min(attack_dodge_max)
+    };
+    env.player.set_output("EffectiveAttackDodgeChance", eff_attack_dodge);
+
+    let eff_spell_dodge = if cannot_be_dodged {
+        0.0
+    } else {
+        (total_spell_dodge - enemy_reduce_dodge).max(0.0).min(spell_dodge_max)
+    };
+    env.player.set_output("EffectiveSpellDodgeChance", eff_spell_dodge);
+
+    // DodgeChanceIsUnlucky (Lua lines 1171-1174)
+    if env.mode_effective
+        && env
+            .player
+            .mod_db
+            .flag_cfg("DodgeChanceIsUnlucky", None, &output)
+    {
+        let eff_atk = eff_attack_dodge / 100.0 * eff_attack_dodge;
+        env.player.set_output("EffectiveAttackDodgeChance", eff_atk);
+        let eff_spl = eff_spell_dodge / 100.0 * eff_spell_dodge;
+        env.player.set_output("EffectiveSpellDodgeChance", eff_spl);
+    }
+
+    // Overcap
+    env.player.set_output(
+        "AttackDodgeChanceOverCap",
+        (total_attack_dodge - attack_dodge_max).max(0.0),
+    );
+    env.player.set_output(
+        "SpellDodgeChanceOverCap",
+        (total_spell_dodge - spell_dodge_max).max(0.0),
+    );
 }
 
 // ── Task 7: Damage reduction ─────────────────────────────────────────────────
@@ -1803,31 +1870,55 @@ fn calc_dodge(env: &mut CalcEnv) {
 fn calc_damage_reduction(env: &mut CalcEnv) {
     let output = env.player.output.clone();
 
-    let dr_max_base = env
+    // CalcDefence.lua:1486 — DamageReductionMax: Override or data.misc.DamageReductionCap (90)
+    const DAMAGE_REDUCTION_CAP: f64 = 90.0;
+    let dr_max = env
         .player
         .mod_db
-        .sum_cfg(ModType::Base, "DamageReductionMax", None, &output);
-    let dr_max = if dr_max_base == 0.0 {
-        90.0
-    } else {
-        dr_max_base
-    };
+        .override_value("DamageReductionMax", None, &output)
+        .unwrap_or(DAMAGE_REDUCTION_CAP);
     env.player.set_output("DamageReductionMax", dr_max);
 
-    for type_name in DMG_TYPE_NAMES.iter() {
-        let stat = format!("Base{type_name}DamageReduction");
-        let val = env
-            .player
-            .mod_db
-            .sum_cfg(ModType::Base, &stat, None, &output);
-        env.player.set_output(&stat, val);
+    // CalcDefence.lua:1487 — Seed ArmourAppliesToPhysicalDamageTaken BASE 100
+    // This ensures armour fully applies to physical damage unless other mods reduce it.
+    env.player.mod_db.add(Mod {
+        name: "ArmourAppliesToPhysicalDamageTaken".to_string(),
+        mod_type: ModType::Base,
+        value: ModValue::Number(100.0),
+        flags: ModFlags::NONE,
+        keyword_flags: KeywordFlags::NONE,
+        tags: Vec::new(),
+        source: ModSource::new("Base", ""),
+    });
 
-        let stat_hit = format!("Base{type_name}DamageReductionWhenHit");
-        let val_hit = env
+    // CalcDefence.lua:1488-1491 — Per-type base flat DR
+    // isElemental: Fire, Cold, Lightning get ElementalDamageReduction added
+    const ELEMENTAL_TYPES: [&str; 3] = ["Fire", "Cold", "Lightning"];
+
+    for type_name in DMG_TYPE_NAMES.iter() {
+        // Sum the type-specific DR stat
+        let type_dr = env
             .player
             .mod_db
-            .sum_cfg(ModType::Base, &stat_hit, None, &output);
-        env.player.set_output(&stat_hit, val_hit);
+            .sum_cfg(ModType::Base, &format!("{type_name}DamageReduction"), None, &output);
+        // For elemental types, also sum ElementalDamageReduction
+        let elemental_dr = if ELEMENTAL_TYPES.contains(type_name) {
+            env.player
+                .mod_db
+                .sum_cfg(ModType::Base, "ElementalDamageReduction", None, &output)
+        } else {
+            0.0
+        };
+        let base_dr = (type_dr + elemental_dr).max(0.0).min(dr_max);
+        env.player.set_output(&format!("Base{type_name}DamageReduction"), base_dr);
+
+        // WhenHit = base DR + additional WhenHit mods, clamped [0, DRMax]
+        let when_hit_extra = env
+            .player
+            .mod_db
+            .sum_cfg(ModType::Base, &format!("{type_name}DamageReductionWhenHit"), None, &output);
+        let dr_when_hit = (base_dr + when_hit_extra).max(0.0).min(dr_max);
+        env.player.set_output(&format!("Base{type_name}DamageReductionWhenHit"), dr_when_hit);
     }
 }
 
@@ -2444,46 +2535,177 @@ fn calc_movement_and_avoidance(env: &mut CalcEnv) {
     env.player
         .set_output("EnergyShieldOnSuppress", es_on_suppress);
 
-    // Ailment avoidance
-    let elemental_ailments = [
-        "Ignite", "Shock", "Freeze", "Chill", "Scorch", "Brittle", "Sap",
-    ];
-    let non_elemental_ailments = ["Bleed", "Poison", "Impale"];
-    let all_ailments: Vec<&str> = elemental_ailments
-        .iter()
-        .chain(non_elemental_ailments.iter())
-        .copied()
-        .collect();
-
-    let elemental_avoid =
-        env.player
-            .mod_db
-            .sum_cfg(ModType::Base, "ElementalAilmentAvoidance", None, &output);
-
-    for ailment in &all_ailments {
-        let mod_stat = format!("Avoid{ailment}");
-        let base = env
+    // CalcDefence.lua:1526-1533 — Per-type damage avoidance
+    const AVOID_CHANCE_CAP: f64 = 75.0;
+    let mut specific_type_avoidance = false;
+    for type_name in DMG_TYPE_NAMES.iter() {
+        let val = env
             .player
             .mod_db
-            .sum_cfg(ModType::Base, &mod_stat, None, &output);
-        let extra = if elemental_ailments.contains(ailment) {
-            elemental_avoid
-        } else {
-            0.0
-        };
-        let val = (base + extra).clamp(0.0, 100.0);
-        // PoB output key is "{Ailment}AvoidChance"
-        let output_key = format!("{ailment}AvoidChance");
-        env.player.set_output(&output_key, val);
+            .sum_cfg(ModType::Base, &format!("Avoid{type_name}DamageChance"), None, &output)
+            .min(AVOID_CHANCE_CAP);
+        if val > 0.0 {
+            specific_type_avoidance = true;
+        }
+        env.player.set_output(&format!("Avoid{type_name}DamageChance"), val);
     }
+    env.player.set_output_bool("specificTypeAvoidance", specific_type_avoidance);
 
-    // Blind avoidance
-    let blind_avoid = env
+    // CalcDefence.lua:1534 — AvoidProjectilesChance
+    let avoid_proj = env
         .player
         .mod_db
-        .sum_cfg(ModType::Base, "AvoidBlind", None, &output)
-        .clamp(0.0, 100.0);
+        .sum_cfg(ModType::Base, "AvoidProjectilesChance", None, &output)
+        .min(AVOID_CHANCE_CAP);
+    env.player.set_output("AvoidProjectilesChance", avoid_proj);
+
+    // CalcDefence.lua:1536 — AvoidAllDamageFromHitsChance
+    let avoid_all_hits = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "AvoidAllDamageFromHitsChance", None, &output)
+        .min(AVOID_CHANCE_CAP);
+    env.player.set_output("AvoidAllDamageFromHitsChance", avoid_all_hits);
+
+    // CalcDefence.lua:1538 — BlindAvoidChance (immune check)
+    let blind_avoid = if env.player.mod_db.flag_cfg("BlindImmune", None, &output) {
+        100.0
+    } else {
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "AvoidBlind", None, &output)
+            .min(100.0)
+    };
     env.player.set_output("BlindAvoidChance", blind_avoid);
+
+    // CalcDefence.lua:1539 — ImpaleAvoidChance (separate from ailment loop)
+    let impale_avoid = if env.player.mod_db.flag_cfg("ImpaleImmune", None, &output) {
+        100.0
+    } else {
+        env.player
+            .mod_db
+            .sum_cfg(ModType::Base, "AvoidImpale", None, &output)
+            .min(100.0)
+    };
+    env.player.set_output("ImpaleAvoidChance", impale_avoid);
+
+    // CalcDefence.lua:1541-1544 — Status effect / ailment immunities
+    let cb_immune = env
+        .player
+        .mod_db
+        .flag_cfg("CorruptedBloodImmune", None, &output);
+    if cb_immune {
+        env.player
+            .mod_db
+            .set_condition("CorruptedBloodImmunity", true);
+    }
+    let maim_immune = env.player.mod_db.flag_cfg("MaimImmune", None, &output);
+    if maim_immune {
+        env.player.mod_db.set_condition("MaimImmunity", true);
+    }
+    let hinder_immune = env.player.mod_db.flag_cfg("HinderImmune", None, &output);
+    if hinder_immune {
+        env.player.mod_db.set_condition("HinderImmunity", true);
+    }
+    let knockback_immune = env.player.mod_db.flag_cfg("KnockbackImmune", None, &output);
+    if knockback_immune {
+        env.player
+            .mod_db
+            .set_condition("KnockbackImmunity", true);
+    }
+
+    // CalcDefence.lua:1546-1550 — SpellSuppressionAppliesToAilmentAvoidance (Ancestral Vision)
+    if env
+        .player
+        .mod_db
+        .flag_cfg("SpellSuppressionAppliesToAilmentAvoidance", None, &output)
+    {
+        let pct = env
+            .player
+            .mod_db
+            .sum_cfg(ModType::Base, "SpellSuppressionAppliesToAilmentAvoidancePercent", None, &output)
+            / 100.0;
+        // Use the raw BASE sum, not the capped output value (Lua uses local spellSuppressionChance)
+        let spell_suppression_chance = env
+            .player
+            .mod_db
+            .sum_cfg(ModType::Base, "SpellSuppressionChance", None, &output);
+        let injected = (pct * spell_suppression_chance).floor();
+        env.player.mod_db.add(Mod {
+            name: "AvoidElementalAilments".to_string(),
+            mod_type: ModType::Base,
+            value: ModValue::Number(injected),
+            flags: ModFlags::NONE,
+            keyword_flags: KeywordFlags::NONE,
+            tags: Vec::new(),
+            source: ModSource::new("Keystone", "Ancestral Vision"),
+        });
+    }
+
+    // CalcDefence.lua:1559 — ArmourDefense output
+    // (Already written in calc_spell_suppression — but the Lua writes it here after
+    // the SpellSuppressionAppliesToChanceToDefendWithArmour injection. Since both
+    // are in calc_spell_suppression in our code, this is already handled.)
+
+    // CalcDefence.lua:1570-1571 — Non-elemental ailment avoidance: Bleed, Poison
+    let avoid_ailments = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "AvoidAilments", None, &output);
+    for ailment in &["Bleed", "Poison"] {
+        let is_immune = env.player.mod_db.flag_cfg(&format!("{ailment}Immune"), None, &output);
+        let val = if is_immune {
+            100.0
+        } else {
+            let base = env
+                .player
+                .mod_db
+                .sum_cfg(ModType::Base, &format!("Avoid{ailment}"), None, &output);
+            (base + avoid_ailments).min(100.0).floor()
+        };
+        env.player.set_output(&format!("{ailment}AvoidChance"), val);
+    }
+
+    // CalcDefence.lua:1573-1576 — Elemental ailment avoidance
+    let avoid_elemental_ailments = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "AvoidElementalAilments", None, &output);
+    let shock_avoid_applies_to_all = env
+        .player
+        .mod_db
+        .flag_cfg("ShockAvoidAppliesToElementalAilments", None, &output);
+    let avoid_shock_base = env
+        .player
+        .mod_db
+        .sum_cfg(ModType::Base, "AvoidShock", None, &output);
+    for ailment in &["Ignite", "Chill", "Freeze", "Shock", "Scorch", "Brittle", "Sap"] {
+        let is_immune = env
+            .player
+            .mod_db
+            .flag_cfg(&format!("{ailment}Immune"), None, &output)
+            || env
+                .player
+                .mod_db
+                .flag_cfg("ElementalAilmentImmune", None, &output);
+        let val = if is_immune {
+            100.0
+        } else {
+            let base = env
+                .player
+                .mod_db
+                .sum_cfg(ModType::Base, &format!("Avoid{ailment}"), None, &output);
+            let shock_bonus = if shock_avoid_applies_to_all && *ailment != "Shock" {
+                avoid_shock_base
+            } else {
+                0.0
+            };
+            (base + avoid_ailments + avoid_elemental_ailments + shock_bonus)
+                .min(100.0)
+                .floor()
+        };
+        env.player.set_output(&format!("{ailment}AvoidChance"), val);
+    }
 
     // Curse avoidance: CalcDefence.lua:1578
     // CurseImmune flag → 100, else sum BASE "AvoidCurse" capped at 100
@@ -2515,60 +2737,6 @@ fn calc_movement_and_avoidance(env: &mut CalcEnv) {
         .clamp(0.0, 100.0);
     env.player
         .set_output("InterruptStunAvoidChance", interrupt_stun_avoid);
-
-    // Per-damage-type avoidance
-    for type_name in DMG_TYPE_NAMES.iter() {
-        let mod_stat = format!("Avoid{type_name}Damage");
-        let val = env
-            .player
-            .mod_db
-            .sum_cfg(ModType::Base, &mod_stat, None, &output)
-            .clamp(0.0, 100.0);
-        // PoB output key is "Avoid{Type}DamageChance"
-        let output_key = format!("Avoid{type_name}DamageChance");
-        env.player.set_output(&output_key, val);
-    }
-
-    // All damage from hits avoidance
-    let avoid_all_hits = env
-        .player
-        .mod_db
-        .sum_cfg(ModType::Base, "AvoidAllDamageFromHits", None, &output)
-        .clamp(0.0, 100.0);
-    env.player
-        .set_output("AvoidAllDamageFromHitsChance", avoid_all_hits);
-
-    // Projectile avoidance
-    let avoid_proj = env
-        .player
-        .mod_db
-        .sum_cfg(ModType::Base, "AvoidProjectiles", None, &output)
-        .clamp(0.0, 100.0);
-    env.player.set_output("AvoidProjectilesChance", avoid_proj);
-
-    // Stun avoidance (separate from stun calc, this is the avoidance stat)
-    // Handled in calc_stun
-
-    // Immunities — set conditions but don't output (PoB doesn't output these)
-    let cb_immune = env
-        .player
-        .mod_db
-        .flag_cfg("CorruptedBloodImmunity", None, &output);
-    if cb_immune {
-        env.player
-            .mod_db
-            .set_condition("CorruptedBloodImmunity", true);
-    }
-
-    let maim_immune = env.player.mod_db.flag_cfg("MaimImmunity", None, &output);
-    if maim_immune {
-        env.player.mod_db.set_condition("MaimImmunity", true);
-    }
-
-    let hinder_immune = env.player.mod_db.flag_cfg("HinderImmunity", None, &output);
-    if hinder_immune {
-        env.player.mod_db.set_condition("HinderImmunity", true);
-    }
 
     // Crit extra damage reduction
     let crit_dr =
@@ -2706,6 +2874,7 @@ fn calc_stun(env: &mut CalcEnv) {
     if stun_immune {
         env.player.set_output("StunThreshold", f64::INFINITY);
         env.player.set_output("AvoidStun", 100.0);
+        env.player.set_output("StunAvoidChance", 100.0);
         env.player.set_output("StunDuration", 0.0);
         env.player.set_output("BlockDuration", 0.0);
         return;
@@ -2748,12 +2917,29 @@ fn calc_stun(env: &mut CalcEnv) {
     let threshold = pool * 0.5 * (1.0 + inc / 100.0);
     env.player.set_output("StunThreshold", threshold);
 
-    // Stun avoidance
-    let avoid = env
+    // CalcDefence.lua:2126-2130 — Stun avoidance with ES bonus
+    let avoid_stun_base = env
         .player
         .mod_db
         .sum_cfg(ModType::Base, "AvoidStun", None, &output)
-        .clamp(0.0, 100.0);
+        .min(100.0);
+    let mut not_avoid_chance = 100.0 - avoid_stun_base;
+
+    // ES > totalTakenHit grants 50% stun avoidance bonus (unless EnergyShieldProtectsMana)
+    // totalTakenHit is computed in the EHP section; only apply if it's been set.
+    if output.contains_key("totalTakenHit") {
+        let es = get_output_f64(&output, "EnergyShield");
+        let total_taken_hit = get_output_f64(&output, "totalTakenHit");
+        let es_protects_mana = env
+            .player
+            .mod_db
+            .flag_cfg("EnergyShieldProtectsMana", None, &output);
+        if es > total_taken_hit && !es_protects_mana {
+            not_avoid_chance *= 0.5;
+        }
+    }
+
+    let avoid = 100.0 - not_avoid_chance;
     env.player.set_output("StunAvoidChance", avoid);
 
     // ── Stun/block duration (Lua lines 2143-2156) ───────────────────────────
