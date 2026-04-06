@@ -1560,6 +1560,8 @@ fn calc_primary_defences(env: &mut CalcEnv) {
     };
     env.player
         .set_output("EnergyShieldRecoveryCap", es_recover_cap);
+    env.player
+        .set_output("CappingES", if capping_es { 1.0 } else { 0.0 });
 
     // ── Evade chance ──────────────────────────────────────────────────────────
     let evade_chance = if env.player.mod_db.flag_cfg("CannotEvade", None, &output)
