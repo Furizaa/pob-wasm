@@ -1563,25 +1563,102 @@ fn calc_primary_defences(env: &mut CalcEnv) {
     env.player
         .set_output("CappingES", if capping_es { 1.0 } else { 0.0 });
 
-    // ── Evade chance ──────────────────────────────────────────────────────────
-    let evade_chance = if env.player.mod_db.flag_cfg("CannotEvade", None, &output)
+    // ── Evade chance (CalcDefence.lua:1064-1094) ───────────────────────────────
+    if env.player.mod_db.flag_cfg("CannotEvade", None, &output)
         || env.enemy.mod_db.flag_cfg("CannotBeEvaded", None, &output)
     {
-        0.0
+        env.player.set_output("EvadeChance", 0.0);
+        env.player.set_output("MeleeEvadeChance", 0.0);
+        env.player.set_output("ProjectileEvadeChance", 0.0);
     } else if env.player.mod_db.flag_cfg("AlwaysEvade", None, &output) {
-        100.0
+        env.player.set_output("EvadeChance", 100.0);
+        env.player.set_output("MeleeEvadeChance", 100.0);
+        env.player.set_output("ProjectileEvadeChance", 100.0);
     } else {
-        let enemy_accuracy = get_output_f64(&env.enemy.output, "Accuracy");
-        let acc = if enemy_accuracy > 0.0 {
-            enemy_accuracy
+        // L1073: enemyAccuracy = round(calcLib.val(enemyDB, "Accuracy"))
+        let enemy_acc_base = env
+            .enemy
+            .mod_db
+            .sum_cfg(ModType::Base, "Accuracy", None, &env.enemy.output);
+        let enemy_accuracy = if enemy_acc_base != 0.0 {
+            let acc_inc = env
+                .enemy
+                .mod_db
+                .sum_cfg(ModType::Inc, "Accuracy", None, &env.enemy.output);
+            let acc_more = env.enemy.mod_db.more_cfg("Accuracy", None, &env.enemy.output);
+            (enemy_acc_base * (1.0 + acc_inc / 100.0) * acc_more).round()
         } else {
-            500.0
+            0.0
         };
-        100.0 - hit_chance(evasion, acc)
-    };
-    env.player.set_output("EvadeChance", evade_chance);
-    env.player.set_output("MeleeEvadeChance", evade_chance);
-    env.player.set_output("ProjectileEvadeChance", evade_chance);
+        // L1074: evadeChance = modDB:Sum("BASE", nil, "EvadeChance")
+        let evade_chance_flat = env
+            .player
+            .mod_db
+            .sum_cfg(ModType::Base, "EvadeChance", None, &output);
+        // L1075: hitChance = calcLib.mod(enemyDB, nil, "HitChance")
+        let hit_chance_mod = calc_def_mod(
+            &env.enemy.mod_db,
+            None,
+            &env.enemy.output,
+            &["HitChance"],
+        );
+
+        // L1076-1083: evasion stats, with EvadeChanceBasedOnWard override
+        // Read MeleeEvasion/ProjectileEvasion from live output (set earlier in this function)
+        let melee_eva = get_output_f64(&env.player.output, "MeleeEvasion");
+        let proj_eva = get_output_f64(&env.player.output, "ProjectileEvasion");
+        let (evade_stat, melee_evade_stat, proj_evade_stat) =
+            if env.player.mod_db.flag_cfg("EvadeChanceBasedOnWard", None, &output) {
+                let multiplier = env
+                    .player
+                    .mod_db
+                    .override_value("EvadeChanceBasedOnWardPercent", None, &output)
+                    .unwrap_or(100.0)
+                    / 100.0;
+                let ward_evade = ward * multiplier;
+                (ward_evade, ward_evade, ward_evade)
+            } else {
+                (evasion, melee_eva, proj_eva)
+            };
+
+        let evade_chance_cap = 95.0; // data.misc.EvadeChanceCap
+
+        // L1085: base evade chance (used for display, not clamped)
+        let base_evade = 100.0
+            - (hit_chance(evade_stat, enemy_accuracy) - evade_chance_flat) * hit_chance_mod;
+        env.player.set_output("EvadeChance", base_evade);
+
+        // L1086: MeleeEvadeChance with EvadeChance + MeleeEvadeChance modifiers
+        let melee_evade_mult =
+            calc_def_mod(&env.player.mod_db, None, &output, &["EvadeChance", "MeleeEvadeChance"]);
+        let melee_evade = ((100.0
+            - (hit_chance(melee_evade_stat, enemy_accuracy) - evade_chance_flat) * hit_chance_mod)
+            * melee_evade_mult)
+            .clamp(0.0, evade_chance_cap);
+
+        // L1087: ProjectileEvadeChance with EvadeChance + ProjectileEvadeChance modifiers
+        let proj_evade_mult = calc_def_mod(
+            &env.player.mod_db,
+            None,
+            &output,
+            &["EvadeChance", "ProjectileEvadeChance"],
+        );
+        let proj_evade = ((100.0
+            - (hit_chance(proj_evade_stat, enemy_accuracy) - evade_chance_flat) * hit_chance_mod)
+            * proj_evade_mult)
+            .clamp(0.0, evade_chance_cap);
+
+        env.player.set_output("MeleeEvadeChance", melee_evade);
+        env.player.set_output("ProjectileEvadeChance", proj_evade);
+
+        // L1089-1093: splitEvade / noSplitEvade
+        if (melee_evade - proj_evade).abs() > 0.001 {
+            env.player.set_output_bool("splitEvade", true);
+        } else {
+            env.player.set_output("EvadeChance", melee_evade);
+            env.player.set_output_bool("noSplitEvade", true);
+        }
+    }
 }
 
 // ── Task 6: Spell suppression + dodge ────────────────────────────────────────

@@ -213,6 +213,19 @@ fn init_env_inner(
     // Create the env first so add_item_mods can populate weapon data on the Actor
     let mut env = CalcEnv::new(player_db, enemy_db, data.clone());
 
+    // Store build config inputs on the env for downstream calculations
+    // (mirrors Lua env.configInput — the Configuration tab values)
+    env.config_numbers = build.config.numbers.clone();
+    env.config_strings = build.config.strings.clone();
+    env.config_booleans = build.config.booleans.clone();
+    // Determine enemy level (mirrors ConfigOptions.lua default level logic)
+    env.enemy_level = build
+        .config
+        .numbers
+        .get("enemyLevel")
+        .map(|&v| v as usize)
+        .unwrap_or(84);
+
     // Add item mods from equipped items and extract weapon data
     // (CalcSetup.lua line 1228: mergeDB(env.modDB, env.itemModDB))
     add_item_mods(build, &mut env);
@@ -243,7 +256,10 @@ fn init_env_inner(
     apply_passive_mods(build, &mut env);
 
     // Initialize enemy ModDb
-    init_enemy_db(build, &mut env.enemy.mod_db, &env.data.clone());
+    init_enemy_db(build, &mut env.enemy.mod_db, &env.data.clone(), env.enemy_level);
+
+    // Add enemy config conditions (CalcSetup.lua:562 — env.enemyDB:AddList(build.configTab.enemyModList))
+    add_enemy_config_conditions(build, &mut env);
 
     // Build attribute requirements table
     build_requirements_table(build, &mut env);
@@ -3527,7 +3543,8 @@ Implicits: 0
             env.enemy
                 .mod_db
                 .sum(ModType::Base, "Level", ModFlags::NONE, KeywordFlags::NONE);
-        assert_eq!(level, 90.0, "Enemy level should be 90");
+        // Enemy level defaults to 84 (from config or default), not player level
+        assert_eq!(level, 84.0, "Enemy level should default to 84");
     }
 
     #[test]
@@ -3616,7 +3633,9 @@ Implicits: 0
     <Spec treeVersion="3_29" nodes="" classId="1" ascendClassId="0"/>
   </Tree>
   <Items activeItemSet="1"><ItemSet id="1"/></Items>
-  <Config/>
+  <Config>
+    <Input name="enemyLevel" number="3"/>
+  </Config>
 </PathOfBuilding>"#;
         let build = parse_xml(xml).unwrap();
         let env = init_env(&build, data).unwrap();
@@ -3625,7 +3644,7 @@ Implicits: 0
             .enemy
             .mod_db
             .sum(ModType::Base, "Life", ModFlags::NONE, KeywordFlags::NONE);
-        // Level 3 → index 2 → 145
+        // Enemy level 3 → index 2 → 145
         assert_eq!(
             life, 145.0,
             "Enemy life should be 145 for level 3, got {life}"
@@ -4879,12 +4898,11 @@ fn add_item_mods(build: &Build, env: &mut CalcEnv) {
 
 /// Initialize the enemy ModDb with level, base resistances, life, and config overrides.
 /// Mirrors the enemy initialization in CalcSetup.lua.
-fn init_enemy_db(build: &Build, db: &mut ModDb, data: &GameData) {
-    let level = build.level as f64;
+fn init_enemy_db(build: &Build, db: &mut ModDb, data: &GameData, enemy_level: usize) {
     let src = ModSource::new("Base", "enemy defaults");
 
     // Set enemy level
-    db.add(Mod::new_base("Level", level, src.clone()));
+    db.add(Mod::new_base("Level", enemy_level as f64, src.clone()));
 
     // Base resistances = 0
     db.add(Mod::new_base("FireResist", 0.0, src.clone()));
@@ -4896,9 +4914,14 @@ fn init_enemy_db(build: &Build, db: &mut ModDb, data: &GameData) {
     db.add(Mod::new_base("PhysicalDamageReduction", 0.0, src.clone()));
 
     // Enemy life from monster_life_table (0-based index: level 1 → index 0)
-    let level_idx = (build.level as usize).saturating_sub(1);
+    let level_idx = enemy_level.saturating_sub(1);
     if let Some(&life) = data.misc.monster_life_table.get(level_idx) {
         db.add(Mod::new_base("Life", life as f64, src.clone()));
+    }
+
+    // Enemy accuracy from monster_accuracy_table (CalcSetup.lua:557)
+    if let Some(&acc) = data.misc.monster_accuracy_table.get(level_idx) {
+        db.add(Mod::new_base("Accuracy", acc as f64, src.clone()));
     }
 
     // Config overrides: keys starting with "enemy" set enemy stats
@@ -5333,6 +5356,76 @@ fn add_config_conditions(build: &Build, db: &mut ModDb) {
             db.set_multiplier(mult_name, val);
         }
     }
+}
+
+/// Apply enemy-specific config conditions and mods to the enemy ModDb.
+/// Mirrors the enemy-side of ConfigOptions.lua apply functions and
+/// CalcSetup.lua:562 `env.enemyDB:AddList(build.configTab.enemyModList)`.
+fn add_enemy_config_conditions(build: &Build, env: &mut CalcEnv) {
+    let src = ModSource::new("Config", "enemy config");
+
+    // ── 1. Enemy conditions from boolean config inputs ─────────────────────
+    // ConfigOptions.lua patterns:
+    //   conditionEnemyChilled → enemyModList:NewMod("Condition:Chilled", "FLAG", true, "Config", {type="Condition", var="Effective"})
+    //   conditionEnemyPoisoned → enemyModList:NewMod("Condition:Poisoned", "FLAG", true, ...)
+    for (name, &val) in &build.config.booleans {
+        if !val {
+            continue;
+        }
+        if let Some(rest) = name.strip_prefix("conditionEnemy") {
+            if !rest.is_empty() {
+                // "conditionEnemyChilled" → "Chilled"
+                let cond = rest[..1].to_uppercase() + &rest[1..];
+                env.enemy.mod_db.set_condition(&cond, true);
+            }
+        }
+    }
+
+    // ── 2. enemyIsBoss conditions (ConfigOptions.lua:2008-2143) ────────────
+    let boss_type = env
+        .config_strings
+        .get("enemyIsBoss")
+        .cloned()
+        .unwrap_or_else(|| "Pinnacle".into());
+    let boss_type = match boss_type.as_str() {
+        "Sirus" | "Shaper" => "Pinnacle",
+        "Uber Atziri" => "Boss",
+        other => other,
+    };
+
+    match boss_type {
+        "Boss" => {
+            env.enemy.mod_db.set_condition("RareOrUnique", true);
+        }
+        "Pinnacle" => {
+            env.enemy.mod_db.set_condition("RareOrUnique", true);
+            env.enemy.mod_db.set_condition("PinnacleBoss", true);
+        }
+        "Uber" => {
+            env.enemy.mod_db.set_condition("RareOrUnique", true);
+            env.enemy.mod_db.set_condition("PinnacleBoss", true);
+            // Uber bosses take 70% less damage
+            env.enemy.mod_db.add(Mod {
+                name: "DamageTaken".into(),
+                mod_type: ModType::More,
+                value: ModValue::Number(-70.0),
+                flags: ModFlags::NONE,
+                keyword_flags: KeywordFlags::NONE,
+                tags: Vec::new(),
+                source: src.clone(),
+            });
+        }
+        _ => {} // "None" — no conditions
+    }
+
+    // ── 3. Buff-mode conditions on enemy (CalcSetup.lua via calcs.initModDB) ─
+    // The enemy modDB also needs Buffed/Combat/Effective conditions so that
+    // condition-gated mods (e.g. {type="Condition", var="Effective"}) evaluate.
+    env.enemy.mod_db.set_condition("Buffed", env.mode_buffs);
+    env.enemy.mod_db.set_condition("Combat", env.mode_combat);
+    env.enemy
+        .mod_db
+        .set_condition("Effective", env.mode_effective);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
