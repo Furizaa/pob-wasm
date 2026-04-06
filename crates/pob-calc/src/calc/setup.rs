@@ -509,6 +509,9 @@ fn add_base_constants(db: &mut ModDb, data: &GameData) {
         src.clone(),
     ));
 
+    // CalcSetup.lua:29 — SpellDodgeChanceMax base (hardcoded 75)
+    db.add(Mod::new_base("SpellDodgeChanceMax", 75.0, src.clone()));
+
     // --- Charge maxes ---
     let power_max = gc_or(gc, "max_power_charges", 3.0);
     db.add(Mod::new_base("PowerChargesMax", power_max, src.clone()));
@@ -616,6 +619,109 @@ fn add_base_constants(db: &mut ModDb, data: &GameData) {
     db.add(Mod::new_base("PowerChargesDuration", 10.0, src.clone()));
     db.add(Mod::new_base("FrenzyChargesDuration", 10.0, src.clone()));
     db.add(Mod::new_base("EnduranceChargesDuration", 10.0, src.clone()));
+
+    // --- Per-charge stats (CalcSetup.lua:493-498) ---
+    // CritChance INC per PowerCharge
+    let crit_per_power = gc_or(gc, "critical_strike_chance_+%_per_power_charge", 40.0);
+    db.add(Mod {
+        name: "CritChance".to_string(),
+        mod_type: ModType::Inc,
+        value: ModValue::Number(crit_per_power),
+        flags: ModFlags::NONE,
+        keyword_flags: KeywordFlags::NONE,
+        tags: vec![ModTag::Multiplier {
+            var: "PowerCharge".to_string(),
+            div: 1.0,
+            limit: None,
+            base: 0.0,
+        }],
+        source: src.clone(),
+    });
+
+    // Speed INC per FrenzyCharge (Attack)
+    let atk_speed_per_frenzy = gc_or(gc, "base_attack_speed_+%_per_frenzy_charge", 4.0);
+    db.add(Mod {
+        name: "Speed".to_string(),
+        mod_type: ModType::Inc,
+        value: ModValue::Number(atk_speed_per_frenzy),
+        flags: ModFlags::ATTACK,
+        keyword_flags: KeywordFlags::NONE,
+        tags: vec![ModTag::Multiplier {
+            var: "FrenzyCharge".to_string(),
+            div: 1.0,
+            limit: None,
+            base: 0.0,
+        }],
+        source: src.clone(),
+    });
+
+    // Speed INC per FrenzyCharge (Cast)
+    let cast_speed_per_frenzy = gc_or(gc, "base_cast_speed_+%_per_frenzy_charge", 4.0);
+    db.add(Mod {
+        name: "Speed".to_string(),
+        mod_type: ModType::Inc,
+        value: ModValue::Number(cast_speed_per_frenzy),
+        flags: ModFlags::CAST,
+        keyword_flags: KeywordFlags::NONE,
+        tags: vec![ModTag::Multiplier {
+            var: "FrenzyCharge".to_string(),
+            div: 1.0,
+            limit: None,
+            base: 0.0,
+        }],
+        source: src.clone(),
+    });
+
+    // Damage MORE per FrenzyCharge
+    let dmg_per_frenzy = gc_or(gc, "object_inherent_damage_+%_final_per_frenzy_charge", 4.0);
+    db.add(Mod {
+        name: "Damage".to_string(),
+        mod_type: ModType::More,
+        value: ModValue::Number(dmg_per_frenzy),
+        flags: ModFlags::NONE,
+        keyword_flags: KeywordFlags::NONE,
+        tags: vec![ModTag::Multiplier {
+            var: "FrenzyCharge".to_string(),
+            div: 1.0,
+            limit: None,
+            base: 0.0,
+        }],
+        source: src.clone(),
+    });
+
+    // PhysicalDamageReduction BASE per EnduranceCharge
+    let phys_dr_per_endurance = gc_or(gc, "physical_damage_reduction_%_per_endurance_charge", 4.0);
+    db.add(Mod {
+        name: "PhysicalDamageReduction".to_string(),
+        mod_type: ModType::Base,
+        value: ModValue::Number(phys_dr_per_endurance),
+        flags: ModFlags::NONE,
+        keyword_flags: KeywordFlags::NONE,
+        tags: vec![ModTag::Multiplier {
+            var: "EnduranceCharge".to_string(),
+            div: 1.0,
+            limit: None,
+            base: 0.0,
+        }],
+        source: src.clone(),
+    });
+
+    // ElementalDamageReduction BASE per EnduranceCharge
+    let elem_dr_per_endurance = gc_or(gc, "elemental_damage_reduction_%_per_endurance_charge", 4.0);
+    db.add(Mod {
+        name: "ElementalDamageReduction".to_string(),
+        mod_type: ModType::Base,
+        value: ModValue::Number(elem_dr_per_endurance),
+        flags: ModFlags::NONE,
+        keyword_flags: KeywordFlags::NONE,
+        tags: vec![ModTag::Multiplier {
+            var: "EnduranceCharge".to_string(),
+            div: 1.0,
+            limit: None,
+            base: 0.0,
+        }],
+        source: src.clone(),
+    });
 
     // --- Trap/Mine/Totem/Warcry timing ---
     db.add(Mod::new_base("TrapThrowTime", 0.6, src.clone()));
