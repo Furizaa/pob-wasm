@@ -359,6 +359,15 @@ pub struct CalcEnv {
     /// times within the same perform pass (e.g. after flask application, after aura/buff
     /// application).
     pub keystones_added: HashSet<String>,
+    /// Mirrors `env.configInput`: the build's Configuration tab inputs.
+    /// Numeric values: `config_numbers["enemyPhysicalDamage"]` etc.
+    /// String values: `config_strings["enemyIsBoss"]` etc.
+    /// Boolean values: `config_booleans["conditionLowLife"]` etc.
+    pub config_numbers: HashMap<String, f64>,
+    pub config_strings: HashMap<String, String>,
+    pub config_booleans: HashMap<String, bool>,
+    /// Enemy level (Lua: env.enemyLevel), from config or default 84.
+    pub enemy_level: usize,
 }
 
 /// Get a numeric output value, returning 0.0 if absent or not a number.
@@ -399,6 +408,10 @@ impl CalcEnv {
             mode_buffs: true,
             mode_combat: true,
             mode_effective: true,
+            config_numbers: HashMap::new(),
+            config_strings: HashMap::new(),
+            config_booleans: HashMap::new(),
+            enemy_level: 84,
         }
     }
 }

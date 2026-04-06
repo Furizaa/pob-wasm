@@ -2745,6 +2745,10 @@ mod tests {
             mode_buffs: true,
             mode_combat: true,
             mode_effective: true,
+            config_numbers: std::collections::HashMap::new(),
+            config_strings: std::collections::HashMap::new(),
+            config_booleans: std::collections::HashMap::new(),
+            enemy_level: 84,
         };
         setup(&mut env);
         env
@@ -3942,6 +3946,10 @@ mod tests {
             mode_buffs: true,
             mode_combat: true,
             mode_effective: true,
+            config_numbers: std::collections::HashMap::new(),
+            config_strings: std::collections::HashMap::new(),
+            config_booleans: std::collections::HashMap::new(),
+            enemy_level: 84,
         };
 
         // Add Marauder L90 base stats
@@ -4022,6 +4030,10 @@ mod tests {
             mode_buffs: true,
             mode_combat: true,
             mode_effective: true,
+            config_numbers: std::collections::HashMap::new(),
+            config_strings: std::collections::HashMap::new(),
+            config_booleans: std::collections::HashMap::new(),
+            enemy_level: 84,
         };
 
         let base_src = ModSource::new("Base", "Marauder base stats");

@@ -213,6 +213,19 @@ fn init_env_inner(
     // Create the env first so add_item_mods can populate weapon data on the Actor
     let mut env = CalcEnv::new(player_db, enemy_db, data.clone());
 
+    // Store build config inputs on the env for downstream calculations
+    // (mirrors Lua env.configInput — the Configuration tab values)
+    env.config_numbers = build.config.numbers.clone();
+    env.config_strings = build.config.strings.clone();
+    env.config_booleans = build.config.booleans.clone();
+    // Determine enemy level (mirrors ConfigOptions.lua default level logic)
+    env.enemy_level = build
+        .config
+        .numbers
+        .get("enemyLevel")
+        .map(|&v| v as usize)
+        .unwrap_or(84);
+
     // Add item mods from equipped items and extract weapon data
     // (CalcSetup.lua line 1228: mergeDB(env.modDB, env.itemModDB))
     add_item_mods(build, &mut env);

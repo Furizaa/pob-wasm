@@ -377,8 +377,6 @@ pub fn fields_for_chunk(chunk: &str) -> Option<&'static [&'static str]> {
         "DEF-06-ehp" => &[
             "AverageEvadeChance",
             "AverageNotHitChance",
-            "AverageBlockChance",
-            "AverageSpellBlockChance",
             "MeleeNotHitChance",
             "ProjectileNotHitChance",
             "SpellNotHitChance",
