@@ -1,6 +1,6 @@
 use super::env::CalcEnv;
 use crate::{
-    build::types::ItemSlot,
+    build::types::{Item, ItemSet, ItemSlot},
     build::Build,
     data::GameData,
     error::CalcError,
@@ -144,6 +144,14 @@ static RE_CLUSTER_INC_EFFECT: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"(?i)^added small passive skills have (\d+)% increased effect$").unwrap()
 });
 
+/// Matches Split Personality style class-start scaling socket mod.
+static RE_JEWEL_INC_EFFECT_FROM_CLASS_START: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(
+        r"(?i)^this jewel's socket has (\d+)% increased effect per allocated passive skill between it and your class' starting location$",
+    )
+    .unwrap()
+});
+
 // ── SETUP-16: The Adorned — corrupted jewel effect multipliers ────────────────
 // Matches "X% increased Effect of Jewel Socket Passive Skills containing Corrupted Magic Jewels"
 // Used to extract corruptedMagicJewelIncEffect from The Adorned's explicit mod line.
@@ -256,7 +264,12 @@ fn init_env_inner(
     apply_passive_mods(build, &mut env);
 
     // Initialize enemy ModDb
-    init_enemy_db(build, &mut env.enemy.mod_db, &env.data.clone(), env.enemy_level);
+    init_enemy_db(
+        build,
+        &mut env.enemy.mod_db,
+        &env.data.clone(),
+        env.enemy_level,
+    );
 
     // Add enemy config conditions (CalcSetup.lua:562 — env.enemyDB:AddList(build.configTab.enemyModList))
     add_enemy_config_conditions(build, &mut env);
@@ -775,7 +788,10 @@ fn add_base_constants(db: &mut ModDb, data: &GameData) {
     // CalcSetup.lua:517-518: BlockChance BASE from inherent_block_while_dual_wielding_%
     // Conditional on DualWielding and NOT NoInherentBlock.
     let cc = &data.misc.character_constants;
-    let dw_block = cc.get("inherent_block_while_dual_wielding_%").copied().unwrap_or(20.0);
+    let dw_block = cc
+        .get("inherent_block_while_dual_wielding_%")
+        .copied()
+        .unwrap_or(20.0);
     // Normal variant (not doubled)
     db.add(Mod {
         name: "BlockChance".to_string(),
@@ -784,9 +800,18 @@ fn add_base_constants(db: &mut ModDb, data: &GameData) {
         flags: ModFlags::NONE,
         keyword_flags: KeywordFlags::NONE,
         tags: vec![
-            ModTag::Condition { var: "DualWielding".to_string(), neg: false },
-            ModTag::Condition { var: "NoInherentBlock".to_string(), neg: true },
-            ModTag::Condition { var: "DoubledInherentDualWieldingBlock".to_string(), neg: true },
+            ModTag::Condition {
+                var: "DualWielding".to_string(),
+                neg: false,
+            },
+            ModTag::Condition {
+                var: "NoInherentBlock".to_string(),
+                neg: true,
+            },
+            ModTag::Condition {
+                var: "DoubledInherentDualWieldingBlock".to_string(),
+                neg: true,
+            },
         ],
         source: src.clone(),
     });
@@ -798,16 +823,28 @@ fn add_base_constants(db: &mut ModDb, data: &GameData) {
         flags: ModFlags::NONE,
         keyword_flags: KeywordFlags::NONE,
         tags: vec![
-            ModTag::Condition { var: "DualWielding".to_string(), neg: false },
-            ModTag::Condition { var: "NoInherentBlock".to_string(), neg: true },
-            ModTag::Condition { var: "DoubledInherentDualWieldingBlock".to_string(), neg: false },
+            ModTag::Condition {
+                var: "DualWielding".to_string(),
+                neg: false,
+            },
+            ModTag::Condition {
+                var: "NoInherentBlock".to_string(),
+                neg: true,
+            },
+            ModTag::Condition {
+                var: "DoubledInherentDualWieldingBlock".to_string(),
+                neg: false,
+            },
         ],
         source: src.clone(),
     });
 
     // --- Dual-wield inherent attack speed ---
     // CalcSetup.lua:515-516: Speed MORE from dual_wield_inherent_attack_speed_+%_final
-    let dw_speed = cc.get("dual_wield_inherent_attack_speed_+%_final").copied().unwrap_or(10.0);
+    let dw_speed = cc
+        .get("dual_wield_inherent_attack_speed_+%_final")
+        .copied()
+        .unwrap_or(10.0);
     db.add(Mod {
         name: "Speed".to_string(),
         mod_type: ModType::More,
@@ -815,8 +852,14 @@ fn add_base_constants(db: &mut ModDb, data: &GameData) {
         flags: ModFlags::ATTACK,
         keyword_flags: KeywordFlags::NONE,
         tags: vec![
-            ModTag::Condition { var: "DualWielding".to_string(), neg: false },
-            ModTag::Condition { var: "DoubledInherentDualWieldingSpeed".to_string(), neg: true },
+            ModTag::Condition {
+                var: "DualWielding".to_string(),
+                neg: false,
+            },
+            ModTag::Condition {
+                var: "DoubledInherentDualWieldingSpeed".to_string(),
+                neg: true,
+            },
         ],
         source: src.clone(),
     });
@@ -827,8 +870,14 @@ fn add_base_constants(db: &mut ModDb, data: &GameData) {
         flags: ModFlags::ATTACK,
         keyword_flags: KeywordFlags::NONE,
         tags: vec![
-            ModTag::Condition { var: "DualWielding".to_string(), neg: false },
-            ModTag::Condition { var: "DoubledInherentDualWieldingSpeed".to_string(), neg: false },
+            ModTag::Condition {
+                var: "DualWielding".to_string(),
+                neg: false,
+            },
+            ModTag::Condition {
+                var: "DoubledInherentDualWieldingSpeed".to_string(),
+                neg: false,
+            },
         ],
         source: src.clone(),
     });
@@ -979,7 +1028,6 @@ fn add_class_base_stats(build: &Build, db: &mut ModDb, data: &GameData) {
 fn apply_granted_passives(build: &Build, env: &mut CalcEnv) {
     let data = env.data.clone();
     let tree = data.tree_for_version(&build.passive_spec.tree_version);
-
     // Empty output table (these mods have no tags requiring output lookups).
     let empty_output = crate::calc::env::OutputTable::new();
 
@@ -1237,11 +1285,10 @@ fn apply_passive_mods(build: &Build, env: &mut super::env::CalcEnv) {
 
     env.alloc_nodes = final_alloc_nodes.clone();
 
-    // Reset radius jewel accumulators and set modSource.
+    // Reset radius jewel accumulators.
     // Mirrors CalcSetup.lua: for _, rad in pairs(env.radiusJewelList) do wipeTable(rad.data); ...
     for rad in &mut env.radius_jewel_list {
         rad.data.clear();
-        rad.data.insert("modSource".to_string(), 0.0); // placeholder; modSource is string in Lua
         rad.mod_accumulator.clear();
     }
 
@@ -1695,53 +1742,21 @@ fn mod_list_flag(mods: &[crate::mod_db::types::Mod], stat: &str) -> bool {
 /// Build the radius jewel list for all jewel slots in the active item set.
 /// Mirrors CalcSetup.lua lines 751-808.
 fn build_radius_jewel_list(build: &Build, env: &mut super::env::CalcEnv) {
-    use crate::build::types::ItemSlot;
-    use crate::calc::env::{RadiusJewelEntry, RadiusJewelType};
-
-    let item_set = match build.item_sets.get(build.active_item_set) {
-        Some(set) => set,
-        None => return,
-    };
-
     let data = env.data.clone();
     let tree = data.tree_for_version(&build.passive_spec.tree_version);
 
-    // Build reverse lookup: item_id → socket_node_id from passive spec jewels.
-    // env.spec.nodes[slot.nodeId] in Lua maps to the socket's node in the tree.
-    // build.passive_spec.jewels maps socket_node_id → item_id.
-    let mut item_to_socket: HashMap<u32, u32> = HashMap::new();
     for (&socket_node_id, &item_id) in &build.passive_spec.jewels {
-        item_to_socket.insert(item_id, socket_node_id);
-    }
-
-    for (slot_name, &item_id) in &item_set.slots {
-        let slot = match ItemSlot::from_str(slot_name) {
-            Some(s) => s,
-            None => continue,
+        let Some(item_raw) = build.items.get(&item_id) else {
+            continue;
         };
+        let mut item = item_raw.clone();
+        crate::build::item_resolver::resolve_item_base(&mut item, &env.data.bases);
+        let extra_specs = extract_extra_jewel_specs(&item);
 
-        if !slot.is_jewel() {
+        let base_radius_idx = extract_radius_index(&item);
+        if base_radius_idx.is_none() && extra_specs.is_empty() {
             continue;
         }
-
-        let item = match build.items.get(&item_id) {
-            Some(i) => i,
-            None => continue,
-        };
-
-        // Check if this item has a radius.
-        let radius_index = extract_radius_index(item);
-        let radius_idx = match radius_index {
-            Some(idx) => idx,
-            None => continue,
-        };
-
-        // Find the socket node ID for this jewel item.
-        // Mirrors env.spec.nodes[slot.nodeId] in Lua.
-        let socket_node_id = match item_to_socket.get(&item_id) {
-            Some(&id) => id,
-            None => continue, // jewel not socketed in the passive tree
-        };
 
         // Only process if the socket node is allocated (Lua checks env.allocNodes[slot.nodeId]).
         if !env.alloc_nodes.contains(&socket_node_id) {
@@ -1754,48 +1769,92 @@ fn build_radius_jewel_list(build: &Build, env: &mut super::env::CalcEnv) {
             None => continue,
         };
 
-        // Get nodes in radius for this jewel.
-        // Mirrors: node.nodesInRadius and node.nodesInRadius[item.jewelRadiusIndex] or {}
-        let nodes_in_radius: std::collections::HashSet<u32> = socket_node
-            .nodes_in_radius
-            .get(&radius_idx)
-            .cloned()
+        // Base funcList loop: always keyed to item.jewelRadiusIndex in Lua.
+        // When no base radius exists, this uses an empty radius set (Lua nil-index fallback to {}).
+        let base_nodes: std::collections::HashSet<u32> = base_radius_idx
+            .and_then(|idx| socket_node.nodes_in_radius.get(&idx).cloned())
             .unwrap_or_default();
+        let base_funcs = extract_jewel_func_list(&item);
+        push_radius_jewel_entries(env, socket_node_id, base_nodes, base_funcs);
 
-        // Build the funcList for this jewel by scanning its mod lines.
-        // Mirrors CalcSetup.lua lines 753-780:
-        //   local funcList = (item.jewelData and item.jewelData.funcList) or { default_func }
-        //   for _, func in ipairs(funcList) do ... end
-        //
-        // In Lua, item.jewelData.funcList is built by ModParser when the item is parsed.
-        // The JewelFunc mods come from the item's explicit/implicit/enchant lines.
-        // Here we scan the raw mod lines directly to reproduce that dispatch.
-        let func_list = extract_jewel_func_list(item);
-
-        for (jewel_type, func) in func_list {
-            // Add non-SelfAlloc jewels' unallocated nodes to extraRadiusNodeList.
-            // Mirrors: if func.type ~= "Self" and node.nodesInRadius then ...
-            //   for nodeId, node in pairs(node.nodesInRadius[item.jewelRadiusIndex]) do
-            //     if not env.allocNodes[nodeId] then
-            //       env.extraRadiusNodeList[nodeId] = env.spec.nodes[nodeId]
-            if jewel_type != RadiusJewelType::SelfAlloc {
-                for &nid in &nodes_in_radius {
-                    if !env.alloc_nodes.contains(&nid) {
-                        env.extra_radius_node_list.insert(nid);
-                    }
+        // ExtraJewelFunc loop: separate from base funcList and keyed by funcData.radius.
+        let mut extra_radius_indices: std::collections::HashSet<usize> =
+            std::collections::HashSet::new();
+        for spec in &extra_specs {
+            let parts: Vec<&str> = spec.split(':').collect();
+            if parts.len() >= 2 {
+                if let Some(idx) = radius_index_for_label(parts[1]) {
+                    extra_radius_indices.insert(idx);
                 }
             }
-
-            env.radius_jewel_list.push(RadiusJewelEntry {
-                nodes: nodes_in_radius.clone(),
-                func,
-                jewel_type,
-                node_id: socket_node_id,
-                data: HashMap::new(),
-                mod_accumulator: Vec::new(),
-            });
+        }
+        for radius_idx in extra_radius_indices {
+            let radius_label = radius_label_for_index(radius_idx);
+            if radius_label.is_empty() {
+                continue;
+            }
+            let funcs = extra_jewel_funcs_for_radius(
+                extra_specs.as_slice(),
+                radius_label,
+                socket_node_id,
+                tree,
+            );
+            if funcs.is_empty() {
+                continue;
+            }
+            let nodes_in_radius = socket_node
+                .nodes_in_radius
+                .get(&radius_idx)
+                .cloned()
+                .unwrap_or_default();
+            push_radius_jewel_entries(env, socket_node_id, nodes_in_radius, funcs);
         }
     }
+}
+
+fn push_radius_jewel_entries(
+    env: &mut super::env::CalcEnv,
+    socket_node_id: u32,
+    nodes_in_radius: std::collections::HashSet<u32>,
+    funcs: Vec<(super::env::RadiusJewelType, JewelFuncBox)>,
+) {
+    use crate::calc::env::{RadiusJewelEntry, RadiusJewelType};
+
+    for (jewel_type, func) in funcs {
+        if jewel_type != RadiusJewelType::SelfAlloc {
+            for &nid in &nodes_in_radius {
+                if !env.alloc_nodes.contains(&nid) {
+                    env.extra_radius_node_list.insert(nid);
+                }
+            }
+        }
+
+        env.radius_jewel_list.push(RadiusJewelEntry {
+            nodes: nodes_in_radius.clone(),
+            func,
+            jewel_type,
+            node_id: socket_node_id,
+            data: HashMap::new(),
+            mod_accumulator: Vec::new(),
+        });
+    }
+}
+
+fn extract_extra_jewel_specs(item: &crate::build::types::Item) -> Vec<String> {
+    let source = ModSource::new("Item", &item.base_type);
+    item_mod_lines(item)
+        .flat_map(|line| crate::build::mod_parser::parse_mod(line, source.clone()))
+        .filter_map(|m| {
+            if m.name != "ExtraJewelFunc" {
+                return None;
+            }
+            if let crate::mod_db::types::ModValue::String(s) = m.value {
+                Some(s)
+            } else {
+                None
+            }
+        })
+        .collect()
 }
 
 /// The callback type for a radius jewel entry.
@@ -2075,6 +2134,153 @@ fn extract_jewel_func_list(
                 },
             ),
         ));
+    }
+
+    funcs
+}
+
+fn radius_label_for_index(radius_idx: usize) -> &'static str {
+    match radius_idx {
+        1 => "Small",
+        2 => "Medium",
+        3 => "Large",
+        4 => "VeryLarge",
+        5 => "Massive",
+        _ => "",
+    }
+}
+
+fn radius_index_for_label(label: &str) -> Option<usize> {
+    match label.to_ascii_lowercase().replace(' ', "").as_str() {
+        "small" => Some(1),
+        "medium" => Some(2),
+        "large" => Some(3),
+        "verylarge" => Some(4),
+        "massive" => Some(5),
+        _ => None,
+    }
+}
+
+fn extra_jewel_funcs_for_radius(
+    extra_specs: &[String],
+    radius_label: &str,
+    socket_node_id: u32,
+    tree: &crate::passive_tree::PassiveTree,
+) -> Vec<(super::env::RadiusJewelType, JewelFuncBox)> {
+    use super::env::RadiusJewelType;
+    use crate::mod_db::types::{Mod, ModSource, ModType};
+
+    let mut funcs: Vec<(RadiusJewelType, JewelFuncBox)> = Vec::new();
+    for spec in extra_specs {
+        let parts: Vec<&str> = spec.split(':').collect();
+        if parts.len() < 3 {
+            continue;
+        }
+        let kind = parts[0];
+        let radius = parts[1].replace(' ', "");
+        if !radius.eq_ignore_ascii_case(radius_label) {
+            continue;
+        }
+
+        if kind == "radiusGrantAttr" && parts.len() == 4 {
+            let val = parts[2].parse::<f64>().ok().unwrap_or(0.0);
+            let attr = parts[3].to_ascii_lowercase();
+            let stat = if attr.starts_with("str") {
+                "Str"
+            } else if attr.starts_with("dex") {
+                "Dex"
+            } else if attr.starts_with("int") {
+                "Int"
+            } else {
+                continue;
+            }
+            .to_string();
+
+            let mut allowed_nodes = std::collections::HashSet::new();
+            for (&nid, node) in &tree.nodes {
+                if matches!(
+                    node.node_type,
+                    crate::passive_tree::NodeType::Small | crate::passive_tree::NodeType::Notable
+                ) {
+                    allowed_nodes.insert(nid);
+                }
+            }
+            funcs.push((
+                RadiusJewelType::Other,
+                Box::new(
+                    move |node_id: Option<u32>,
+                          node_mods: &mut Vec<Mod>,
+                          _data: &mut HashMap<String, f64>,
+                          _mod_acc: &mut Vec<Mod>| {
+                        let Some(nid) = node_id else { return };
+                        if !allowed_nodes.contains(&nid) {
+                            return;
+                        }
+                        node_mods.push(Mod::new_base(
+                            &stat,
+                            val,
+                            ModSource::new("Tree", socket_node_id.to_string()),
+                        ));
+                    },
+                ),
+            ));
+            continue;
+        }
+
+        if kind == "radiusConvertDmg" && parts.len() == 3 {
+            let dmg = parts[2].to_ascii_lowercase();
+            let target = if dmg.starts_with("phys") {
+                "PhysicalDamage"
+            } else if dmg.starts_with("fire") {
+                "FireDamage"
+            } else if dmg.starts_with("cold") {
+                "ColdDamage"
+            } else if dmg.starts_with("light") {
+                "LightningDamage"
+            } else if dmg.starts_with("chaos") {
+                "ChaosDamage"
+            } else {
+                continue;
+            }
+            .to_string();
+
+            funcs.push((
+                RadiusJewelType::Other,
+                Box::new(
+                    move |node_id: Option<u32>,
+                          node_mods: &mut Vec<Mod>,
+                          _data: &mut HashMap<String, f64>,
+                          _mod_acc: &mut Vec<Mod>| {
+                        if node_id.is_none() {
+                            return;
+                        }
+                        let mut converted: Vec<Mod> = Vec::new();
+                        let mut retained: Vec<Mod> = Vec::new();
+                        for m in node_mods.drain(..) {
+                            if m.mod_type == ModType::Inc
+                                && matches!(
+                                    m.name.as_str(),
+                                    "PhysicalDamage"
+                                        | "FireDamage"
+                                        | "ColdDamage"
+                                        | "LightningDamage"
+                                        | "ChaosDamage"
+                                        | "ElementalDamage"
+                                )
+                                && m.name != target
+                            {
+                                let mut c = m.clone();
+                                c.name = target.clone();
+                                converted.push(c);
+                            }
+                            retained.push(m);
+                        }
+                        retained.extend(converted);
+                        *node_mods = retained;
+                    },
+                ),
+            ));
+        }
     }
 
     funcs
@@ -2523,13 +2729,8 @@ pub fn normalize_gem_skill_id(skill_id: &str) -> &str {
 fn build_requirements_table(build: &Build, env: &mut CalcEnv) {
     use crate::calc::env::RequirementEntry;
 
-    let item_set = match build.item_sets.get(build.active_item_set) {
-        Some(set) => set,
-        None => return,
-    };
-
     // 1. Item requirements
-    for (slot_name, &item_id) in &item_set.slots {
+    for (slot_name, resolved_item) in &env.player.item_list {
         let slot = match ItemSlot::from_str(slot_name) {
             Some(s) => s,
             None => continue,
@@ -2539,15 +2740,6 @@ fn build_requirements_table(build: &Build, env: &mut CalcEnv) {
         if slot.is_flask() || slot.is_jewel() {
             continue;
         }
-
-        let item = match build.items.get(&item_id) {
-            Some(i) => i,
-            None => continue,
-        };
-
-        // Resolve item requirements from base type
-        let mut resolved_item = item.clone();
-        crate::build::item_resolver::resolve_item_base(&mut resolved_item, &env.data.bases);
 
         let base_req = &resolved_item.requirements;
         let mut str_req = base_req.str_req as f64;
@@ -2622,7 +2814,7 @@ fn build_requirements_table(build: &Build, env: &mut CalcEnv) {
         }
 
         // Check that the slot is equipped
-        let is_equipped = item_set.slots.contains_key(&slot_name);
+        let is_equipped = env.player.item_list.contains_key(&slot_name);
         if !is_equipped {
             continue;
         }
@@ -2733,11 +2925,13 @@ fn compute_gem_attr_req(level_req: f64, multi: f64, stat_type: f64) -> f64 {
 
 #[cfg(test)]
 mod tests {
-    use super::init_env;
+    use super::{extract_extra_jewel_specs, init_env};
     use crate::{
         build::{parse_xml, types::Build},
+        calc::env::{CalcEnv, RadiusJewelType},
         data::GameData,
         mod_db::types::{KeywordFlags, ModFlags, ModType},
+        mod_db::ModDb,
     };
     use std::sync::Arc;
 
@@ -3795,6 +3989,162 @@ Implicits: 0
             "UsingFlask condition should NOT be true"
         );
     }
+
+    #[test]
+    fn extra_jewel_specs_are_extracted_per_item() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_29" bandit="None" mainSocketGroup="1"
+         className="Marauder" ascendClassName="None"/>
+  <Skills activeSkillSet="1"><SkillSet id="1"/></Skills>
+  <Tree activeSpec="1">
+    <Spec treeVersion="3_29" nodes="" classId="1" ascendClassId="0"/>
+  </Tree>
+  <Items activeItemSet="1">
+    <Item id="1"><![CDATA[
+Rarity: RARE
+Test Jewel A
+Cobalt Jewel
+Implicits: 0
+Non-Unique Jewels cause increases and reductions to other Damage Types in a Small Radius to be transformed to apply to Fire Damage
+    ]]></Item>
+    <Item id="2"><![CDATA[
+Rarity: RARE
+Test Jewel B
+Cobalt Jewel
+Implicits: 0
++10 to Intelligence
+    ]]></Item>
+    <ItemSet id="1">
+      <Slot name="Jewel 1" itemId="1"/>
+      <Slot name="Jewel 2" itemId="2"/>
+    </ItemSet>
+  </Items>
+  <Config/>
+</PathOfBuilding>"#;
+
+        let build = parse_xml(xml).unwrap();
+        let item_a = build.items.get(&1).expect("item 1 exists");
+        let item_b = build.items.get(&2).expect("item 2 exists");
+
+        let specs_a = extract_extra_jewel_specs(item_a);
+        let specs_b = extract_extra_jewel_specs(item_b);
+
+        assert_eq!(specs_a.len(), 1, "item A should have one ExtraJewelFunc");
+        assert!(
+            specs_a[0].starts_with("radiusConvertDmg:Small:Fire"),
+            "unexpected spec for item A: {:?}",
+            specs_a
+        );
+        assert!(
+            specs_b.is_empty(),
+            "item B should not inherit ExtraJewelFunc specs from other items"
+        );
+    }
+
+    #[test]
+    fn extra_jewel_specs_include_multiple_funcs_on_same_item() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_29" bandit="None" mainSocketGroup="1"
+         className="Marauder" ascendClassName="None"/>
+  <Skills activeSkillSet="1"><SkillSet id="1"/></Skills>
+  <Tree activeSpec="1">
+    <Spec treeVersion="3_29" nodes="" classId="1" ascendClassId="0"/>
+  </Tree>
+  <Items activeItemSet="1">
+    <Item id="1"><![CDATA[
+Rarity: RARE
+Test Jewel A
+Cobalt Jewel
+Implicits: 0
+Non-Unique Jewels cause increases and reductions to other Damage Types in a Medium Radius to be transformed to apply to Cold Damage
+Non-Unique Jewels cause small and notable passive skills in a Medium Radius to also grant +7 to Dexterity
+    ]]></Item>
+    <ItemSet id="1">
+      <Slot name="Jewel 1" itemId="1"/>
+    </ItemSet>
+  </Items>
+  <Config/>
+</PathOfBuilding>"#;
+
+        let build = parse_xml(xml).unwrap();
+        let item_a = build.items.get(&1).expect("item 1 exists");
+        let specs = extract_extra_jewel_specs(item_a);
+
+        assert_eq!(specs.len(), 2, "expected two ExtraJewelFunc specs");
+        assert!(
+            specs.iter().any(|s| s == "radiusConvertDmg:Medium:Cold"),
+            "missing convert spec: {:?}",
+            specs
+        );
+        assert!(
+            specs
+                .iter()
+                .any(|s| s == "radiusGrantAttr:Medium:7:Dexterity"),
+            "missing grant attr spec: {:?}",
+            specs
+        );
+    }
+
+    #[test]
+    fn base_and_extra_radius_funcs_are_dispatched_to_separate_node_sets() {
+        let xml = r#"<?xml version="1.0" encoding="UTF-8"?>
+<PathOfBuilding>
+  <Build level="90" targetVersion="3_29" bandit="None" mainSocketGroup="1"
+         className="Marauder" ascendClassName="None"/>
+  <Skills activeSkillSet="1"><SkillSet id="1"/></Skills>
+  <Tree activeSpec="1"><Spec treeVersion="3_29" nodes="" classId="1" ascendClassId="0"/></Tree>
+  <Items activeItemSet="1">
+    <Item id="1"><![CDATA[
+Rarity: RARE
+Test Jewel A
+Cobalt Jewel
+Radius: Small
+Implicits: 0
+Non-Unique Jewels cause increases and reductions to other Damage Types in a Medium Radius to be transformed to apply to Fire Damage
+    ]]></Item>
+    <ItemSet id="1"><Slot name="Jewel 1" itemId="1"/></ItemSet>
+  </Items>
+  <Config/>
+</PathOfBuilding>"#;
+
+        let build = parse_xml(xml).unwrap();
+        let item = build.items.get(&1).expect("item 1 exists");
+        let base_funcs = super::extract_jewel_func_list(item);
+        assert!(
+            base_funcs
+                .iter()
+                .any(|(t, _)| *t == RadiusJewelType::SelfAlloc),
+            "expected default SelfAlloc callback in base func list"
+        );
+
+        let extra_specs = extract_extra_jewel_specs(item);
+        let extra_funcs = super::extra_jewel_funcs_for_radius(
+            &extra_specs,
+            "Medium",
+            500,
+            &crate::passive_tree::PassiveTree::from_json(r#"{"nodes":{}}"#).unwrap(),
+        );
+        assert!(!extra_funcs.is_empty(), "expected ExtraJewelFunc callbacks");
+
+        let mut env = CalcEnv::new(
+            ModDb::new(),
+            ModDb::new(),
+            Arc::new(crate::data::GameData::default_for_test()),
+        );
+        super::push_radius_jewel_entries(&mut env, 500, std::iter::once(11).collect(), base_funcs);
+        super::push_radius_jewel_entries(&mut env, 500, std::iter::once(22).collect(), extra_funcs);
+
+        let self_entries: Vec<_> = env
+            .radius_jewel_list
+            .iter()
+            .filter(|r| r.jewel_type == RadiusJewelType::SelfAlloc)
+            .collect();
+        assert_eq!(self_entries.len(), 1);
+        assert!(self_entries[0].nodes.contains(&11));
+        assert!(!self_entries[0].nodes.contains(&22));
+    }
 }
 
 /// Apply LOCAL defence mods from an armour item's explicit text to its base armour_data.
@@ -4006,34 +4356,615 @@ fn scale_mod_value(mut m: Mod, scale: f64) -> Mod {
     m
 }
 
+fn item_set_slots_in_order(item_set: &ItemSet) -> Vec<crate::build::types::ItemSetSlot> {
+    if !item_set.ordered_slots.is_empty() {
+        return item_set.ordered_slots.clone();
+    }
+    let mut slots: Vec<crate::build::types::ItemSetSlot> = item_set
+        .slots
+        .iter()
+        .map(|(name, &item_id)| crate::build::types::ItemSetSlot {
+            name: name.clone(),
+            item_id,
+            active: true,
+            node_id: None,
+        })
+        .collect();
+    slots.sort_by(|a, b| a.name.cmp(&b.name));
+    slots
+}
+
+fn is_weapon_swap_slot(slot_name: &str) -> bool {
+    slot_name.contains("Weapon 1Swap")
+        || slot_name.contains("Weapon 2Swap")
+        || slot_name.contains("Weapon 1 Swap")
+        || slot_name.contains("Weapon 2 Swap")
+}
+
+fn normalize_swap_slot_name(slot_name: &str) -> String {
+    slot_name
+        .replace("Weapon 1Swap", "Weapon 1")
+        .replace("Weapon 2Swap", "Weapon 2")
+        .replace("Weapon 1 Swap", "Weapon 1")
+        .replace("Weapon 2 Swap", "Weapon 2")
+}
+
+fn effective_ordered_slots(
+    build: &Build,
+    item_set: &ItemSet,
+) -> Vec<crate::build::types::ItemSetSlot> {
+    let want_weapon_set = if item_set.use_second_weapon_set { 2 } else { 1 };
+    item_set_slots_in_order(item_set)
+        .into_iter()
+        .filter_map(|mut slot| {
+            if (slot.name == "Graft 1" || slot.name == "Graft 2")
+                && !build.passive_spec.tree_version.contains("3_27")
+            {
+                return None;
+            }
+
+            let slot_weapon_set = if is_weapon_swap_slot(&slot.name) {
+                2
+            } else {
+                1
+            };
+            if slot.name.starts_with("Weapon ") && slot_weapon_set != want_weapon_set {
+                return None;
+            }
+            if slot.name.starts_with("Weapon ") && slot_weapon_set == 2 {
+                slot.name = normalize_swap_slot_name(&slot.name);
+            }
+
+            if slot.name.contains("Weapon 1Swap") || slot.name.contains("Weapon 2Swap") {
+                if slot_weapon_set != want_weapon_set {
+                    return None;
+                }
+                slot.name = normalize_swap_slot_name(&slot.name);
+            }
+
+            Some(slot)
+        })
+        .collect()
+}
+
+fn is_abyss_slot_name(slot_name: &str) -> bool {
+    slot_name.contains(" Abyssal Socket ")
+}
+
+fn parse_abyss_parent_slot(slot_name: &str) -> Option<(&str, u32)> {
+    let (parent, slot_num_str) = slot_name.split_once(" Abyssal Socket ")?;
+    let slot_num = slot_num_str.trim().parse::<u32>().ok()?;
+    Some((parent, slot_num))
+}
+
+fn item_is_abyss_jewel(item: &Item) -> bool {
+    item.item_type == "Jewel" && item.base_type.contains("Eye Jewel")
+}
+
+fn item_mod_lines(item: &Item) -> impl Iterator<Item = &String> {
+    item.implicits
+        .iter()
+        .chain(item.explicits.iter())
+        .chain(item.crafted_mods.iter())
+        .chain(item.enchant_mods.iter())
+}
+
+fn is_two_handed_weapon_type(item_type: &str) -> bool {
+    matches!(
+        item_type,
+        "Staff" | "Two Handed Sword" | "Two Handed Axe" | "Two Handed Mace" | "Bow"
+    )
+}
+
+fn parse_item_disables_for_slot(slot_name: &str, item_type: &str, line: &str) -> Option<String> {
+    let lower = line.trim().to_lowercase();
+    if lower == "can't use amulets" {
+        return Some("Amulet".to_string());
+    }
+    if lower == "can't use belts" {
+        return Some("Belt".to_string());
+    }
+    if lower == "can't use chest armour" {
+        return Some("Body Armour".to_string());
+    }
+    if lower == "can't use helmet" || lower == "can't use helmets" {
+        return Some("Helmet".to_string());
+    }
+    if lower == "can't use other rings" {
+        if slot_name == "Ring 1" {
+            return Some("Ring 2".to_string());
+        }
+        if slot_name == "Ring 2" {
+            return Some("Ring 1".to_string());
+        }
+    }
+    if lower == "uses both hand slots" {
+        if slot_name == "Weapon 1" {
+            return Some("Weapon 2".to_string());
+        }
+        if slot_name == "Weapon 2" {
+            return Some("Weapon 1".to_string());
+        }
+    }
+    if lower == "can't use flask in fifth slot" {
+        // Micro-Distillery Belt exception: ignore when target slot contains a tincture.
+        if item_type == "Tincture" {
+            return None;
+        }
+        return Some("Flask 5".to_string());
+    }
+    None
+}
+
+fn parse_tree_disables_from_line(line: &str) -> Vec<String> {
+    let lower = line.trim().to_lowercase();
+    match lower.as_str() {
+        "can't use amulets" => vec!["Amulet".to_string()],
+        "can't use belts" => vec!["Belt".to_string()],
+        "can't use chest armour" => vec!["Body Armour".to_string()],
+        "can't use helmet" | "can't use helmets" => vec!["Helmet".to_string()],
+        "can't use other rings" => vec!["Ring 1".to_string(), "Ring 2".to_string()],
+        "uses both hand slots" => vec!["Weapon 1".to_string(), "Weapon 2".to_string()],
+        "can't use flask in fifth slot" => vec!["Flask 5".to_string()],
+        _ => Vec::new(),
+    }
+}
+
+fn build_initial_node_mod_db(build: &Build, env: &CalcEnv) -> ModDb {
+    let mut db = ModDb::new();
+    db.conditions = env.player.mod_db.conditions.clone();
+    db.multipliers = env.player.mod_db.multipliers.clone();
+
+    let tree = env.data.tree_for_version(&build.passive_spec.tree_version);
+    for node_id in &build.passive_spec.allocated_nodes {
+        let Some(node) = tree.nodes.get(node_id) else {
+            continue;
+        };
+        let src = ModSource::new("Tree", &node.name);
+        for stat in &node.stats {
+            for m in crate::build::mod_parser::parse_mod(stat, src.clone()) {
+                db.add(m);
+            }
+        }
+    }
+    db
+}
+
+fn collect_tree_disablers(build: &Build, env: &CalcEnv) -> Vec<(String, String)> {
+    let tree = env.data.tree_for_version(&build.passive_spec.tree_version);
+    let mut out = Vec::new();
+    for node_id in &build.passive_spec.allocated_nodes {
+        let Some(node) = tree.nodes.get(node_id) else {
+            continue;
+        };
+        for stat in &node.stats {
+            for disabled_slot in parse_tree_disables_from_line(stat) {
+                out.push((format!("Tree:{}", node.id), disabled_slot));
+            }
+        }
+    }
+    out
+}
+
+fn calc_inc_more_factor(db: &ModDb, stat: &str) -> f64 {
+    let inc = db.sum(ModType::Inc, stat, ModFlags::NONE, KeywordFlags::NONE);
+    let more = db.more(stat, ModFlags::NONE, KeywordFlags::NONE);
+    (1.0 + inc / 100.0) * more
+}
+
+fn resolve_item_disabler_chain(
+    ordered_slots: &[crate::build::types::ItemSetSlot],
+    staged_items: &HashMap<String, Item>,
+    tree_disablers: &[(String, String)],
+) -> std::collections::HashSet<String> {
+    let mut item_disablers: HashMap<String, String> = HashMap::new();
+    let mut item_disabled_by: HashMap<String, String> = HashMap::new();
+
+    for (source, disabled_slot) in tree_disablers {
+        if disabled_slot == "Flask 5"
+            && staged_items
+                .get(disabled_slot)
+                .is_some_and(|item| item.item_type == "Tincture")
+        {
+            continue;
+        }
+        if staged_items.contains_key(disabled_slot) {
+            item_disablers.insert(source.clone(), disabled_slot.clone());
+            item_disabled_by.insert(disabled_slot.clone(), source.clone());
+        }
+    }
+
+    for slot in ordered_slots {
+        let Some(item) = staged_items.get(&slot.name) else {
+            continue;
+        };
+        for line in item_mod_lines(item) {
+            if let Some(disabled_slot) =
+                parse_item_disables_for_slot(&slot.name, &item.item_type, line)
+            {
+                if disabled_slot == "Flask 5" {
+                    if let Some(target_item) = staged_items.get(&disabled_slot) {
+                        if target_item.item_type == "Tincture" {
+                            continue;
+                        }
+                    }
+                }
+                if staged_items.contains_key(&disabled_slot) {
+                    item_disablers.insert(slot.name.clone(), disabled_slot.clone());
+                    item_disabled_by.insert(disabled_slot, slot.name.clone());
+                }
+            }
+        }
+    }
+
+    let mut visited: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut true_disabled: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    let mut chain_starts: Vec<String> = ordered_slots.iter().map(|s| s.name.clone()).collect();
+    for key in item_disablers.keys() {
+        if !chain_starts.contains(key) {
+            chain_starts.push(key.clone());
+        }
+    }
+
+    for slot_name in chain_starts {
+        if !item_disablers.contains_key(&slot_name) || visited.contains(&slot_name) {
+            continue;
+        }
+
+        let mut chain_cursor = slot_name;
+        let mut cur_chain: std::collections::HashSet<String> = std::collections::HashSet::new();
+        cur_chain.insert(chain_cursor.clone());
+        while let Some(disabler) = item_disabled_by.get(&chain_cursor) {
+            chain_cursor = disabler.clone();
+            if cur_chain.contains(&chain_cursor) {
+                break;
+            }
+            cur_chain.insert(chain_cursor.clone());
+        }
+
+        loop {
+            visited.insert(chain_cursor.clone());
+            let Some(next_slot) = item_disablers.get(&chain_cursor).cloned() else {
+                break;
+            };
+            visited.insert(next_slot.clone());
+            true_disabled.insert(next_slot.clone());
+            let Some(next_after) = item_disablers.get(&next_slot).cloned() else {
+                break;
+            };
+            if visited.contains(&next_after) {
+                break;
+            }
+            chain_cursor = next_after;
+        }
+    }
+
+    true_disabled
+}
+
+fn item_abyssal_socket_count(item: &Item) -> u32 {
+    let from_socket_layout = item
+        .sockets
+        .iter()
+        .flat_map(|g| g.colors.iter())
+        .filter(|&&c| c == 'A')
+        .count() as u32;
+
+    let mut from_mods = 0u32;
+    for line in item_mod_lines(item) {
+        let lower = line.trim().to_lowercase();
+        if let Some(rest) = lower.strip_prefix("has ") {
+            if let Some(num_part) = rest.strip_suffix(" abyssal socket") {
+                if let Ok(v) = num_part.trim().parse::<u32>() {
+                    from_mods = from_mods.max(v);
+                }
+            } else if let Some(num_part) = rest.strip_suffix(" abyssal sockets") {
+                if let Ok(v) = num_part.trim().parse::<u32>() {
+                    from_mods = from_mods.max(v);
+                }
+            }
+        }
+    }
+
+    from_socket_layout.max(from_mods)
+}
+
+fn socketed_jewel_effect_modifier(item: &Item) -> f64 {
+    let source = ModSource::new("Item", &item.base_type);
+    let mut inc = 0.0;
+    for line in item_mod_lines(item) {
+        for m in crate::build::mod_parser::parse_mod(line, source.clone()) {
+            if m.name == "SocketedJewelEffect" && m.mod_type == ModType::Inc {
+                if let ModValue::Number(v) = m.value {
+                    inc += v;
+                }
+            }
+        }
+    }
+    1.0 + inc / 100.0
+}
+
+fn jewel_inc_effect_from_class_start(item: &Item) -> f64 {
+    for line in item_mod_lines(item) {
+        if let Some(caps) = RE_JEWEL_INC_EFFECT_FROM_CLASS_START.captures(line) {
+            if let Ok(v) = caps[1].parse::<f64>() {
+                return v;
+            }
+        }
+    }
+    0.0
+}
+
 /// Process equipped items: parse their mods into the player ModDb and extract weapon data.
 /// Mirrors the item slot processing in CalcSetup.lua.
 fn add_item_mods(build: &Build, env: &mut CalcEnv) {
-    // Get the active item set
     let item_set = match build.item_sets.get(build.active_item_set) {
         Some(set) => set,
         None => return,
     };
 
-    for (slot_name, &item_id) in &item_set.slots {
+    let ordered_slots = effective_ordered_slots(build, item_set);
+    let initial_node_mod_db = build_initial_node_mod_db(build, env);
+    let tree_disablers = collect_tree_disablers(build, env);
+
+    env.player.granted_skills_items.clear();
+    env.player.explode_sources.clear();
+
+    // Stage resolved items by slot first (mirrors Lua `items` table pre-merge).
+    let mut staged_items: HashMap<String, Item> = HashMap::new();
+    let override_rep_slot = build.config.strings.get("overrideRepSlotName").cloned();
+    let override_rep_item = build
+        .config
+        .numbers
+        .get("overrideRepItemId")
+        .and_then(|v| build.items.get(&(*v as u32)))
+        .cloned();
+    let override_spec = build
+        .config
+        .booleans
+        .get("overrideSpec")
+        .copied()
+        .unwrap_or(false);
+
+    for slot in &ordered_slots {
+        let chosen_item = if override_rep_slot.as_ref().is_some_and(|s| s == &slot.name) {
+            override_rep_item.as_ref()
+        } else if let (Some(rep_slot), Some(rep_item)) =
+            (override_rep_slot.as_ref(), override_rep_item.as_ref())
+        {
+            if rep_slot.starts_with("Weapon 1")
+                && slot.name.starts_with("Weapon 2")
+                && is_two_handed_weapon_type(&rep_item.item_type)
+            {
+                continue;
+            }
+            build.items.get(&slot.item_id)
+        } else if override_spec {
+            slot.node_id
+                .and_then(|node_id| build.passive_spec.jewels.get(&node_id).copied())
+                .and_then(|item_id| build.items.get(&item_id))
+        } else {
+            build.items.get(&slot.item_id)
+        };
+
+        let Some(item) = chosen_item else {
+            continue;
+        };
+
+        let mut resolved = item.clone();
+        crate::build::item_resolver::resolve_item_base(&mut resolved, &env.data.bases);
+        let source = ModSource::new("Item", &resolved.base_type);
+        for line in item_mod_lines(&resolved) {
+            for m in crate::build::mod_parser::parse_mod(line, source.clone()) {
+                if m.name == "ExtraSkill" {
+                    if let Some(skill_id) = m.tags.iter().find_map(|t| {
+                        if let ModTag::SkillId { id } = t {
+                            Some(id.clone())
+                        } else {
+                            None
+                        }
+                    }) {
+                        env.player
+                            .granted_skills_items
+                            .push((skill_id, slot.name.clone()));
+                    }
+                }
+                if m.name == "CanExplode" && m.mod_type == ModType::Flag {
+                    env.player.explode_sources.push(resolved.name.clone());
+                }
+            }
+        }
+        staged_items.insert(slot.name.clone(), resolved);
+    }
+
+    // Resolve CanNotUseItem/DisablesItem chains before final merge.
+    if !build
+        .config
+        .booleans
+        .get("ignoreItemDisablers")
+        .copied()
+        .unwrap_or(false)
+    {
+        let true_disabled_slots =
+            resolve_item_disabler_chain(&ordered_slots, &staged_items, &tree_disablers);
+        for disabled_slot in &true_disabled_slots {
+            staged_items.remove(disabled_slot);
+        }
+    }
+
+    // First pass: flask/tincture slot tracking and Have<FlaskBase> conditions.
+    env.player.active_flask_slots.clear();
+    env.player.active_tincture_slots.clear();
+    env.player.flask_slot_map.clear();
+    env.player.flask_slot_occupied.clear();
+    for slot in &ordered_slots {
+        let Some(item) = staged_items.get(&slot.name) else {
+            continue;
+        };
+        let flask_num = slot
+            .name
+            .strip_prefix("Flask ")
+            .and_then(|n| n.parse::<u32>().ok());
+        if item.item_type == "Flask" {
+            env.player
+                .mod_db
+                .set_condition(&format!("Have{}", item.base_type.replace(' ', "")), true);
+            if slot.active {
+                if let Some(n) = flask_num {
+                    env.player.active_flask_slots.insert(n);
+                }
+            }
+            if let Some(n) = flask_num {
+                env.player.flask_slot_map.insert(item.name.clone(), n);
+                env.player.flask_slot_occupied.insert(n);
+            }
+            let is_life_flask = item.base_type.contains("Life Flask");
+            if is_life_flask {
+                let life_recovery = item.flask_data.as_ref().map(|fd| fd.life).unwrap_or(0.0);
+                if life_recovery
+                    > env
+                        .player
+                        .mod_db
+                        .multipliers
+                        .get("LifeFlaskRecovery")
+                        .copied()
+                        .unwrap_or(0.0)
+                {
+                    env.player
+                        .mod_db
+                        .set_multiplier("LifeFlaskRecovery", life_recovery);
+                }
+                let charges_max = item
+                    .flask_data
+                    .as_ref()
+                    .map(|fd| fd.charges_max as f64)
+                    .unwrap_or(0.0);
+                if charges_max
+                    > env
+                        .player
+                        .mod_db
+                        .multipliers
+                        .get("LifeFlaskCharges")
+                        .copied()
+                        .unwrap_or(0.0)
+                {
+                    env.player
+                        .mod_db
+                        .set_multiplier("LifeFlaskCharges", charges_max);
+                }
+            }
+        } else if item.item_type == "Tincture" {
+            if slot.active {
+                if let Some(n) = flask_num {
+                    env.player.active_tincture_slots.insert(n);
+                }
+            }
+        }
+    }
+
+    env.player.item_list.clear();
+
+    for slot_entry in &ordered_slots {
+        let slot_name = &slot_entry.name;
+
+        let Some(mut resolved_item) = staged_items.get(slot_name).cloned() else {
+            continue;
+        };
+
+        // Slot-based abyss jewel handling (e.g. Belt Abyssal Socket 1).
+        if is_abyss_slot_name(slot_name) && item_is_abyss_jewel(&resolved_item) {
+            let Some((parent_slot, parent_slot_num)) = parse_abyss_parent_slot(slot_name) else {
+                continue;
+            };
+            let Some(parent_item) = env
+                .player
+                .item_list
+                .get(parent_slot)
+                .or_else(|| staged_items.get(parent_slot))
+            else {
+                continue;
+            };
+            if item_abyssal_socket_count(parent_item) < parent_slot_num {
+                continue;
+            }
+
+            let source = ModSource::new(
+                "Item",
+                format!("{} ({})", resolved_item.base_type, slot_name),
+            );
+            let scale = socketed_jewel_effect_modifier(parent_item);
+            for line in item_mod_lines(&resolved_item) {
+                for m in crate::build::mod_parser::parse_mod(line, source.clone()) {
+                    env.player.mod_db.add(scale_mod_value(m, scale));
+                }
+            }
+
+            let cond = format!("Have{}", resolved_item.base_type.replace(' ', ""));
+            if !env
+                .player
+                .mod_db
+                .conditions
+                .get(&cond)
+                .copied()
+                .unwrap_or(false)
+            {
+                env.player.mod_db.set_condition(&cond, true);
+                *env.player
+                    .mod_db
+                    .multipliers
+                    .entry("AbyssJewelType".to_string())
+                    .or_insert(0.0) += 1.0;
+            }
+            env.player
+                .mod_db
+                .set_condition(&format!("{}In{}", cond, parent_slot), true);
+            *env.player
+                .mod_db
+                .multipliers
+                .entry("AbyssJewel".to_string())
+                .or_insert(0.0) += 1.0;
+
+            let rarity_key = match resolved_item.rarity {
+                crate::build::types::ItemRarity::Normal => "NormalAbyssJewels",
+                crate::build::types::ItemRarity::Magic => "MagicAbyssJewels",
+                crate::build::types::ItemRarity::Rare => "RareAbyssJewels",
+                crate::build::types::ItemRarity::Unique
+                | crate::build::types::ItemRarity::Relic => "UniqueAbyssJewels",
+            };
+            *env.player
+                .mod_db
+                .multipliers
+                .entry(rarity_key.to_string())
+                .or_insert(0.0) += 1.0;
+            *env.player
+                .mod_db
+                .multipliers
+                .entry(resolved_item.base_type.replace(' ', ""))
+                .or_insert(0.0) += 1.0;
+
+            env.player
+                .item_list
+                .insert(slot_name.clone(), resolved_item);
+            continue;
+        }
+
         let slot = match ItemSlot::from_str(slot_name) {
             Some(s) => s,
             None => continue,
         };
 
+        // Track effective non-flask/tincture items by slot for downstream passes.
+        if !slot.is_flask() {
+            env.player
+                .item_list
+                .insert(slot_name.clone(), resolved_item.clone());
+        }
+
         // Skip flask and jewel slots (handled separately in later tasks)
         if slot.is_flask() || slot.is_jewel() {
             continue;
         }
-
-        let item = match build.items.get(&item_id) {
-            Some(i) => i,
-            None => continue,
-        };
-
-        // Resolve base stats into a local copy so we don't mutate build
-        let mut resolved_item = item.clone();
-        crate::build::item_resolver::resolve_item_base(&mut resolved_item, &env.data.bases);
 
         let source = ModSource::new("Item", &resolved_item.base_type);
 
@@ -4358,8 +5289,8 @@ fn add_item_mods(build: &Build, env: &mut CalcEnv) {
             }
         }
         // ── Check 4: Dancing Dervish (CalcSetup.lua lines 1032–1049) ──────────
-        // Detection: Weapon 1 grants UniqueAnimateWeapon. Detected by item name
-        // "The Dancing Dervish" (since Rust Item has no grantedSkills field).
+        // Detection: Weapon 1 grants UniqueAnimateWeapon.
+        // Matched by unique name or an ExtraSkill tag carrying that skill id.
         // Non-SocketedIn → weaponModList1 only; SocketedIn → player.
         else if slot == ItemSlot::Weapon1
             && (resolved_item.name.contains("Dancing Dervish")
@@ -4396,18 +5327,13 @@ fn add_item_mods(build: &Build, env: &mut CalcEnv) {
             };
             if !other_slot_name.is_empty() {
                 // Look up the other ring item.
-                let other_ring_id = item_set.slots.get(other_slot_name).copied();
-                let other_ring = other_ring_id.and_then(|id| build.items.get(&id));
+                let other_ring = staged_items.get(other_slot_name);
 
                 if let Some(other_ring) = other_ring {
                     // Only mirror if the other ring is NOT also a Kalandra's Touch.
                     if !other_ring.name.contains("Kalandra's Touch") {
                         // Resolve other ring base.
-                        let mut resolved_other = other_ring.clone();
-                        crate::build::item_resolver::resolve_item_base(
-                            &mut resolved_other,
-                            &env.data.bases,
-                        );
+                        let resolved_other = other_ring.clone();
 
                         // Copy non-SocketedIn mods from the other ring, re-sourced to Kalandra's Touch.
                         // Mirrors: modLib.setSource(modCopy, item.modSource)
@@ -4483,54 +5409,50 @@ fn add_item_mods(build: &Build, env: &mut CalcEnv) {
         // When a Widowhail bow is in Weapon 1, quiver mods are scaled.
         // The multiplier comes from the bow's EffectOfBonusesFromQuiver%.
         // We also check if passives grant EffectOfBonusesFromQuiver > 0.
-        // NOTE: env.initialNodeModDB is not yet available (passive mods are applied
-        // after items), so we use 0.0 for the passive contribution. This correctly
-        // models no passive contribution (the common case for oracle builds).
         else if resolved_item.item_type == "Quiver" && {
-            let weapon1_id = item_set.slots.get("Weapon 1").copied();
-            let weapon1 = weapon1_id.and_then(|id| build.items.get(&id));
-            weapon1.map_or(false, |w| w.name.contains("Widowhail"))
-        } {
+            staged_items
+                .get("Weapon 1")
+                .is_some_and(|w| w.name.contains("Widowhail"))
+        } || (resolved_item.item_type == "Quiver"
+            && initial_node_mod_db.sum(
+                ModType::Inc,
+                "EffectOfBonusesFromQuiver",
+                ModFlags::NONE,
+                KeywordFlags::NONE,
+            ) > 0.0)
+        {
             // Get Widowhail's EffectOfBonusesFromQuiver from its parsed base mods.
             // The Widowhail bow has an implicit like "100% increased Effect of Bonuses from Quiver".
             // Mirrors: items["Weapon 1"].baseModList:Sum("INC", nil, "EffectOfBonusesFromQuiver")
             let effect_from_quiver = {
-                let weapon1_id = item_set.slots.get("Weapon 1").copied();
-                if let Some(id) = weapon1_id {
-                    if let Some(weapon1_item) = build.items.get(&id) {
-                        let mut resolved_w1 = weapon1_item.clone();
-                        crate::build::item_resolver::resolve_item_base(
-                            &mut resolved_w1,
-                            &env.data.bases,
-                        );
-                        let w1_source = ModSource::new("Item", &resolved_w1.base_type);
-                        let w1_mod_lines = resolved_w1
-                            .implicits
-                            .iter()
-                            .chain(resolved_w1.explicits.iter());
-                        let mut inc_sum = 0.0f64;
-                        for line in w1_mod_lines {
-                            let mods = crate::build::mod_parser::parse_mod(line, w1_source.clone());
-                            for m in mods {
-                                if m.name == "EffectOfBonusesFromQuiver"
-                                    && m.mod_type == ModType::Inc
-                                {
-                                    if let ModValue::Number(v) = m.value {
-                                        inc_sum += v;
-                                    }
+                if let Some(resolved_w1) = staged_items.get("Weapon 1") {
+                    let w1_source = ModSource::new("Item", &resolved_w1.base_type);
+                    let w1_mod_lines = resolved_w1
+                        .implicits
+                        .iter()
+                        .chain(resolved_w1.explicits.iter());
+                    let mut inc_sum = 0.0f64;
+                    for line in w1_mod_lines {
+                        let mods = crate::build::mod_parser::parse_mod(line, w1_source.clone());
+                        for m in mods {
+                            if m.name == "EffectOfBonusesFromQuiver" && m.mod_type == ModType::Inc {
+                                if let ModValue::Number(v) = m.value {
+                                    inc_sum += v;
                                 }
                             }
                         }
-                        inc_sum
-                    } else {
-                        100.0 // default: no weapon present → widowHailMod = 2.0
                     }
+                    inc_sum
                 } else {
                     100.0 // default when no weapon in slot
                 }
             };
-            // Passive EffectOfBonusesFromQuiver: 0.0 (no initialNodeModDB yet).
-            let passive_effect = 0.0f64;
+            let passive_effect = initial_node_mod_db.sum(
+                ModType::Inc,
+                "EffectOfBonusesFromQuiver",
+                ModFlags::NONE,
+                KeywordFlags::NONE,
+            );
             let widow_hail_mod = 1.0 + (effect_from_quiver + passive_effect) / 100.0;
             let scale = widow_hail_mod; // scale starts at 1, multiplied by widowHailMod
 
@@ -4543,49 +5465,21 @@ fn add_item_mods(build: &Build, env: &mut CalcEnv) {
             ));
 
             // Scale quiver mods: ScaleAddList(combinedList, scale).
-            // MergeMod combines duplicate mods before scaling. Here we simplify
-            // by just scaling each mod individually (equivalent when no duplicates exist).
             for m in src_list {
                 let scaled = scale_mod_value(m, scale);
                 env.player.mod_db.add(scaled);
             }
         }
         // ── Check 7: Corrupted jewel scaling — The Adorned (lines 1098–1104) ──
-        // If The Adorned has set CorruptedRarityJewelEffect and this jewel is
-        // corrupted, scale its mods. Note: jewels are processed separately in
-        // add_jewel_mods, not here. This branch would only fire for non-jewel-slot
-        // jewels, which don't exist in practice. The actual The Adorned handling
-        // is in add_jewel_mods (see the jewel-specific section below).
+        // Handled in add_jewel_mods for jewel slots and passive-tree sockets.
         // ── Check 8: Gloves with EffectOfBonusesFromGloves (lines 1105–1116) ──
         // If passives grant EffectOfBonusesFromGloves != 1.0, scale gloves mods.
-        // NOTE: env.initialNodeModDB (passive-only) not available here; we check
-        // env.player.mod_db for EffectOfBonusesFromGloves (slightly incorrect —
-        // items added before passives — but acceptable since no oracle builds
-        // exercise this path). For now we only apply if the passive stat is set.
         else if resolved_item.item_type == "Gloves" && {
-            let inc = env.player.mod_db.sum(
-                ModType::Inc,
-                "EffectOfBonusesFromGloves",
-                ModFlags::NONE,
-                KeywordFlags::NONE,
-            );
-            inc != 0.0
+            (calc_inc_more_factor(&initial_node_mod_db, "EffectOfBonusesFromGloves") - 1.0).abs()
+                > f64::EPSILON
         } {
-            // Lua: scale = calcLib.mod(env.initialNodeModDB, nil, "EffectOfBonusesFromGloves") - 1
-            // calcLib.mod = (1 + INC/100) * More
-            // We approximate: scale = INC/100 (More is assumed 1.0)
-            let inc = env.player.mod_db.sum(
-                ModType::Inc,
-                "EffectOfBonusesFromGloves",
-                ModFlags::NONE,
-                KeywordFlags::NONE,
-            );
-            let scale = inc / 100.0; // = calcLib.mod - 1 (assuming More = 1.0)
-                                     // Build combined list (MergeMod deduplicates; we add all as-is).
-                                     // Then scale that list and merge back:
-                                     //   scaledList = scale * combinedList
-                                     //   combinedList += scaledList  → effectively: combinedList *= (1 + scale)
-                                     // Net effect: mods are added at (1 + scale) times their base value.
+            let scale =
+                calc_inc_more_factor(&initial_node_mod_db, "EffectOfBonusesFromGloves") - 1.0;
             for m in &src_list {
                 env.player.mod_db.add(m.clone());
                 let scaled = scale_mod_value(m.clone(), scale);
@@ -4594,21 +5488,11 @@ fn add_item_mods(build: &Build, env: &mut CalcEnv) {
         }
         // ── Check 9: Boots with EffectOfBonusesFromBoots (lines 1117–1128) ────
         else if resolved_item.item_type == "Boots" && {
-            let inc = env.player.mod_db.sum(
-                ModType::Inc,
-                "EffectOfBonusesFromBoots",
-                ModFlags::NONE,
-                KeywordFlags::NONE,
-            );
-            inc != 0.0
+            (calc_inc_more_factor(&initial_node_mod_db, "EffectOfBonusesFromBoots") - 1.0).abs()
+                > f64::EPSILON
         } {
-            let inc = env.player.mod_db.sum(
-                ModType::Inc,
-                "EffectOfBonusesFromBoots",
-                ModFlags::NONE,
-                KeywordFlags::NONE,
-            );
-            let scale = inc / 100.0;
+            let scale =
+                calc_inc_more_factor(&initial_node_mod_db, "EffectOfBonusesFromBoots") - 1.0;
             for m in &src_list {
                 env.player.mod_db.add(m.clone());
                 let scaled = scale_mod_value(m.clone(), scale);
@@ -4661,7 +5545,7 @@ fn add_item_mods(build: &Build, env: &mut CalcEnv) {
                 // item_resolver already set armour_data from base type max values × quality.
                 // Now apply LOCAL flat (+X) and LOCAL INC (% increased) mods from the item text.
                 let adjusted_ad =
-                    apply_local_armour_mods(ad, &local_defence_mods, item.quality as f64);
+                    apply_local_armour_mods(ad, &local_defence_mods, resolved_item.quality as f64);
                 if adjusted_ad.armour > 0.0
                     || adjusted_ad.evasion > 0.0
                     || adjusted_ad.energy_shield > 0.0
@@ -4953,7 +5837,9 @@ fn add_jewel_mods(build: &Build, env: &mut CalcEnv) {
     // CorruptedRareJewelEffect multipliers on the player modDB.
     // This must happen before the second pass so corrupted jewels can use them.
     // Mirrors CalcSetup.lua lines 730–737 (inside the jewel socket block: slot.nodeId).
-    for (slot_name, &item_id) in &item_set.slots {
+    for slot_entry in item_set_slots_in_order(item_set) {
+        let slot_name = &slot_entry.name;
+        let item_id = slot_entry.item_id;
         // Only process jewel slots
         let slot = match ItemSlot::from_str(slot_name) {
             Some(s) => s,
@@ -4998,7 +5884,9 @@ fn add_jewel_mods(build: &Build, env: &mut CalcEnv) {
     // Second pass: add jewel mods to player modDB.
     // For corrupted jewels after The Adorned has set the multipliers, scale mods.
     // Mirrors CalcSetup.lua lines 1098–1104 (inside the item slot loop).
-    for (slot_name, &item_id) in &item_set.slots {
+    for slot_entry in item_set_slots_in_order(item_set) {
+        let slot_name = &slot_entry.name;
+        let item_id = slot_entry.item_id;
         let slot = match ItemSlot::from_str(slot_name) {
             Some(s) => s,
             None => continue,
@@ -5034,12 +5922,7 @@ fn add_jewel_mods(build: &Build, env: &mut CalcEnv) {
             .copied()
             .unwrap_or(0.0);
 
-        // Scale only if: the multiplier exists AND jewel is corrupted.
-        // In Lua: also checks slot.nodeId (is a real jewel socket) and
-        // not containJewelSocket (is not a cluster jewel sub-socket) and
-        // base.subType ~= "Charm".
-        // We simplify: apply scale if adorned_scale > 0 AND corrupted.
-        // For non-cluster tree jewel sockets this is correct.
+        // Scale only if the multiplier exists and the jewel is corrupted.
         let scale = if adorned_scale != 0.0 && item.corrupted {
             // scale = 1 + adorned_scale (default scale=1 + the multiplier)
             1.0 + adorned_scale
@@ -5161,34 +6044,43 @@ fn add_jewel_mods(build: &Build, env: &mut CalcEnv) {
         // item.limit comes from item base data; we parse it from the "Limited to: N" item line.
         // limitKey = item.title (the unique name, e.g. "Watcher's Eye") for non-timeless jewels.
         // For timeless jewels (base.subType == "Timeless"), limitKey = "Historic".
-        // We approximate timeless detection via the item's name (timeless jewels have their
-        // conqueror name in the item name: "Glorious Vanity", "Lethal Pride", etc.).
+        // Timeless detection is keyed by timeless unique names.
         // In practice, this only matters for builds that somehow socket the same unique multiple times.
         if let Some(limit) = item.limit {
-            // Derive the limitKey: for timeless jewels, use "Historic"; for others, use item name.
-            // Timeless jewels: Glorious Vanity, Lethal Pride, Brutal Restraint, Militant Faith,
-            // Elegant Hubris — their item_type is "Jewel" and they are Unique with a timeless base.
-            // We detect timeless by base_type substring (all timeless jewel bases contain "Jewel"
-            // but so do all jewels). Use item name matching instead.
-            let is_timeless = matches!(
-                item.name.as_str(),
-                "Glorious Vanity"
-                    | "Lethal Pride"
-                    | "Brutal Restraint"
-                    | "Militant Faith"
-                    | "Elegant Hubris"
-            );
-            let limit_key = if is_timeless {
-                "Historic".to_string()
+            if build
+                .config
+                .booleans
+                .get("ignoreJewelLimits")
+                .copied()
+                .unwrap_or(false)
+            {
+                // skip limit enforcement
             } else {
-                item.name.clone()
-            };
-            let count = jewel_limits.entry(limit_key).or_insert(0);
-            if *count >= limit {
-                // Limit reached — skip this socket.
-                continue;
+                // Derive the limitKey: for timeless jewels, use "Historic"; for others, use item name.
+                // Timeless jewels: Glorious Vanity, Lethal Pride, Brutal Restraint, Militant Faith,
+                // Elegant Hubris — their item_type is "Jewel" and they are Unique with a timeless base.
+                // We detect timeless by base_type substring (all timeless jewel bases contain "Jewel"
+                // but so do all jewels). Use item name matching instead.
+                let is_timeless = matches!(
+                    item.name.as_str(),
+                    "Glorious Vanity"
+                        | "Lethal Pride"
+                        | "Brutal Restraint"
+                        | "Militant Faith"
+                        | "Elegant Hubris"
+                );
+                let limit_key = if is_timeless {
+                    "Historic".to_string()
+                } else {
+                    item.name.clone()
+                };
+                let count = jewel_limits.entry(limit_key).or_insert(0);
+                if *count >= limit {
+                    // Limit reached — skip this socket.
+                    continue;
+                }
+                *count += 1;
             }
-            *count += 1;
         }
 
         // 4. Charm subtype exclusion.
@@ -5224,11 +6116,25 @@ fn add_jewel_mods(build: &Build, env: &mut CalcEnv) {
 
         // scale = 1 by default; increase if Adorned multiplier applies.
         // Condition: adorned_scale != 0.0 AND corrupted AND in a real tree socket (not cluster sub).
-        let scale = if adorned_scale != 0.0 && item.corrupted && !is_cluster_sub_socket {
+        let mut scale = if adorned_scale != 0.0 && item.corrupted && !is_cluster_sub_socket {
             1.0 + adorned_scale
         } else {
             1.0
         };
+
+        // Split Personality style socket scaling from class start distance.
+        let class_start_inc = jewel_inc_effect_from_class_start(item);
+        if class_start_inc != 0.0 {
+            if let Some(distance) = tree
+                .nodes
+                .get(&socket_node_id)
+                .and_then(|n| n.distance_to_class_start)
+            {
+                if distance > 0 {
+                    scale += (distance as f64) * (class_start_inc / 100.0);
+                }
+            }
+        }
 
         let source = ModSource::new(
             "Item",
@@ -5277,13 +6183,18 @@ fn add_flask_mods(build: &Build, env: &mut CalcEnv) {
         None => return,
     };
 
-    for (slot_name, &item_id) in &item_set.slots {
+    for slot_entry in item_set_slots_in_order(item_set) {
+        let slot_name = &slot_entry.name;
+        let item_id = slot_entry.item_id;
         let slot = match ItemSlot::from_str(slot_name) {
             Some(s) => s,
             None => continue,
         };
 
         if !slot.is_flask() {
+            continue;
+        }
+        if !slot_entry.active {
             continue;
         }
 

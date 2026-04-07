@@ -21,6 +21,7 @@ pub fn parse_xml(xml: &str) -> Result<Build, ParseError> {
     let mut passive_spec = PassiveSpec::default();
     let mut active_skill_set: usize = 0;
     let mut active_item_set: usize = 0;
+    let mut items_use_second_weapon_set = false;
     let mut main_socket_group: usize;
 
     // Parser state
@@ -293,6 +294,10 @@ pub fn parse_xml(xml: &str) -> Result<Build, ParseError> {
                             .and_then(|v| v.parse::<usize>().ok())
                             .map(|v| v.saturating_sub(1))
                             .unwrap_or(0);
+                        items_use_second_weapon_set = attrs
+                            .get("useSecondWeaponSet")
+                            .map(|v| v == "true")
+                            .unwrap_or(false);
                     }
                     "Item" => {
                         if let Some(id) = attrs.get("id").and_then(|v| v.parse::<u32>().ok()) {
@@ -302,9 +307,15 @@ pub fn parse_xml(xml: &str) -> Result<Build, ParseError> {
                     }
                     "ItemSet" => {
                         let id = attrs.get("id").and_then(|v| v.parse().ok()).unwrap_or(1);
+                        let use_second_weapon_set = attrs
+                            .get("useSecondWeaponSet")
+                            .map(|v| v == "true")
+                            .unwrap_or(items_use_second_weapon_set);
                         current_item_set = Some(ItemSet {
                             id,
                             slots: HashMap::new(),
+                            use_second_weapon_set,
+                            ordered_slots: Vec::new(),
                         });
                     }
                     "Slot" => {
@@ -313,7 +324,17 @@ pub fn parse_xml(xml: &str) -> Result<Build, ParseError> {
                                 (attrs.get("name"), attrs.get("itemId"))
                             {
                                 if let Ok(id) = item_id.parse::<u32>() {
+                                    let active =
+                                        attrs.get("active").map(|v| v == "true").unwrap_or(true);
+                                    let node_id =
+                                        attrs.get("nodeId").and_then(|v| v.parse::<u32>().ok());
                                     iset.slots.insert(name.clone(), id);
+                                    iset.ordered_slots.push(ItemSetSlot {
+                                        name: name.clone(),
+                                        item_id: id,
+                                        active,
+                                        node_id,
+                                    });
                                 }
                             }
                         }

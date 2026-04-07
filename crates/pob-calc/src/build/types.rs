@@ -587,8 +587,20 @@ pub struct SupportEffect {
 #[derive(Debug, Clone, Default)]
 pub struct ItemSet {
     pub id: u32,
+    /// Mirrors `activeItemSet.useSecondWeaponSet` in Lua.
+    pub use_second_weapon_set: bool,
     /// Map of slot name → item id
     pub slots: HashMap<String, u32>,
+    /// XML order-preserving slot entries, including `active` state.
+    pub ordered_slots: Vec<ItemSetSlot>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct ItemSetSlot {
+    pub name: String,
+    pub item_id: u32,
+    pub active: bool,
+    pub node_id: Option<u32>,
 }
 
 #[derive(Debug, Clone, Default)]

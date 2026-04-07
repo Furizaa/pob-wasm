@@ -85,6 +85,12 @@ struct RawNode {
     /// Populated from `mastery_effects` field in the tree JSON (if present).
     #[serde(default)]
     mastery_effects: Vec<u32>,
+    #[serde(
+        default,
+        alias = "distanceToClassStart",
+        alias = "distance_to_class_start"
+    )]
+    distance_to_class_start: Option<u32>,
 }
 
 impl RawNode {
@@ -141,6 +147,8 @@ pub struct PassiveNode {
     /// Populated from tree JSON `mastery_effects` field.
     /// Empty for non-mastery nodes.
     pub mastery_effect_ids: Vec<u32>,
+    /// Optional precomputed distance from class start.
+    pub distance_to_class_start: Option<u32>,
 }
 
 /// Per-class base attributes from the passive tree data.
@@ -242,6 +250,7 @@ impl PassiveTree {
                     y: raw.y,
                     nodes_in_radius,
                     mastery_effect_ids: raw.mastery_effects,
+                    distance_to_class_start: raw.distance_to_class_start,
                 };
                 (raw.id, node)
             })

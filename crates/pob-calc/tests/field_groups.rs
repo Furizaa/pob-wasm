@@ -15,6 +15,10 @@ pub fn fields_for_chunk(chunk: &str) -> Option<&'static [&'static str]> {
         // SETUP-01 through SETUP-04 don't produce output fields directly.
         // They populate the ModDb which downstream chunks query.
 
+        // SETUP-01: Item mod parsing and slot assignment scaffold used by all
+        // downstream setup/perf/def/off chunks. No direct output fields.
+        "SETUP-01" => &[],
+
         // SETUP-02: Active skill construction pipeline. Builds active_skill_list
         // from socket groups: creates active skills, matches supports, applies
         // addSkillTypes, builds skillModList. BLOCKER for PERF-04 (reservation),
@@ -579,6 +583,7 @@ pub fn fields_for_chunk(chunk: &str) -> Option<&'static [&'static str]> {
 /// Returns all known chunk IDs in dependency order.
 pub fn all_chunk_ids() -> &'static [&'static str] {
     &[
+        "SETUP-01",
         "SETUP-02-active-skills",
         "SETUP-05-cluster-jewels",
         "SETUP-06-timeless-jewels",

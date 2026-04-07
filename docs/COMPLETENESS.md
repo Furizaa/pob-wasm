@@ -107,6 +107,53 @@ This file is the single source of truth for migration completeness.
 
 ## Active Chunk Ledger
 
+### SETUP-01
+
+- Status: IN_PROGRESS
+- Dependencies: none (Tier-0 setup chunk)
+- Lua scope: `third-party/PathOfBuilding/src/Modules/CalcSetup.lua` lines 679-1131
+- Rust scope: `crates/pob-calc/src/calc/setup.rs` (+ supporting types/env/xml parser)
+- Oracle fields: none (indirect setup chunk)
+
+#### Gate 1: Lua branch parity
+
+- [ ] Every if/elseif/else branch in SETUP-01 mapped
+- [ ] Every relevant state write/mutation mapped
+- Evidence:
+  - Implemented: ordered slot staging, disabler chains, weapon swap gating/normalization, flask/tincture activation, effective item map, tree-jewel radius pass, grants/explode tracking
+  - `override.extraJewelFuncs` now uses per-item extraction and separate base-vs-extra radius dispatch
+  - Latest focused independent re-review for this blocker: PASS
+
+#### Gate 2: Architecture parity
+
+- [ ] Uses same data source semantics as Lua
+- [ ] No shortcut algorithm replacing Lua semantics
+- Evidence:
+  - Ordered slot and pre-merge disabler architecture is now mirrored
+  - Effective item map semantics are implemented
+  - Focused re-review: PASS for `extraJewelFuncs` scoping and radius dispatch split
+
+#### Gate 3: Chunk oracle
+
+- [ ] 30/30 builds pass for chunk harness
+- Evidence:
+  - `SETUP-01` is now registered in `crates/pob-calc/tests/field_groups.rs`
+  - Command: `CHUNK=SETUP-01 DATA_DIR=./data cargo test --test chunk_oracle -- --nocapture`
+  - Current harness behavior: recognized chunk with no field list yet (placeholder skip)
+
+#### Gate 4: Regression
+
+- [x] Workspace tests pass
+- Evidence:
+  - Command: `cargo test --workspace --exclude pob-wasm`
+  - Result: pass (all tests green)
+
+#### Gate 5: Independent review verdict
+
+- [x] PASS
+- Evidence:
+  - Latest focused independent review: PASS (`extraJewelFuncs` per-item semantics + radius dispatch)
+
 ### OFF-01-base-damage
 
 - Status: IN_PROGRESS

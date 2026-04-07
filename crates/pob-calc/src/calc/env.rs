@@ -1,3 +1,4 @@
+use crate::build::types::Item;
 use crate::build::types::ItemArmourData;
 use crate::data::GameData;
 use crate::mod_db::types::Mod;
@@ -145,6 +146,29 @@ pub struct Actor {
     /// These base values are **not** added to mod_db as global BASE mods —
     /// instead defence.rs iterates this list and applies per-slot INC/MORE.
     pub gear_slot_armour: Vec<(String, ItemArmourData)>,
+
+    /// Effective equipped items by slot after setup item-stage filtering.
+    /// Mirrors `env.player.itemList` in Lua.
+    pub item_list: HashMap<String, Item>,
+
+    /// Active flask slot indices (1..=5) from the current item set.
+    pub active_flask_slots: HashSet<u32>,
+
+    /// Active tincture slot indices (1..=5) from the current item set.
+    pub active_tincture_slots: HashSet<u32>,
+
+    /// Equipped flask item name -> flask slot index.
+    pub flask_slot_map: HashMap<String, u32>,
+
+    /// Occupied flask slot indices.
+    pub flask_slot_occupied: HashSet<u32>,
+
+    /// Skills granted directly by equipped items during setup.
+    /// Tuple: (skill_id, slot_name).
+    pub granted_skills_items: Vec<(String, String)>,
+
+    /// Item names that grant CanExplode.
+    pub explode_sources: Vec<String>,
 }
 
 impl Actor {
@@ -181,6 +205,13 @@ impl Actor {
                 [0.0, 0.0, 0.0, 0.0, 100.0],
             ],
             gear_slot_armour: Vec::new(),
+            item_list: HashMap::new(),
+            active_flask_slots: HashSet::new(),
+            active_tincture_slots: HashSet::new(),
+            flask_slot_map: HashMap::new(),
+            flask_slot_occupied: HashSet::new(),
+            granted_skills_items: Vec::new(),
+            explode_sources: Vec::new(),
         }
     }
 
